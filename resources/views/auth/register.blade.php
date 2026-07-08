@@ -17,22 +17,19 @@
 
 <body class="font-sans antialiased">
     <!-- Full screen background with overlay -->
-    <div class="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center"
-         style="background-image: url('{{ asset('images/municipal-office.jpg') }}');">
+    <div class="relative min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center"
+         style="background-image: url('{{ asset('images/healthlink_bg.jpg') }}');">
         
-        <!-- Dark overlay -->
-        <div class="absolute inset-0 bg-black/60"></div>
+        <!-- Gradient Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#003f7f]/30 to-[#003f7f]/90"></div>
 
         <!-- Register Modal -->
         <div class="relative z-10 w-full max-w-md px-6">
             <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
-                <!-- Header -->
+                <!-- Header with Dynamic Logo -->
                 <div class="px-8 pt-8 pb-6 text-center border-b border-gray-100">
                     <div class="flex items-center justify-center space-x-2 mb-2">
-                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"/>
-                        </svg>
-                        <span class="text-2xl font-bold text-gray-900">HealthLink</span>
+                        <x-logo size="md" />
                     </div>
                     <p class="text-sm text-gray-500">Create your account</p>
                 </div>

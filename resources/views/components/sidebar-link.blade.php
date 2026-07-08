@@ -19,10 +19,10 @@
 @endphp
 
 <a href="{{ $href }}" 
-   class="flex items-center px-3 py-2 mt-1 text-sm font-medium rounded-md transition-colors duration-150 
+   class="flex items-center px-4 py-2.5 mt-1 text-sm font-medium rounded-lg shadow-sm transition-all duration-150 
           {{ $active 
-              ? 'text-blue-700 bg-blue-50' 
-              : 'text-gray-700 hover:text-blue-700 hover:bg-blue-50' }}">
+              ? 'text-tubigon bg-white border border-gray-100 font-semibold' 
+              : 'text-gray-600 hover:text-tubigon hover:bg-white/60' }}">
     <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         {!! $iconHtml !!}
     </svg>

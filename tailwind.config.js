@@ -14,6 +14,14 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            // Add Tubigon colors right here!
+            colors: {
+                tubigon: {
+                    DEFAULT: '#003f7f',
+                    hover: '#002d5c',
+                    light: '#f0f5fa',
+                }
+            }
         },
     },
 

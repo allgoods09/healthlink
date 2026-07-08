@@ -21,8 +21,12 @@ use Illuminate\Support\Facades\Route;
 
 // Redirect root to login
 Route::get('/', function () {
-    return redirect()->route('login');
+    return view('welcome');
 });
+
+Route::get('/dashboard', function () {
+    return redirect()->route('admin.dashboard');
+})->middleware(['auth', 'active'])->name('dashboard');
 
 // =============================================
 // AUTHENTICATION ROUTES (Breeze handles these)

@@ -35,6 +35,7 @@ return new class extends Migration
             
             // Operational status tracker for local management
             $table->boolean('is_active')->default(true);
+            $table->timestamp('last_activity')->nullable()->default(now());
             
             $table->rememberToken();
             $table->timestamps();
