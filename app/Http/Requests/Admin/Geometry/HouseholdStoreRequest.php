@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Geometry;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 
@@ -56,9 +57,19 @@ class HouseholdStoreRequest extends FormRequest
                 })
             ],
             'household_address' => ['required', 'string'],
+            'head_resident_id' => ['nullable'],
             'is_social_aid_beneficiary' => ['boolean'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            if ($this->filled('head_resident_id')) {
+                $validator->errors()->add('head_resident_id', 'Select a household head after the household has residents.');
+            }
+        });
     }
 
     /**

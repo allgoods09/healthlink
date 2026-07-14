@@ -25,7 +25,19 @@ class PurokPolicy
      */
     public function view(User $user, Purok $purok): bool
     {
-        return true;
+        if (in_array($user->role, ['admin', 'mho', 'phn'])) {
+            return true;
+        }
+
+        if (in_array($user->role, ['secretary', 'bns'])) {
+            return (int) $purok->barangay_id === (int) $user->assigned_barangay_id;
+        }
+
+        if ($user->role === 'bhw') {
+            return (int) $purok->id === (int) $user->assigned_purok_id;
+        }
+
+        return false;
     }
 
     /**
@@ -34,7 +46,7 @@ class PurokPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'admin';
+        return in_array($user->role, ['admin', 'secretary']);
     }
 
     /**
@@ -43,7 +55,12 @@ class PurokPolicy
      */
     public function update(User $user, Purok $purok): bool
     {
-        return $user->role === 'admin';
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        return $user->role === 'secretary'
+            && (int) $purok->barangay_id === (int) $user->assigned_barangay_id;
     }
 
     /**
@@ -79,6 +96,11 @@ class PurokPolicy
      */
     public function toggleStatus(User $user, Purok $purok): bool
     {
-        return $user->role === 'admin';
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        return $user->role === 'secretary'
+            && (int) $purok->barangay_id === (int) $user->assigned_barangay_id;
     }
 }

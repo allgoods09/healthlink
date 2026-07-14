@@ -1,10 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\Admin\Devices;
+namespace App\Http\Controllers\Admin\Security;
 
 use App\Http\Controllers\Controller;
 use App\Models\SyncLog;
 use App\Models\User;
+use App\Support\ExportAudit;
+use App\Support\TabularExport;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
@@ -18,36 +21,8 @@ class SyncLogController extends Controller
     {
         Gate::authorize('viewAny', SyncLog::class);
 
-        $query = SyncLog::query()->with('user');
-
-        // Filter by user
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by date range
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-
-        // Search
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('device_name', 'LIKE', "%{$search}%")
-                  ->orWhere('error_message', 'LIKE', "%{$search}%");
-            });
-        }
-
-        $logs = $query->latest()
+        $logs = $this->filteredQuery($request)
+                      ->latest()
                       ->paginate(25)
                       ->withQueryString();
 
@@ -115,69 +90,56 @@ class SyncLogController extends Controller
     {
         Gate::authorize('viewAny', SyncLog::class);
 
-        $query = SyncLog::query()->with('user');
+        $logs = $this->filteredQuery($request)->latest()->get();
 
-        // Apply filters
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
+        $columns = [
+            'ID' => 'id',
+            'BHW' => fn (SyncLog $log) => $log->user?->name ?? 'Unknown',
+            'Device' => fn (SyncLog $log) => $log->device_name ?? 'Unknown',
+            'Records Synced' => 'records_synced',
+            'Payload Size' => fn (SyncLog $log) => $log->formatted_payload_size,
+            'Duration' => fn (SyncLog $log) => $log->formatted_duration,
+            'Status' => fn (SyncLog $log) => ucfirst($log->status),
+            'Error' => fn (SyncLog $log) => $log->error_message ?: 'N/A',
+            'Timestamp' => fn (SyncLog $log) => $log->created_at?->format('Y-m-d H:i:s'),
+        ];
 
-        $logs = $query->latest()->get();
+        $filters = [
+            'Search' => $request->string('search')->toString(),
+            'BHW' => User::find($request->integer('user_id'))?->name,
+            'Status' => $request->filled('status') ? ucfirst($request->status) : null,
+            'Date From' => $request->date_from,
+            'Date To' => $request->date_to,
+        ];
 
-        // Generate CSV
-        $filename = 'sync_logs_' . now()->format('Y-m-d_His') . '.csv';
-        $handle = fopen('php://temp', 'w+');
+        $timestamp = now()->format('Y-m-d_His');
+        $format = $request->string('format', 'csv')->toString();
 
-        // Headers
-        fputcsv($handle, [
-            'ID',
-            'User',
-            'Device',
-            'Records Synced',
-            'Payload Size',
-            'Duration',
-            'Status',
-            'Timestamp'
+        ExportAudit::log('sync logs', $format, [
+            'model_type' => SyncLog::class,
+            'record_count' => $logs->count(),
+            'filters' => array_filter($filters),
         ]);
 
-        // Data
-        foreach ($logs as $log) {
-            fputcsv($handle, [
-                $log->id,
-                $log->user?->name ?? 'Unknown',
-                $log->device_name ?? 'Unknown',
-                $log->records_synced,
-                $log->formatted_payload_size,
-                $log->formatted_duration,
-                $log->status,
-                $log->created_at->format('Y-m-d H:i:s')
-            ]);
-        }
-
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return response($csv, 200)
-            ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', "attachment; filename={$filename}");
+        return match ($format) {
+            'csv' => TabularExport::csv("sync_logs_{$timestamp}.csv", $columns, $logs),
+            'xlsx' => TabularExport::xlsx("sync_logs_{$timestamp}.xlsx", 'Sync Logs', $columns, $logs),
+            'pdf' => TabularExport::pdf("sync_logs_{$timestamp}.pdf", 'Synchronization Report', $columns, $logs, $filters),
+            default => abort(404),
+        };
     }
 
     /**
      * Clear old sync logs (older than 30 days).
      */
-    public function clearOld()
+    public function clearOld(Request $request)
     {
         Gate::authorize('viewAny', SyncLog::class);
+
+        $validated = $request->validate([
+            'confirmation_phrase' => ['required', 'in:CLEAR'],
+            'action_reason' => ['required', 'string', 'max:500'],
+        ]);
 
         $cutoffDate = now()->subDays(30);
         $deletedCount = SyncLog::where('created_at', '<', $cutoffDate)->delete();
@@ -188,6 +150,12 @@ class SyncLogController extends Controller
             'event_type' => 'deleted',
             'event_description' => "Cleared {$deletedCount} old sync logs older than 30 days",
             'model_type' => SyncLog::class,
+            'metadata' => [
+                'confirmation_phrase' => $validated['confirmation_phrase'],
+                'action_reason' => $validated['action_reason'],
+                'cutoff_date' => $cutoffDate->toDateString(),
+                'deleted_count' => $deletedCount,
+            ],
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
         ]);
@@ -195,5 +163,39 @@ class SyncLogController extends Controller
         return redirect()
             ->back()
             ->with('success', "Cleared {$deletedCount} sync logs older than 30 days.");
+    }
+
+    /**
+     * Build the filtered sync log query.
+     */
+    private function filteredQuery(Request $request): Builder
+    {
+        $query = SyncLog::query()->with('user');
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder->where('device_name', 'LIKE', "%{$search}%")
+                    ->orWhere('error_message', 'LIKE', "%{$search}%");
+            });
+        }
+
+        return $query;
     }
 }

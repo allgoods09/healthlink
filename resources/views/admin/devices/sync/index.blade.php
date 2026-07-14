@@ -1,23 +1,34 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
-@section('title', 'Sync Logs - HealthLink Admin')
-@section('header', 'Data Synchronization Logs')
+@section('title', $pageTitle ?? 'Sync Logs - HealthLink Admin')
+@section('header', $pageHeader ?? 'Data Synchronization Logs')
+
+@php
+    $routePrefix = $routePrefix ?? 'admin';
+@endphp
 
 @section('actions')
-    <div class="flex items-center space-x-2">
-        <a href="{{ route('admin.sync-logs.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Export CSV
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="{{ route($routePrefix.'.sync-logs.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            CSV
         </a>
-        <form action="{{ route('admin.sync-logs.clear-old') }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete all sync logs older than 30 days?')">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
-                Clear Old Logs
-            </button>
-        </form>
+        <a href="{{ route($routePrefix.'.sync-logs.export', array_merge(request()->query(), ['format' => 'xlsx'])) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+            Excel
+        </a>
+        <a href="{{ route($routePrefix.'.sync-logs.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
+            PDF
+        </a>
+        @if($canClearOld ?? true)
+            <x-destructive-confirm-modal
+                :action="route($routePrefix.'.sync-logs.clear-old')"
+                method="DELETE"
+                title="Clear Old Sync Logs"
+                description="This will remove mobile synchronization logs older than 30 days from the municipal review console."
+                trigger-label="Clear Old Logs"
+                confirmation-word="CLEAR"
+                submit-label="Clear Logs"
+            />
+        @endif
     </div>
 @endsection
 
@@ -25,7 +36,7 @@
     <!-- Filters -->
     <div class="mb-6 bg-white rounded-lg shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route('admin.sync-logs.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <form method="GET" action="{{ route($routePrefix.'.sync-logs.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
                 <!-- Search -->
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
@@ -46,6 +57,20 @@
                         @endforeach
                     </select>
                 </div>
+
+                @if(isset($puroks))
+                    <div>
+                        <label for="purok_id" class="block text-sm font-medium text-gray-700">Purok</label>
+                        <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <option value="">All Puroks</option>
+                            @foreach($puroks as $purok)
+                                <option value="{{ $purok->id }}" {{ (string) request('purok_id') === (string) $purok->id ? 'selected' : '' }}>
+                                    {{ $purok->display_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
 
                 <!-- Status -->
                 <div>
@@ -77,7 +102,7 @@
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
                         Apply Filters
                     </button>
-                    <a href="{{ route('admin.sync-logs.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                    <a href="{{ route($routePrefix.'.sync-logs.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
                         Reset
                     </a>
                 </div>
@@ -132,7 +157,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="{{ route('admin.sync-logs.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
+                                <a href="{{ route($routePrefix.'.sync-logs.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
                             </td>
                         </tr>
                     @empty

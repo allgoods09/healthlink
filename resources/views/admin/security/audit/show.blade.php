@@ -1,10 +1,14 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
-@section('title', 'Audit Log Details - HealthLink Admin')
-@section('header', 'Audit Log Details')
+@section('title', $pageTitle ?? 'Audit Log Details - HealthLink Admin')
+@section('header', $pageHeader ?? 'Audit Log Details')
+
+@php
+    $routePrefix = $routePrefix ?? 'admin.audit';
+@endphp
 
 @section('actions')
-    <a href="{{ route('admin.audit.index', request()->query()) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+    <a href="{{ route($routePrefix.'.index', request()->query()) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>

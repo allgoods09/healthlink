@@ -16,6 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'dynamic-throttle' => \App\Http\Middleware\DynamicRateLimit::class,
+            'mobile-token' => \App\Http\Middleware\EnsureMobileToken::class,
+            'no-cache' => \App\Http\Middleware\PreventBrowserHistoryCache::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

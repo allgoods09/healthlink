@@ -13,7 +13,7 @@ class PurokStoreRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return Auth::user()->role === 'admin';
+        return in_array(Auth::user()->role, ['admin', 'secretary']);
     }
 
     /**
@@ -36,6 +36,17 @@ class PurokStoreRequest extends FormRequest
             'purok_name' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            $user = Auth::user();
+
+            if ($user->role === 'secretary' && (int) $this->input('barangay_id') !== (int) $user->assigned_barangay_id) {
+                $validator->errors()->add('barangay_id', 'You can only manage puroks in your assigned barangay.');
+            }
+        });
     }
 
     /**

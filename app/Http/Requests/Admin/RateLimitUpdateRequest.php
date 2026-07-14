@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 
 class RateLimitUpdateRequest extends FormRequest
@@ -28,6 +27,8 @@ class RateLimitUpdateRequest extends FormRequest
             'rate_limit_decay_minutes' => ['required', 'integer', 'min:1', 'max:60'],
             'sync_batch_size' => ['required', 'integer', 'min:10', 'max:500'],
             'backup_retention_days' => ['required', 'integer', 'min:1', 'max:365'],
+            'api_rate_limit_global' => ['required', 'integer', 'min:1', 'max:5000'],
+            'api_rate_limit_auth' => ['required', 'integer', 'min:1', 'max:100'],
         ];
     }
 
@@ -45,6 +46,10 @@ class RateLimitUpdateRequest extends FormRequest
             'sync_batch_size.min' => 'Sync batch size must be at least 10.',
             'backup_retention_days.required' => 'Backup retention days is required.',
             'backup_retention_days.min' => 'Backup retention days must be at least 1.',
+            'api_rate_limit_global.required' => 'Mobile API rate limit is required.',
+            'api_rate_limit_global.min' => 'Mobile API rate limit must be at least 1.',
+            'api_rate_limit_auth.required' => 'Authentication rate limit is required.',
+            'api_rate_limit_auth.min' => 'Authentication rate limit must be at least 1.',
         ];
     }
 }

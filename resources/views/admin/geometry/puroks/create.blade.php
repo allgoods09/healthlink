@@ -1,10 +1,14 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
-@section('title', 'Create Purok - HealthLink Admin')
-@section('header', 'Create New Purok')
+@section('title', $pageTitle ?? 'Create Purok - HealthLink Admin')
+@section('header', $pageHeader ?? 'Create New Purok')
+
+@php
+    $routePrefix = $routePrefix ?? 'admin';
+@endphp
 
 @section('actions')
-    <a href="{{ route('admin.puroks.index') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+    <a href="{{ route($routePrefix.'.puroks.index') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
@@ -15,7 +19,7 @@
 @section('content')
     <div class="bg-white rounded-lg shadow">
         <div class="p-6">
-            <form method="POST" action="{{ route('admin.puroks.store') }}">
+            <form method="POST" action="{{ route($routePrefix.'.puroks.store') }}">
                 @csrf
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">

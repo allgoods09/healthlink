@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Backup extends Model
 {
@@ -166,15 +167,16 @@ class Backup extends Model
      */
     public function getStatusBadgeAttribute(): string
     {
-        $badges = [
-            'pending' => 'warning',
-            'in_progress' => 'info',
-            'completed' => 'success',
-            'failed' => 'danger',
+        $classes = [
+            'pending' => 'bg-amber-100 text-amber-800',
+            'in_progress' => 'bg-sky-100 text-sky-800',
+            'completed' => 'bg-emerald-100 text-emerald-800',
+            'failed' => 'bg-rose-100 text-rose-800',
         ];
-        
-        $color = $badges[$this->status] ?? 'secondary';
-        return "<span class='badge badge-{$color}'>{$this->status}</span>";
+
+        $class = $classes[$this->status] ?? 'bg-gray-100 text-gray-800';
+
+        return "<span class='inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {$class}'>".strtoupper(str_replace('_', ' ', $this->status)).'</span>';
     }
 
     /**
@@ -183,5 +185,107 @@ class Backup extends Model
     public function getIsExpiredAttribute(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    /**
+     * Resolve a metadata value safely.
+     */
+    public function metadataValue(string $key, mixed $default = null): mixed
+    {
+        return data_get($this->metadata ?? [], $key, $default);
+    }
+
+    /**
+     * Get the absolute local filesystem path for the backup.
+     */
+    public function getAbsolutePathAttribute(): string
+    {
+        return storage_path('app/'.$this->file_path);
+    }
+
+    /**
+     * Check whether the backup file currently exists.
+     */
+    public function getHasStoredFileAttribute(): bool
+    {
+        return is_file($this->absolute_path);
+    }
+
+    /**
+     * Get the current integrity status from metadata.
+     */
+    public function getIntegrityStatusAttribute(): string
+    {
+        return (string) $this->metadataValue('integrity_status', 'unverified');
+    }
+
+    /**
+     * Get the last integrity check timestamp.
+     */
+    public function getLastVerifiedAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        $value = $this->metadataValue('integrity_checked_at');
+
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    /**
+     * Get the checksum stored for the backup.
+     */
+    public function getChecksumSha256Attribute(): ?string
+    {
+        return $this->metadataValue('checksum_sha256');
+    }
+
+    /**
+     * Get the total successful restore count.
+     */
+    public function getRestoreCountAttribute(): int
+    {
+        return (int) $this->metadataValue('restore_count', 0);
+    }
+
+    /**
+     * Get the timestamp of the last successful restore.
+     */
+    public function getLastRestoredAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        $value = $this->metadataValue('last_restored_at');
+
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    /**
+     * Get the integrity badge HTML.
+     */
+    public function getIntegrityBadgeAttribute(): string
+    {
+        $classes = [
+            'verified' => 'bg-emerald-100 text-emerald-800',
+            'unverified' => 'bg-gray-100 text-gray-800',
+            'missing' => 'bg-rose-100 text-rose-800',
+            'empty' => 'bg-amber-100 text-amber-800',
+            'mismatch' => 'bg-rose-100 text-rose-800',
+        ];
+
+        $class = $classes[$this->integrity_status] ?? 'bg-gray-100 text-gray-800';
+
+        return "<span class='inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {$class}'>".strtoupper($this->integrity_status).'</span>';
+    }
+
+    /**
+     * Check whether the backup is eligible for integrity verification.
+     */
+    public function getIsVerifiableAttribute(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    /**
+     * Check whether the backup is eligible for restore.
+     */
+    public function getIsRestorableAttribute(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED && $this->has_stored_file;
     }
 }

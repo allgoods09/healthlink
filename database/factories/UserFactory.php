@@ -12,6 +12,18 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
+    private const MALE_NAMES = [
+        'Rodel', 'Junrey', 'Nestor', 'Vicente', 'Danilo', 'Joel', 'Ramil', 'Crisanto',
+    ];
+
+    private const FEMALE_NAMES = [
+        'Rosalina', 'Nenita', 'Maricel', 'Analyn', 'Jocelyn', 'Merlita', 'Vilma', 'Gemma',
+    ];
+
+    private const LAST_NAMES = [
+        'Caballes', 'Lepiten', 'Bantilan', 'Labrador', 'Polinar', 'Maboloc', 'Asoy', 'Lumain',
+    ];
+
     /**
      * The current password being used by the factory.
      */
@@ -24,11 +36,20 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $sex = fake()->randomElement(['Male', 'Female']);
+        $firstNamePool = $sex === 'Female' ? self::FEMALE_NAMES : self::MALE_NAMES;
+        $firstName = fake()->randomElement($firstNamePool);
+        $lastName = fake()->randomElement(self::LAST_NAMES);
+        $emailHandle = Str::slug($firstName.'.'.$lastName.'.'.fake()->unique()->numberBetween(100, 999));
+
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
+            'name' => $firstName.' '.$lastName,
+            'email' => $emailHandle.'@healthlink.test',
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'approval_status' => User::APPROVAL_APPROVED,
+            'registered_via' => 'admin',
+            'is_active' => true,
             'remember_token' => Str::random(10),
         ];
     }

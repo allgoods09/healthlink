@@ -1,26 +1,34 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
-@section('title', 'Audit Trail - HealthLink Admin')
-@section('header', 'Audit Trail')
+@section('title', $pageTitle ?? 'Audit Trail - HealthLink Admin')
+@section('header', $pageHeader ?? 'Audit Trail')
+
+@php
+    $routePrefix = $routePrefix ?? 'admin.audit';
+@endphp
 
 @section('actions')
-    <div class="flex items-center space-x-2">
-        <a href="{{ route('admin.audit.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Export CSV
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            CSV
         </a>
-        <form action="{{ route('admin.audit.clear-old') }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete all audit logs older than 90 days? This action cannot be undone.')">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-                Clear Old Logs
-            </button>
-        </form>
+        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'xlsx'])) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+            Excel
+        </a>
+        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
+            PDF
+        </a>
+        @if($canClearOld ?? true)
+            <x-destructive-confirm-modal
+                :action="route($routePrefix.'.clear-old')"
+                method="DELETE"
+                title="Clear Old Audit Logs"
+                description="This will remove every audit entry older than 90 days. Use it only after confirming retention requirements."
+                trigger-label="Clear Old Logs"
+                confirmation-word="CLEAR"
+                submit-label="Clear Logs"
+            />
+        @endif
     </div>
 @endsection
 
@@ -28,7 +36,7 @@
     <!-- Filters -->
     <div class="mb-6 bg-white rounded-lg shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route('admin.audit.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <form method="GET" action="{{ route($routePrefix.'.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
                 <!-- Search -->
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
@@ -82,7 +90,7 @@
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
                         Apply Filters
                     </button>
-                    <a href="{{ route('admin.audit.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                    <a href="{{ route($routePrefix.'.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
                         Reset
                     </a>
                 </div>
@@ -133,7 +141,7 @@
                                 {{ $log->ip_address ?? 'N/A' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="{{ route('admin.audit.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
+                                <a href="{{ route($routePrefix.'.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
                             </td>
                         </tr>
                     @empty

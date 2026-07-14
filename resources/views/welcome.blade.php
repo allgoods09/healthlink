@@ -10,7 +10,6 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body x-data="{ formType: 'login' }" 
       class="font-sans antialiased bg-cover bg-center bg-no-repeat bg-fixed min-h-screen selection:bg-[#003f7f] selection:text-white"
@@ -116,31 +115,19 @@
                     <div x-show="formType === 'register'" x-transition:enter="transition ease-out duration-200" class="space-y-6" x-cloak>
                         <div>
                             <h2 class="text-xl font-bold text-gray-900">Account Registration</h2>
-                            <p class="text-xs text-gray-500 mt-1">Submit your details to request system credentials.</p>
+                            <p class="text-xs text-gray-500 mt-1">Open the registration page to submit your BHW account request for approval.</p>
                         </div>
 
-                        <form method="POST" action="{{ route('register') }}" class="space-y-4">
-                            @csrf
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">Full Name</label>
-                                <input type="text" name="name" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#003f7f] focus:border-[#003f7f] transition">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">Email Address</label>
-                                <input type="email" name="email" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#003f7f] focus:border-[#003f7f] transition">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">Password</label>
-                                <input type="password" name="password" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#003f7f] focus:border-[#003f7f] transition">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">Confirm Password</label>
-                                <input type="password" name="password_confirmation" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#003f7f] focus:border-[#003f7f] transition">
-                            </div>
-                            <button type="submit" class="w-full py-3 bg-[#003f7f] hover:bg-[#002d5c] text-white font-bold rounded-lg shadow-lg transition pt-2">
-                                Submit Registration
-                            </button>
-                        </form>
+                        <div class="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                            Self-registration is available for Barangay Health Workers. The full request now includes your barangay and purok assignment and must be approved before login is allowed.
+                        </div>
+
+                        <a
+                            href="{{ route('register') }}"
+                            class="block w-full rounded-lg bg-[#003f7f] px-4 py-3 text-center font-bold text-white shadow-lg transition hover:bg-[#002d5c]"
+                        >
+                            Open Registration Form
+                        </a>
                     </div>
 
                 </div>

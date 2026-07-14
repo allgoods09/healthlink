@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Geometry\BarangayStoreRequest;
 use App\Http\Requests\Admin\Geometry\BarangayUpdateRequest;
 use App\Models\Barangay;
+use App\Support\ExportAudit;
+use App\Support\TabularExport;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
@@ -19,28 +22,59 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('viewAny', Barangay::class);
 
-        $query = Barangay::query();
-
-        // Search
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('psgc_code', 'LIKE', "%{$search}%");
-            });
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        $barangays = $query->withCount(['puroks', 'assignedUsers'])
+        $barangays = $this->filteredQuery($request)
+                           ->withCount(['puroks', 'assignedUsers'])
                            ->latest()
                            ->paginate(15)
                            ->withQueryString();
 
         return view('admin.geometry.barangays.index', compact('barangays'));
+    }
+
+    /**
+     * Export the barangay registry.
+     */
+    public function export(Request $request, string $format)
+    {
+        Gate::authorize('viewAny', Barangay::class);
+
+        $barangays = $this->filteredQuery($request)
+            ->withCount(['puroks', 'assignedUsers'])
+            ->latest()
+            ->get();
+
+        $columns = [
+            'Barangay' => 'name',
+            'PSGC Code' => 'psgc_code',
+            'Municipality' => 'municipality',
+            'Province' => 'province',
+            'Region' => 'region',
+            'Puroks' => 'puroks_count',
+            'Assigned Users' => 'assigned_users_count',
+            'Status' => fn (Barangay $barangay) => $barangay->is_active ? 'Active' : 'Inactive',
+            'Deleted At' => fn (Barangay $barangay) => $barangay->deleted_at?->format('Y-m-d H:i:s') ?? 'N/A',
+        ];
+
+        $filters = [
+            'Search' => $request->string('search')->toString(),
+            'Status' => $request->filled('status') ? ucfirst($request->status) : null,
+            'Lifecycle' => $request->filled('lifecycle') ? ucfirst($request->lifecycle) : 'Current',
+        ];
+
+        $timestamp = now()->format('Y-m-d_His');
+
+        ExportAudit::log('barangay registry', $format, [
+            'model_type' => Barangay::class,
+            'record_count' => $barangays->count(),
+            'filters' => array_filter($filters),
+        ]);
+
+        return match ($format) {
+            'csv' => TabularExport::csv("barangays_{$timestamp}.csv", $columns, $barangays),
+            'xlsx' => TabularExport::xlsx("barangays_{$timestamp}.xlsx", 'Barangays', $columns, $barangays),
+            'pdf' => TabularExport::pdf("barangays_{$timestamp}.pdf", 'Barangay Registry', $columns, $barangays, $filters),
+            default => abort(404),
+        };
     }
 
     /**
@@ -197,5 +231,33 @@ class BarangayRegistryController extends Controller
         return redirect()
             ->route('admin.barangays.index')
             ->with('success', "Barangay {$barangay->name} restored successfully.");
+    }
+
+    /**
+     * Build the filtered query used for listing and export.
+     */
+    private function filteredQuery(Request $request): Builder
+    {
+        $query = Barangay::query();
+
+        if ($request->input('lifecycle') === 'all') {
+            $query->withTrashed();
+        } elseif ($request->input('lifecycle') === 'deleted') {
+            $query->onlyTrashed();
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('psgc_code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        return $query;
     }
 }

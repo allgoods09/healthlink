@@ -7,6 +7,9 @@ use App\Http\Requests\Admin\Geometry\PurokStoreRequest;
 use App\Http\Requests\Admin\Geometry\PurokUpdateRequest;
 use App\Models\Barangay;
 use App\Models\Purok;
+use App\Support\ExportAudit;
+use App\Support\TabularExport;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
@@ -20,28 +23,8 @@ class PurokGridController extends Controller
     {
         Gate::authorize('viewAny', Purok::class);
 
-        $query = Purok::query()->with('barangay');
-
-        // Filter by barangay
-        if ($request->filled('barangay_id')) {
-            $query->where('barangay_id', $request->barangay_id);
-        }
-
-        // Search
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('purok_number', $search)
-                  ->orWhere('purok_name', 'LIKE', "%{$search}%");
-            });
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        $puroks = $query->withCount(['households', 'assignedUsers'])
+        $puroks = $this->filteredQuery($request)
+                        ->withCount(['households', 'assignedUsers'])
                         ->orderBy('barangay_id')
                         ->orderBy('purok_number')
                         ->paginate(15)
@@ -50,6 +33,51 @@ class PurokGridController extends Controller
         $barangays = Barangay::active()->get();
 
         return view('admin.geometry.puroks.index', compact('puroks', 'barangays'));
+    }
+
+    /**
+     * Export the purok registry.
+     */
+    public function export(Request $request, string $format)
+    {
+        Gate::authorize('viewAny', Purok::class);
+
+        $puroks = $this->filteredQuery($request)
+            ->withCount(['households', 'assignedUsers'])
+            ->orderBy('barangay_id')
+            ->orderBy('purok_number')
+            ->get();
+
+        $columns = [
+            'Purok' => fn (Purok $purok) => $purok->display_name,
+            'Barangay' => fn (Purok $purok) => $purok->barangay?->name,
+            'Households' => 'households_count',
+            'Assigned BHWs' => 'assigned_users_count',
+            'Status' => fn (Purok $purok) => $purok->is_active ? 'Active' : 'Inactive',
+            'Deleted At' => fn (Purok $purok) => $purok->deleted_at?->format('Y-m-d H:i:s') ?? 'N/A',
+        ];
+
+        $filters = [
+            'Search' => $request->string('search')->toString(),
+            'Barangay' => Barangay::find($request->integer('barangay_id'))?->name,
+            'Status' => $request->filled('status') ? ucfirst($request->status) : null,
+            'Lifecycle' => $request->filled('lifecycle') ? ucfirst($request->lifecycle) : 'Current',
+        ];
+
+        $timestamp = now()->format('Y-m-d_His');
+
+        ExportAudit::log('purok registry', $format, [
+            'model_type' => Purok::class,
+            'record_count' => $puroks->count(),
+            'filters' => array_filter($filters),
+        ]);
+
+        return match ($format) {
+            'csv' => TabularExport::csv("puroks_{$timestamp}.csv", $columns, $puroks),
+            'xlsx' => TabularExport::xlsx("puroks_{$timestamp}.xlsx", 'Puroks', $columns, $puroks),
+            'pdf' => TabularExport::pdf("puroks_{$timestamp}.pdf", 'Purok Registry', $columns, $puroks, $filters),
+            default => abort(404),
+        };
     }
 
     /**
@@ -91,11 +119,12 @@ class PurokGridController extends Controller
     {
         Gate::authorize('view', $purok);
 
-        $purok->load(['barangay', 'households', 'assignedUsers']);
+        $purok->load(['barangay', 'households.residents', 'assignedUsers']);
         $totalHouseholds = $purok->total_households;
         $totalResidents = $purok->total_residents;
+        $bhws = $purok->assignedUsers->where('role', 'bhw')->values();
 
-        return view('admin.geometry.puroks.show', compact('purok', 'totalHouseholds', 'totalResidents'));
+        return view('admin.geometry.puroks.show', compact('purok', 'totalHouseholds', 'totalResidents', 'bhws'));
     }
 
     /**
@@ -212,10 +241,26 @@ class PurokGridController extends Controller
      */
     public function getByBarangay(Request $request)
     {
-        $barangayId = $request->barangay_id;
+        Gate::authorize('viewAny', Purok::class);
 
-        if (!$barangayId) {
+        $barangayId = (int) $request->input('barangay_id');
+
+        if (! $barangayId) {
             return response()->json([]);
+        }
+
+        $user = $request->user();
+
+        if ($user?->isBarangayScoped() && (int) $user->assigned_barangay_id !== $barangayId) {
+            return response()->json([]);
+        }
+
+        if ($user?->isPurokScoped()) {
+            $user->loadMissing('assignedPurok');
+
+            if ((int) $user->assignedPurok?->barangay_id !== $barangayId) {
+                return response()->json([]);
+            }
         }
 
         $puroks = Purok::where('barangay_id', $barangayId)
@@ -224,5 +269,37 @@ class PurokGridController extends Controller
                        ->get(['id', 'purok_number', 'purok_name']);
 
         return response()->json($puroks);
+    }
+
+    /**
+     * Build the filtered query used for listing and export.
+     */
+    private function filteredQuery(Request $request): Builder
+    {
+        $query = Purok::query()->with('barangay');
+
+        if ($request->input('lifecycle') === 'all') {
+            $query->withTrashed();
+        } elseif ($request->input('lifecycle') === 'deleted') {
+            $query->onlyTrashed();
+        }
+
+        if ($request->filled('barangay_id')) {
+            $query->where('barangay_id', $request->barangay_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder->where('purok_number', $search)
+                    ->orWhere('purok_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        return $query;
     }
 }

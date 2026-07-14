@@ -25,8 +25,18 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'approval_status',
+        'registered_via',
+        'requested_role',
         'assigned_barangay_id',
         'assigned_purok_id',
+        'requested_barangay_id',
+        'requested_purok_id',
+        'approval_notes',
+        'approved_at',
+        'approved_by',
+        'rejected_at',
+        'rejected_by',
         'is_active',
     ];
 
@@ -49,10 +59,16 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'is_active' => 'boolean',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    public const APPROVAL_PENDING = 'pending';
+    public const APPROVAL_APPROVED = 'approved';
+    public const APPROVAL_REJECTED = 'rejected';
 
     /**
      * The available user roles.
@@ -72,6 +88,8 @@ class User extends Authenticatable
     public const GLOBAL_ROLES = ['admin', 'mho', 'phn'];
     public const BARANGAY_ROLES = ['secretary', 'bns'];
     public const PUROK_ROLES = ['bhw'];
+    public const SECRETARY_APPROVAL_ROLES = ['bhw', 'bns'];
+    public const MUNICIPAL_APPROVAL_ROLES = ['admin', 'secretary', 'phn', 'mho'];
 
     // =============================================
     // RELATIONSHIPS
@@ -91,6 +109,22 @@ class User extends Authenticatable
     public function assignedPurok()
     {
         return $this->belongsTo(Purok::class, 'assigned_purok_id');
+    }
+
+    /**
+     * Get the requested barangay for a self-registration.
+     */
+    public function requestedBarangay()
+    {
+        return $this->belongsTo(Barangay::class, 'requested_barangay_id');
+    }
+
+    /**
+     * Get the requested purok for a self-registration.
+     */
+    public function requestedPurok()
+    {
+        return $this->belongsTo(Purok::class, 'requested_purok_id');
     }
 
     /**
@@ -131,6 +165,108 @@ class User extends Authenticatable
     public function purgedRecords()
     {
         return $this->hasMany(ArchivedRecord::class, 'purged_by');
+    }
+
+    /**
+     * Get all users approved by this user.
+     */
+    public function approvedUsers()
+    {
+        return $this->hasMany(self::class, 'approved_by');
+    }
+
+    /**
+     * Get all users rejected by this user.
+     */
+    public function rejectedUsers()
+    {
+        return $this->hasMany(self::class, 'rejected_by');
+    }
+
+    /**
+     * Get all field visits recorded by this user.
+     */
+    public function fieldVisits()
+    {
+        return $this->hasMany(FieldVisit::class, 'recorded_by_user_id');
+    }
+
+    /**
+     * Get all barangay certificates issued by this user.
+     */
+    public function issuedCertificates()
+    {
+        return $this->hasMany(BarangayCertificate::class, 'issued_by_user_id');
+    }
+
+    public function submittedHouseholdDrafts()
+    {
+        return $this->hasMany(HouseholdDraft::class, 'submitted_by_user_id');
+    }
+
+    public function reviewedHouseholdDrafts()
+    {
+        return $this->hasMany(HouseholdDraft::class, 'reviewed_by_user_id');
+    }
+
+    public function submittedProfileUpdateRequests()
+    {
+        return $this->hasMany(ProfileUpdateRequest::class, 'submitted_by_user_id');
+    }
+
+    public function reviewedProfileUpdateRequests()
+    {
+        return $this->hasMany(ProfileUpdateRequest::class, 'reviewed_by_user_id');
+    }
+
+    public function recordedTriages()
+    {
+        return $this->hasMany(TriageRecord::class, 'recorded_by_user_id');
+    }
+
+    public function consumedTriages()
+    {
+        return $this->hasMany(TriageRecord::class, 'consumed_by_user_id');
+    }
+
+    public function clinicalEncounters()
+    {
+        return $this->hasMany(ClinicalEncounter::class, 'attended_by_user_id');
+    }
+
+    public function mhoClinicalReviews()
+    {
+        return $this->hasMany(MhoClinicalReview::class, 'reviewed_by_user_id');
+    }
+
+    public function createdNutritionCampaignPeriods()
+    {
+        return $this->hasMany(NutritionCampaignPeriod::class, 'created_by_user_id');
+    }
+
+    public function optMeasurements()
+    {
+        return $this->hasMany(OptMeasurement::class, 'measured_by_user_id');
+    }
+
+    public function childNutritionFlagsRaised()
+    {
+        return $this->hasMany(ChildNutritionAssessmentFlag::class, 'flagged_by_user_id');
+    }
+
+    public function childNutritionFlagsClosed()
+    {
+        return $this->hasMany(ChildNutritionAssessmentFlag::class, 'closed_by_user_id');
+    }
+
+    public function createdCommunityCampaigns()
+    {
+        return $this->hasMany(CommunityCampaign::class, 'created_by_user_id');
+    }
+
+    public function communityCampaignAssignments()
+    {
+        return $this->hasMany(CommunityCampaignAssignment::class, 'assigned_bhw_user_id');
     }
 
     // =============================================
@@ -201,6 +337,14 @@ class User extends Authenticatable
         return $query->where('assigned_purok_id', $purokId);
     }
 
+    /**
+     * Scope a query to only include pending registrations.
+     */
+    public function scopePendingApproval($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_PENDING);
+    }
+
     // =============================================
     // ACCESSORS & MUTATORS
     // =============================================
@@ -210,7 +354,7 @@ class User extends Authenticatable
      */
     public function getRoleLabelAttribute(): string
     {
-        return self::ROLES[$this->role] ?? $this->role;
+        return self::ROLES[$this->role] ?? ((string) $this->role !== '' ? (string) $this->role : 'User Account');
     }
 
     /**
@@ -256,6 +400,60 @@ class User extends Authenticatable
         return 'unknown';
     }
 
+    /**
+     * Get the user's approval status label.
+     */
+    public function getApprovalStatusLabelAttribute(): string
+    {
+        return match ($this->approval_status) {
+            self::APPROVAL_PENDING => 'Pending Approval',
+            self::APPROVAL_APPROVED => 'Approved',
+            self::APPROVAL_REJECTED => 'Rejected',
+            default => 'Unknown',
+        };
+    }
+
+    /**
+     * Get the approval queue owner for this account request.
+     */
+    public function getApprovalQueueAttribute(): string
+    {
+        $targetRole = $this->requested_role ?: $this->role;
+
+        if (in_array($targetRole, self::SECRETARY_APPROVAL_ROLES, true)) {
+            return 'secretary';
+        }
+
+        return 'municipal';
+    }
+
+    /**
+     * Get the approval queue label for dashboards and listings.
+     */
+    public function getApprovalQueueLabelAttribute(): string
+    {
+        return $this->approval_queue === 'secretary'
+            ? 'Secretary Approval Queue'
+            : 'Municipal Admin Queue';
+    }
+
+    /**
+     * Get the registration source label.
+     */
+    public function getRegisteredViaLabelAttribute(): string
+    {
+        return match ((string) $this->registered_via) {
+            'admin' => 'Admin',
+            'self' => 'Self Registration',
+            'bns' => 'BNS',
+            'secretary' => 'Secretary',
+            default => str((string) $this->registered_via)
+                ->replace(['_', '-'], ' ')
+                ->title()
+                ->toString(),
+        };
+    }
+
     // =============================================
     // HELPER METHODS
     // =============================================
@@ -298,6 +496,14 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->is_active && !$this->trashed();
+    }
+
+    /**
+     * Check whether the account is approved.
+     */
+    public function isApproved(): bool
+    {
+        return $this->approval_status === self::APPROVAL_APPROVED;
     }
 
     /**

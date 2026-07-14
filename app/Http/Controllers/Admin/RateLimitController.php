@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RateLimitUpdateRequest;
 use App\Models\Setting;
+use App\Support\RateLimitState;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Cache\RateLimiter;
 use Illuminate\Support\Facades\RateLimiter as RateLimiterFacade;
 use Illuminate\Support\Facades\Auth;
 
@@ -28,8 +28,10 @@ class RateLimitController extends Controller
             'api_rate_limit_global' => Setting::getValue('api_rate_limit_global', 60),
             'api_rate_limit_auth' => Setting::getValue('api_rate_limit_auth', 10),
         ];
+        $blockedKeys = RateLimitState::blockedKeys();
+        $trackedKeys = RateLimitState::trackedKeys();
 
-        return view('admin.rate-limits.index', compact('settings'));
+        return view('admin.rate-limits.index', compact('settings', 'blockedKeys', 'trackedKeys'));
     }
 
     /**
@@ -75,22 +77,19 @@ class RateLimitController extends Controller
 
         $type = $request->type;
         $identifier = $request->identifier;
+        $clearedKeys = RateLimitState::clearMatching($type, $identifier);
 
-        $cleared = 0;
-
-        if ($type === 'all') {
-            // Clear all rate limits - this would require custom logic
-            // Laravel's built-in rate limiter doesn't support clearing all easily
-            $cleared = 'all';
-        } elseif ($type === 'ip' && $identifier) {
-            // Clear for specific IP
-            RateLimiterFacade::clear($identifier);
-            $cleared = "IP: {$identifier}";
-        } elseif ($type === 'user' && $identifier) {
-            // Clear for specific user
-            RateLimiterFacade::clear($identifier);
-            $cleared = "User: {$identifier}";
+        if ($type !== 'all' && $clearedKeys === []) {
+            return redirect()
+                ->route('admin.rate-limits.index')
+                ->with('error', 'No tracked rate limit entries matched the provided identifier.');
         }
+
+        $cleared = match ($type) {
+            'all' => count($clearedKeys).' tracked keys',
+            'ip' => "IP: {$identifier}",
+            'user' => "User: {$identifier}",
+        };
 
         // Log the reset
         \App\Models\AuditLog::log([
@@ -98,7 +97,12 @@ class RateLimitController extends Controller
             'event_type' => 'updated',
             'event_description' => "Reset rate limits for {$cleared}",
             'model_type' => Setting::class,
-            'metadata' => ['type' => $type, 'identifier' => $identifier],
+            'metadata' => [
+                'type' => $type,
+                'identifier' => $identifier,
+                'cleared_keys' => $clearedKeys,
+                'cleared_count' => count($clearedKeys),
+            ],
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
         ]);
@@ -115,29 +119,7 @@ class RateLimitController extends Controller
     {
         Gate::authorize('viewAny', Setting::class);
 
-        $ip = $request->ip();
-        $status = [];
-
-        // Get the rate limiter for the current IP
-        $key = $ip;
-        $limiter = app(RateLimiter::class);
-
-        // Check different rate limit keys
-        $status['ip'] = [
-            'key' => $key,
-            'remaining' => $limiter->remaining($key, 60),
-            'available_in' => $limiter->availableIn($key),
-        ];
-
-        // Check auth rate limit
-        $authKey = 'auth_' . $key;
-        $status['auth'] = [
-            'key' => $authKey,
-            'remaining' => $limiter->remaining($authKey, 10),
-            'available_in' => $limiter->availableIn($authKey),
-        ];
-
-        return response()->json($status);
+        return response()->json(RateLimitState::statusSnapshot($request));
     }
 
     /**
@@ -147,9 +129,7 @@ class RateLimitController extends Controller
     {
         Gate::authorize('viewAny', Setting::class);
 
-        // This is complex with default Laravel rate limiter
-        // We'll return a simple response
-        $blockedKeys = cache()->get('rate_limiter_blocked', []);
+        $blockedKeys = RateLimitState::blockedKeys();
 
         return response()->json([
             'blocked_keys' => $blockedKeys,
@@ -170,15 +150,8 @@ class RateLimitController extends Controller
 
         $key = $request->key;
 
-        // Clear the rate limit for this key
         RateLimiterFacade::clear($key);
-
-        // Remove from blocked list if tracked
-        $blocked = cache()->get('rate_limiter_blocked', []);
-        if (($index = array_search($key, $blocked)) !== false) {
-            unset($blocked[$index]);
-            cache()->put('rate_limiter_blocked', array_values($blocked), now()->addDay());
-        }
+        RateLimitState::clearKey($key);
 
         // Log the unblock
         \App\Models\AuditLog::log([

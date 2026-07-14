@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\Setting;
+use App\Support\RateLimitState;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -43,10 +45,36 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->throttleKey(), $this->decaySeconds());
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
+            ]);
+        }
+
+        $user = Auth::user();
+
+        if ($user && $user->approval_status === \App\Models\User::APPROVAL_PENDING) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account is pending approval. Please wait for an administrator to approve your registration.',
+            ]);
+        }
+
+        if ($user && $user->approval_status === \App\Models\User::APPROVAL_REJECTED) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your registration has been rejected. Please contact the administrator for assistance.',
+            ]);
+        }
+
+        if ($user && ! $user->is_active) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account is inactive. Please contact the administrator.',
             ]);
         }
 
@@ -60,7 +88,13 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        RateLimitState::trackAuthKey(
+            $this->throttleKey(),
+            $this->string('email')->toString(),
+            $this->ip()
+        );
+
+        if (! RateLimiter::tooManyAttempts($this->throttleKey(), $this->maxAttempts())) {
             return;
         }
 
@@ -82,5 +116,21 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+    }
+
+    /**
+     * Get the configured maximum authentication attempts.
+     */
+    private function maxAttempts(): int
+    {
+        return max((int) Setting::getValue('api_rate_limit_auth', 10), 1);
+    }
+
+    /**
+     * Get the configured throttle decay period in seconds.
+     */
+    private function decaySeconds(): int
+    {
+        return max((int) Setting::getValue('rate_limit_decay_minutes', 1), 1) * 60;
     }
 }

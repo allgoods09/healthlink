@@ -1,3 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer utilities {
+    .sidebar-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-gutter: stable;
+        scrollbar-color: var(--sidebar-scrollbar-thumb, rgba(0, 63, 127, 0.18)) transparent;
+    }
+
+    .sidebar-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .sidebar-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sidebar-scrollbar::-webkit-scrollbar-thumb {
+        background-clip: padding-box;
+        background-color: var(--sidebar-scrollbar-thumb, rgba(0, 63, 127, 0.18));
+        border: 2px solid transparent;
+        border-radius: 9999px;
+        transition: background-color 150ms ease-in-out;
+    }
+
+    .sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+        background-color: var(--sidebar-scrollbar-thumb-hover, rgba(0, 63, 127, 0.28));
+    }
+
+    .sidebar-scrollbar-admin {
+        --sidebar-scrollbar-thumb: rgba(0, 63, 127, 0.16);
+        --sidebar-scrollbar-thumb-hover: rgba(0, 63, 127, 0.3);
+    }
+
+    .sidebar-scrollbar-brand {
+        --sidebar-scrollbar-thumb: rgba(191, 219, 254, 0.24);
+        --sidebar-scrollbar-thumb-hover: rgba(219, 234, 254, 0.42);
+    }
+}

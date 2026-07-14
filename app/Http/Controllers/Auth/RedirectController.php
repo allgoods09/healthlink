@@ -25,19 +25,16 @@ class RedirectController extends Controller
         // Redirect based on role
         switch ($user->role) {
             case 'admin':
-            case 'mho':
-            case 'phn':
-            case 'secretary':
-            case 'bns':
                 return redirect()->route('admin.dashboard');
-            
+            case 'bns':
+                return redirect()->route('bns.dashboard');
+            case 'secretary':
+                return redirect()->route('secretary.dashboard');
             case 'bhw':
-                // BHWs go to their mobile dashboard or a field worker page
                 return redirect()->route('bhw.dashboard');
-            
+
             default:
-                // Fallback for any undefined roles
-                return redirect()->route('home');
+                return redirect()->route('dashboard');
         }
     }
 }

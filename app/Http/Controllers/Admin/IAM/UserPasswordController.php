@@ -49,7 +49,7 @@ class UserPasswordController extends Controller
     }
 
     /**
-     * Generate a temporary random password and email it to the user.
+     * Generate a temporary random password for manual admin handoff.
      */
     public function generateTemporary(User $user)
     {
@@ -65,11 +65,9 @@ class UserPasswordController extends Controller
             'temporary_password_generated' => true
         ]);
 
-        // TODO: Send email with temporary password
-        // Mail::to($user->email)->send(new TemporaryPasswordMail($temporaryPassword));
-
         return redirect()
             ->back()
-            ->with('success', "Temporary password generated for {$user->name}. They will receive it via email.");
+            ->with('success', "Temporary password generated for {$user->name}. Copy it now and share it securely.")
+            ->with('temporary_password', $temporaryPassword);
     }
 }

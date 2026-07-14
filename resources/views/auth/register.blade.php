@@ -1,129 +1,112 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+<x-guest-layout
+    page-title="HealthLink - Register"
+    heading="Request a Frontline Account"
+    description="Barangay Health Workers and Barangay Nutrition Scholars can self-register here. Your request stays pending until the assigned Barangay Secretary approves and finalizes your local assignment."
+    hero-title="Registration starts with barangay verification"
+    hero-description="HealthLink keeps new frontline accounts in a pending sandbox until the Barangay Secretary validates the role and assignment, so verified field work stays clean and scoped."
+>
+    <div
+        class="space-y-6"
+    >
+        <div class="rounded-2xl border border-tubigon/10 bg-tubigon-light px-4 py-3 text-sm text-tubigon">
+            Your registration will remain pending until the assigned Barangay Secretary validates your role and final local assignment.
+        </div>
 
-    <title>HealthLink - Register</title>
+        <form method="POST" action="{{ route('register') }}" class="space-y-5">
+            @csrf
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
-
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
-
-<body class="font-sans antialiased">
-    <!-- Full screen background with overlay -->
-    <div class="relative min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center"
-         style="background-image: url('{{ asset('images/healthlink_bg.jpg') }}');">
-        
-        <!-- Gradient Overlay -->
-        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#003f7f]/30 to-[#003f7f]/90"></div>
-
-        <!-- Register Modal -->
-        <div class="relative z-10 w-full max-w-md px-6">
-            <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
-                <!-- Header with Dynamic Logo -->
-                <div class="px-8 pt-8 pb-6 text-center border-b border-gray-100">
-                    <div class="flex items-center justify-center space-x-2 mb-2">
-                        <x-logo size="md" />
-                    </div>
-                    <p class="text-sm text-gray-500">Create your account</p>
+            <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                    <x-input-label for="name" :value="__('Full Name')" />
+                    <x-text-input id="name" class="mt-1 block w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+                    <x-input-error :messages="$errors->get('name')" class="mt-2" />
                 </div>
 
-                <!-- Form -->
-                <div class="px-8 py-6">
-                    <form method="POST" action="{{ route('register') }}">
-                        @csrf
-
-                        <!-- Name -->
-                        <div>
-                            <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                            <input id="name" type="text" name="name" value="{{ old('name') }}" required autofocus
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('name') border-red-500 @enderror">
-                            @error('name')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Email -->
-                        <div class="mt-4">
-                            <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                            <input id="email" type="email" name="email" value="{{ old('email') }}" required
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('email') border-red-500 @enderror">
-                            @error('email')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Password -->
-                        <div class="mt-4">
-                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                            <input id="password" type="password" name="password" required
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('password') border-red-500 @enderror">
-                            @error('password')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Confirm Password -->
-                        <div class="mt-4">
-                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700">Confirm Password</label>
-                            <input id="password_confirmation" type="password" name="password_confirmation" required
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-
-                        <!-- Role (hidden) -->
-                        <input type="hidden" name="role" value="bhw">
-
-                        <!-- Terms -->
-                        <div class="mt-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" name="terms" required
-                                       class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500">
-                                <span class="ml-2 text-sm text-gray-600">
-                                    I agree to the <a href="#" class="text-blue-600 hover:text-blue-900">Terms of Service</a>
-                                </span>
-                            </label>
-                            @error('terms')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Submit -->
-                        <button type="submit" class="mt-6 w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            Create Account
-                        </button>
-                    </form>
-
-                    <!-- Login Link -->
-                    <p class="mt-4 text-center text-sm text-gray-600">
-                        Already have an account?
-                        <a href="{{ route('login') }}" class="text-blue-600 hover:text-blue-900 font-medium">
-                            Sign in here
-                        </a>
-                    </p>
-
-                    <!-- Role Info -->
-                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-xs text-blue-700 text-center">
-                            New accounts are registered as <strong>Barangay Health Worker (BHW)</strong>.
-                            Administrative roles are assigned by system administrators.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="px-8 py-4 bg-gray-50 border-t border-gray-100 text-center">
-                    <p class="text-xs text-gray-500">
-                        © {{ date('Y') }} HealthLink · LGU Tubigon, Bohol
-                    </p>
+                <div>
+                    <x-input-label for="email" :value="__('Email Address')" />
+                    <x-text-input id="email" class="mt-1 block w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
+                    <x-input-error :messages="$errors->get('email')" class="mt-2" />
                 </div>
             </div>
+
+            <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                    <x-input-label for="password" :value="__('Password')" />
+                    <x-text-input id="password" class="mt-1 block w-full" type="password" name="password" required autocomplete="new-password" />
+                    <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                </div>
+
+                <div>
+                    <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+                    <x-text-input id="password_confirmation" class="mt-1 block w-full" type="password" name="password_confirmation" required autocomplete="new-password" />
+                </div>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                    <x-input-label for="requested_role" :value="__('Requested Role')" />
+                    <select
+                        id="requested_role"
+                        name="requested_role"
+                        required
+                        class="mt-1 block w-full rounded-xl border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-tubigon focus:ring-tubigon @error('requested_role') border-rose-400 @enderror"
+                    >
+                        <option value="">Select role</option>
+                        <option value="bhw" {{ old('requested_role') === 'bhw' ? 'selected' : '' }}>Barangay Health Worker (BHW)</option>
+                        <option value="bns" {{ old('requested_role') === 'bns' ? 'selected' : '' }}>Barangay Nutrition Scholar (BNS)</option>
+                    </select>
+                    <x-input-error :messages="$errors->get('requested_role')" class="mt-2" />
+                </div>
+
+                <div>
+                    <x-input-label for="requested_barangay_id" :value="__('Barangay Assignment')" />
+                    <select
+                        id="requested_barangay_id"
+                        name="requested_barangay_id"
+                        required
+                        class="mt-1 block w-full rounded-xl border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-tubigon focus:ring-tubigon @error('requested_barangay_id') border-rose-400 @enderror"
+                    >
+                        <option value="">Select barangay</option>
+                        @foreach($barangays as $barangay)
+                            <option value="{{ $barangay->id }}" {{ (string) old('requested_barangay_id') === (string) $barangay->id ? 'selected' : '' }}>
+                                {{ $barangay->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <x-input-error :messages="$errors->get('requested_barangay_id')" class="mt-2" />
+                </div>
+            </div>
+
+            <label class="inline-flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <input type="checkbox" name="terms" required class="mt-1 rounded border-slate-300 text-tubigon shadow-sm focus:ring-tubigon">
+                <span class="text-sm leading-6 text-slate-600">
+                    I confirm that my requested assignment is accurate and understand that account access stays pending until approved.
+                </span>
+            </label>
+            <x-input-error :messages="$errors->get('terms')" class="mt-2" />
+
+            <div class="pt-2">
+                <x-primary-button class="w-full">
+                    {{ __('Submit Registration') }}
+                </x-primary-button>
+            </div>
+        </form>
+
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Self-registration is available for <strong>BHW</strong> and <strong>BNS</strong> accounts only. The Barangay Secretary will finalize the local assignment after review.
         </div>
     </div>
-</body>
-</html>
+
+    <x-slot:footer>
+        <div class="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+                Already have an account?
+                <a href="{{ route('login') }}" class="font-semibold text-tubigon transition hover:text-tubigon-hover">
+                    Sign in here
+                </a>
+            </p>
+            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Pending Until Approved</p>
+        </div>
+    </x-slot:footer>
+
+</x-guest-layout>

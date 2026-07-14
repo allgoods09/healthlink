@@ -4,31 +4,33 @@
 @section('header', 'User Details')
 
 @section('actions')
-    <div class="flex items-center space-x-2">
-        <a href="{{ route('admin.users.index') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="{{ route('admin.users.index') }}" class="inline-flex items-center rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
             Back
         </a>
-        <a href="{{ route('admin.users.edit', $user) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+        <a href="{{ route('admin.users.edit', $user) }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             Edit User
+        </a>
+        <a href="{{ route('admin.users.password.edit', $user) }}" class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+            Reset Password
         </a>
     </div>
 @endsection
 
 @section('content')
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <!-- User Info Card -->
-        <div class="lg:col-span-1">
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <div class="space-y-6 lg:col-span-1">
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+                <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
                     <h3 class="text-lg font-medium text-gray-900">User Information</h3>
                 </div>
                 <div class="p-6">
-                    <div class="flex items-center justify-center mb-6">
-                        <div class="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl font-bold">
-                            {{ substr($user->name, 0, 2) }}
+                    <div class="mb-6 flex justify-center">
+                        <div class="flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-2xl font-bold text-blue-600">
+                            {{ strtoupper(substr($user->name, 0, 2)) }}
                         </div>
                     </div>
-                    
+
                     <dl class="space-y-4">
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Full Name</dt>
@@ -40,45 +42,35 @@
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Role</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $user->role_label }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Assignment</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $user->assignment_label }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Registration Source</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $user->registered_via_label }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Approval Status</dt>
                             <dd class="mt-1">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                    @if($user->role == 'admin') bg-red-100 text-red-800
-                                    @elseif($user->role == 'mho') bg-purple-100 text-purple-800
-                                    @elseif($user->role == 'phn') bg-indigo-100 text-indigo-800
-                                    @elseif($user->role == 'secretary') bg-blue-100 text-blue-800
-                                    @elseif($user->role == 'bns') bg-green-100 text-green-800
-                                    @else bg-gray-100 text-gray-800
-                                    @endif">
-                                    {{ $user->role_label }}
+                                <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium
+                                    {{ $user->approval_status === \App\Models\User::APPROVAL_APPROVED ? 'bg-green-100 text-green-800' : '' }}
+                                    {{ $user->approval_status === \App\Models\User::APPROVAL_PENDING ? 'bg-amber-100 text-amber-800' : '' }}
+                                    {{ $user->approval_status === \App\Models\User::APPROVAL_REJECTED ? 'bg-rose-100 text-rose-800' : '' }}">
+                                    {{ $user->approval_status_label }}
                                 </span>
                             </dd>
                         </div>
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Status</dt>
+                            <dt class="text-sm font-medium text-gray-500">Account Status</dt>
                             <dd class="mt-1">
-                                @if($user->is_active)
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        Active
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        Inactive
-                                    </span>
-                                @endif
+                                <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $user->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700' }}">
+                                    {{ $user->is_active ? 'Active' : 'Inactive' }}
+                                </span>
                             </dd>
                         </div>
-                        @if($user->assignedBarangay)
-                            <div>
-                                <dt class="text-sm font-medium text-gray-500">Assigned Barangay</dt>
-                                <dd class="mt-1 text-sm text-gray-900">{{ $user->assignedBarangay->name }}</dd>
-                            </div>
-                        @endif
-                        @if($user->assignedPurok)
-                            <div>
-                                <dt class="text-sm font-medium text-gray-500">Assigned Purok</dt>
-                                <dd class="mt-1 text-sm text-gray-900">{{ $user->assignedPurok->display_name }}</dd>
-                            </div>
-                        @endif
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Joined</dt>
                             <dd class="mt-1 text-sm text-gray-900">{{ $user->created_at->format('F d, Y h:i A') }}</dd>
@@ -86,37 +78,128 @@
                         @if($user->deleted_at)
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Deleted At</dt>
-                                <dd class="mt-1 text-sm text-red-600">{{ $user->deleted_at->format('F d, Y h:i A') }}</dd>
+                                <dd class="mt-1 text-sm text-rose-600">{{ $user->deleted_at->format('F d, Y h:i A') }}</dd>
                             </div>
                         @endif
                     </dl>
                 </div>
             </div>
+
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+                <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                    <h3 class="text-lg font-medium text-gray-900">Approval Workflow</h3>
+                </div>
+                <div class="space-y-4 p-6">
+                    @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                            This account was self-registered and is waiting for admin approval.
+                        </div>
+                    @endif
+
+                    @if($user->requested_role)
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Requested Role</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ \App\Models\User::ROLES[$user->requested_role] ?? $user->requested_role }}</p>
+                        </div>
+                    @endif
+
+                    @if($user->requestedBarangay)
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Requested Assignment</p>
+                            <p class="mt-1 text-sm text-gray-900">
+                                {{ $user->requestedBarangay->name }}
+                                @if($user->requestedPurok)
+                                    / {{ $user->requestedPurok->display_name }}
+                                @endif
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($user->approved_at)
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Approved At</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ $user->approved_at->format('F d, Y h:i A') }}</p>
+                        </div>
+                    @endif
+
+                    @if($user->rejected_at)
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Rejected At</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ $user->rejected_at->format('F d, Y h:i A') }}</p>
+                        </div>
+                    @endif
+
+                    @if($user->approval_notes)
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Approval Notes</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ $user->approval_notes }}</p>
+                        </div>
+                    @endif
+
+                    @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
+                        <div class="flex flex-wrap items-center gap-2 pt-2">
+                            <form action="{{ route('admin.users.approve', $user) }}" method="POST" onsubmit="return confirm('Approve this registration?')">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                                    Approve Registration
+                                </button>
+                            </form>
+
+                            <form action="{{ route('admin.users.reject', $user) }}" method="POST" onsubmit="return captureRejectionReason(this, '{{ addslashes($user->name) }}')">
+                                @csrf
+                                @method('PATCH')
+                                <input type="hidden" name="approval_notes" value="">
+                                <button type="submit" class="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
+                                    Reject Registration
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
-        <!-- Activity Log -->
-        <div class="lg:col-span-2">
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <div class="space-y-6 lg:col-span-2">
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+                <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                    <h3 class="text-lg font-medium text-gray-900">Assignment Details</h3>
+                </div>
+                <div class="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Assigned Barangay</p>
+                        <p class="mt-1 text-sm text-gray-900">{{ $user->assignedBarangay?->name ?? 'None assigned' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Assigned Purok</p>
+                        <p class="mt-1 text-sm text-gray-900">{{ $user->assignedPurok?->display_name ?? 'None assigned' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Requested Barangay</p>
+                        <p class="mt-1 text-sm text-gray-900">{{ $user->requestedBarangay?->name ?? 'No self-registration request' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Requested Purok</p>
+                        <p class="mt-1 text-sm text-gray-900">{{ $user->requestedPurok?->display_name ?? 'No self-registration request' }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+                <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
                     <h3 class="text-lg font-medium text-gray-900">Recent Activity</h3>
                 </div>
                 <div class="p-6">
                     @if($user->auditLogs->count() > 0)
                         <ul class="divide-y divide-gray-200">
-                            @foreach($user->auditLogs->take(10) as $log)
-                                <li class="py-3">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium text-gray-900 truncate">
-                                                {{ $log->event_description }}
-                                            </p>
-                                            <p class="text-sm text-gray-500 truncate">
-                                                {{ $log->event_type_label }} · {{ $log->created_at->diffForHumans() }}
-                                            </p>
+                            @foreach($user->auditLogs as $log)
+                                <li class="py-3 first:pt-0 last:pb-0">
+                                    <div class="flex items-center gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-sm font-medium text-gray-900">{{ $log->event_description }}</p>
+                                            <p class="text-sm text-gray-500">{{ $log->event_type_label }} · {{ $log->created_at->diffForHumans() }}</p>
                                         </div>
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {{ $log->event_type_label }}
-                                        </span>
+                                        <a href="{{ route('admin.audit.show', $log) }}" class="text-sm text-blue-600 hover:text-blue-900">View Log</a>
                                     </div>
                                 </li>
                             @endforeach
@@ -129,3 +212,19 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        function captureRejectionReason(form, userName) {
+            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
+
+            if (!reason) {
+                return false;
+            }
+
+            form.querySelector('input[name="approval_notes"]').value = reason;
+
+            return true;
+        }
+    </script>
+@endpush

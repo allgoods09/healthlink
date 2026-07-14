@@ -12,11 +12,10 @@ class UserPolicy
 
     /**
      * Determine if the user can view any users (index).
-     * Only Admin can view the user list.
      */
     public function viewAny(User $user): bool
     {
-        return $user->role === 'admin';
+        return in_array($user->role, ['admin', 'secretary']);
     }
 
     /**
@@ -45,6 +44,10 @@ class UserPolicy
             return !is_null($targetUser->assigned_barangay_id);
         }
 
+        if ($user->role === 'secretary') {
+            return $this->isFrontlineUserInSameBarangay($user, $targetUser);
+        }
+
         // Everyone else cannot view others
         return false;
     }
@@ -55,7 +58,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'admin';
+        return in_array($user->role, ['admin', 'secretary']);
     }
 
     /**
@@ -80,6 +83,10 @@ class UserPolicy
         if ($user->role === 'mho') {
             // Can update if target is a BHW, BNS, or Secretary
             return in_array($targetUser->role, ['bhw', 'bns', 'secretary']);
+        }
+
+        if ($user->role === 'secretary') {
+            return $this->isFrontlineUserInSameBarangay($user, $targetUser);
         }
 
         return false;
@@ -134,6 +141,10 @@ class UserPolicy
             return in_array($targetUser->role, ['bhw', 'bns', 'secretary']);
         }
 
+        if ($user->role === 'secretary') {
+            return $this->isFrontlineUserInSameBarangay($user, $targetUser);
+        }
+
         return false;
     }
 
@@ -154,6 +165,10 @@ class UserPolicy
             return in_array($targetUser->role, ['bhw', 'bns', 'secretary']);
         }
 
+        if ($user->role === 'secretary') {
+            return $this->isFrontlineUserInSameBarangay($user, $targetUser);
+        }
+
         return false;
     }
 
@@ -164,5 +179,15 @@ class UserPolicy
     public function assignRole(User $user, User $targetUser): bool
     {
         return $user->role === 'admin';
+    }
+
+    protected function isFrontlineUserInSameBarangay(User $user, User $targetUser): bool
+    {
+        if (! in_array($targetUser->role, ['bhw', 'bns'])) {
+            return false;
+        }
+
+        return (int) $targetUser->assigned_barangay_id === (int) $user->assigned_barangay_id
+            || (int) $targetUser->requested_barangay_id === (int) $user->assigned_barangay_id;
     }
 }

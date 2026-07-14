@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\AuditLog;
+use Carbon\CarbonInterface;
 
 class Resident extends Model
 {
@@ -17,6 +18,8 @@ class Resident extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'official_resident_code',
+        'mobile_uuid',
         'household_id',
         'philsys_card_no',
         'last_name',
@@ -32,6 +35,11 @@ class Resident extends Model
         'contact_number',
         'email_address',
         'relationship_to_head',
+        'resident_status',
+        'moved_in_at',
+        'moved_out_at',
+        'date_of_death',
+        'status_notes',
         'is_active',
     ];
 
@@ -42,11 +50,45 @@ class Resident extends Model
      */
     protected $casts = [
         'birth_date' => 'date',
+        'moved_in_at' => 'date',
+        'moved_out_at' => 'date',
+        'date_of_death' => 'date',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Resident $resident): void {
+            if ($resident->official_resident_code || ! $resident->household_id) {
+                return;
+            }
+
+            $barangayId = Household::query()
+                ->whereKey($resident->household_id)
+                ->join('puroks', 'puroks.id', '=', 'households.purok_id')
+                ->value('puroks.barangay_id');
+
+            if (! $barangayId) {
+                return;
+            }
+
+            $sequence = static::query()
+                ->whereNotNull('official_resident_code')
+                ->whereHas('household.purok', fn ($query) => $query->where('barangay_id', $barangayId))
+                ->count() + 1;
+
+            $resident->forceFill([
+                'official_resident_code' => sprintf('RS-%04d-%05d', $barangayId, $sequence),
+            ])->saveQuietly();
+        });
+    }
+
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_DECEASED = 'deceased';
+    public const STATUS_RELOCATED = 'relocated';
 
     // =============================================
     // RELATIONSHIPS
@@ -68,6 +110,100 @@ class Resident extends Model
         return $this->morphMany(AuditLog::class, 'model');
     }
 
+    /**
+     * Get the resident's socio-economic profile.
+     */
+    public function socioEconomicProfile()
+    {
+        return $this->hasOne(ResidentSocioEconomicProfile::class, 'resident_id');
+    }
+
+    /**
+     * Get all certificates issued to this resident.
+     */
+    public function certificates()
+    {
+        return $this->hasMany(BarangayCertificate::class);
+    }
+
+    /**
+     * Get all draft records resolved into this resident.
+     */
+    public function draftApprovals()
+    {
+        return $this->hasMany(ResidentDraft::class, 'approved_resident_id');
+    }
+
+    /**
+     * Get all pending update requests for this resident.
+     */
+    public function profileUpdateRequests()
+    {
+        return $this->hasMany(ProfileUpdateRequest::class, 'subject_id')
+            ->where('subject_type', ProfileUpdateRequest::SUBJECT_RESIDENT);
+    }
+
+    /**
+     * Get all queued triage records for this resident.
+     */
+    public function triageRecords()
+    {
+        return $this->hasMany(TriageRecord::class);
+    }
+
+    public function optMeasurements()
+    {
+        return $this->hasMany(OptMeasurement::class);
+    }
+
+    public function latestOptMeasurement()
+    {
+        return $this->hasOne(OptMeasurement::class)->ofMany([
+            'measurement_date' => 'max',
+            'id' => 'max',
+        ]);
+    }
+
+    public function nutritionFlags()
+    {
+        return $this->hasMany(ChildNutritionAssessmentFlag::class);
+    }
+
+    public function maternalNutritionProfile()
+    {
+        return $this->hasOne(MaternalNutritionProfile::class);
+    }
+
+    public function maternalNutritionHistories()
+    {
+        return $this->hasMany(MaternalNutritionHistory::class);
+    }
+
+    public function infantFeedingLogs()
+    {
+        return $this->hasMany(InfantFeedingLog::class);
+    }
+
+    public function receivedSupplementationLogs()
+    {
+        return $this->hasMany(MicronutrientSupplementationLog::class);
+    }
+
+    public function feedingProgramEnrollments()
+    {
+        return $this->hasMany(FeedingProgramEnrollment::class);
+    }
+
+    public function communityCampaignAssignments()
+    {
+        return $this->hasMany(CommunityCampaignAssignment::class);
+    }
+
+    public function clinicalEncounters()
+    {
+        return $this->hasMany(ClinicalEncounter::class);
+    }
+
     // =============================================
     // SCOPES
     // =============================================
@@ -86,6 +222,14 @@ class Resident extends Model
     public function scopeInactive($query)
     {
         return $query->where('is_active', false);
+    }
+
+    /**
+     * Scope a query to only include residents with a specific civil status.
+     */
+    public function scopeWithResidentStatus($query, string $status)
+    {
+        return $query->where('resident_status', $status);
     }
 
     /**
@@ -209,6 +353,15 @@ class Resident extends Model
         return ($diff->y * 12) + $diff->m;
     }
 
+    public function ageInMonthsAt(CarbonInterface $date): int
+    {
+        if (! $this->birth_date) {
+            return 0;
+        }
+
+        return $this->birth_date->copy()->startOfDay()->diffInMonths($date->copy()->startOfDay());
+    }
+
     /**
      * Get the resident's age group category.
      */
@@ -231,6 +384,27 @@ class Resident extends Model
         }
     }
 
+    /**
+     * Get the resident's civil registry status label.
+     */
+    public function getResidentStatusLabelAttribute(): string
+    {
+        return match ($this->resident_status) {
+            self::STATUS_ACTIVE => 'Active Resident',
+            self::STATUS_DECEASED => 'Deceased',
+            self::STATUS_RELOCATED => 'Relocated',
+            default => 'Unknown',
+        };
+    }
+
+    /**
+     * Determine whether this resident is the strict household head.
+     */
+    public function getIsHouseholdHeadAttribute(): bool
+    {
+        return (int) $this->household?->head_resident_id === (int) $this->id;
+    }
+
     // =============================================
     // HELPER METHODS
     // =============================================
@@ -240,7 +414,9 @@ class Resident extends Model
      */
     public function isActive(): bool
     {
-        return $this->is_active && !$this->trashed();
+        return $this->is_active
+            && $this->resident_status === self::STATUS_ACTIVE
+            && ! $this->trashed();
     }
 
     /**
@@ -257,6 +433,22 @@ class Resident extends Model
     public function isSenior(): bool
     {
         return $this->age >= 60;
+    }
+
+    /**
+     * Check if the resident is marked as deceased.
+     */
+    public function isDeceased(): bool
+    {
+        return $this->resident_status === self::STATUS_DECEASED;
+    }
+
+    /**
+     * Check if the resident is marked as relocated.
+     */
+    public function isRelocated(): bool
+    {
+        return $this->resident_status === self::STATUS_RELOCATED;
     }
 
     /**

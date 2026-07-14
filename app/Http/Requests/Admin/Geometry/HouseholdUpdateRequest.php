@@ -56,8 +56,29 @@ class HouseholdUpdateRequest extends FormRequest
                 })->ignore($householdId)
             ],
             'household_address' => ['required', 'string'],
+            'head_resident_id' => ['nullable', 'exists:residents,id'],
             'is_social_aid_beneficiary' => ['boolean'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            $household = $this->route('household');
+
+            if (! $household || ! $this->filled('head_resident_id')) {
+                return;
+            }
+
+            $belongsToHousehold = DB::table('residents')
+                ->where('id', $this->input('head_resident_id'))
+                ->where('household_id', $household->id)
+                ->exists();
+
+            if (! $belongsToHousehold) {
+                $validator->errors()->add('head_resident_id', 'The selected household head must belong to this household.');
+            }
+        });
     }
 }

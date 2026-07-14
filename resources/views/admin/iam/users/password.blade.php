@@ -13,6 +13,18 @@
 @endsection
 
 @section('content')
+    @if(session('temporary_password'))
+        <div class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <p class="text-sm font-semibold text-amber-900">One-Time Temporary Password</p>
+            <p class="mt-1 text-sm text-amber-800">
+                This value is shown only on this page load. Copy it now and share it with the user through a secure channel.
+            </p>
+            <div class="mt-3 rounded-md bg-white px-4 py-3 font-mono text-lg tracking-wide text-gray-900">
+                {{ session('temporary_password') }}
+            </div>
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <!-- Manual Reset -->
         <div class="bg-white rounded-lg shadow">
@@ -59,7 +71,7 @@
             </div>
             <div class="p-6">
                 <p class="text-sm text-gray-600 mb-4">
-                    Generate a random temporary password for the user. The user will receive the password via email.
+                    Generate a random temporary password for the user. The password will be shown once so an admin can hand it off securely.
                 </p>
                 
                 <form method="POST" action="{{ route('admin.users.password.generate', $user) }}">
@@ -75,7 +87,7 @@
 
                 <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p class="text-xs text-yellow-700">
-                        <strong>Note:</strong> This will overwrite the current password. The user will be able to log in with the temporary password.
+                        <strong>Note:</strong> This will overwrite the current password immediately. Make sure the user receives the temporary password through a secure channel.
                     </p>
                 </div>
             </div>

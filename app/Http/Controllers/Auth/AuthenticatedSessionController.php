@@ -19,24 +19,6 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
-    protected function redirectTo(): string
-    {
-        $user = Auth::user();
-
-        // Check if user is active
-        if (!$user->is_active) {
-            Auth::logout();
-            return '/login?error=inactive';
-        }
-
-        // Redirect based on role
-        return match ($user->role) {
-            'admin', 'mho', 'phn', 'secretary', 'bns' => '/admin/dashboard',
-            'bhw' => '/bhw/dashboard', // Or wherever BHWs should go
-            default => '/dashboard',
-        };
-    }
-
     /**
      * Handle an incoming authentication request.
      */

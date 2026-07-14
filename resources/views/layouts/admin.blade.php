@@ -12,20 +12,28 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
     @stack('styles')
 </head>
-<body x-data="{ sidebarOpen: true }" class="font-sans antialiased bg-gray-100">
+<body x-data="sidebarLayout('admin')" class="font-sans antialiased bg-gray-100">
+    @php
+        $isOverrideWorkspace = request()->routeIs([
+            'admin.users.*',
+            'admin.barangays.*',
+            'admin.puroks.*',
+            'admin.households.*',
+            'admin.residents.*',
+        ]);
+    @endphp
     <div class="min-h-screen">
-        
-        <aside x-show="sidebarOpen" 
-               x-transition:enter="transition ease-in-out duration-300"
-               x-transition:enter-start="-translate-x-full"
-               x-transition:enter-end="translate-x-0"
-               class="fixed inset-y-0 left-0 z-50 w-64 bg-tubigon-light border-r border-gray-200/80 shadow-md flex flex-col justify-between">
+        <div x-show="!isDesktop && sidebarOpen" x-cloak @click="closeSidebar()" class="fixed inset-0 z-40 bg-slate-950/30 lg:hidden"></div>
+
+        <aside
+               x-show="sidebarOpen"
+               x-cloak
+               @click.capture="handleNavClick($event)"
+               class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col overflow-hidden border-r border-gray-200/80 bg-tubigon-light shadow-md">
             
-            <div>
+            <div class="flex min-h-0 flex-1 flex-col">
                 <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200/80">
                     <a href="{{ route('admin.dashboard') }}" class="text-xl font-bold text-tubigon tracking-tight">
                         HealthLink
@@ -33,7 +41,7 @@
                     <span class="px-2.5 py-0.5 text-xs font-semibold text-white bg-tubigon rounded-full">Admin</span>
                 </div>
 
-                <nav class="px-3 py-4 overflow-y-auto">
+                <nav x-ref="sidebarScroll" class="sidebar-scrollbar sidebar-scrollbar-admin flex-1 overflow-y-auto px-3 py-4 overscroll-contain">
                     <x-sidebar-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.dashboard')" icon="dashboard">
                         Dashboard
                     </x-sidebar-link>
@@ -51,6 +59,34 @@
 
                         <x-sidebar-link :href="route('admin.puroks.index')" :active="request()->routeIs('admin.puroks.*')" icon="purok">
                             Puroks
+                        </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.households.index')" :active="request()->routeIs('admin.households.*')" icon="household">
+                            Households
+                        </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.residents.index')" :active="request()->routeIs('admin.residents.*')" icon="resident">
+                            Residents
+                        </x-sidebar-link>
+                    </div>
+
+                    <div class="pt-4 mt-4 border-t border-gray-200/80">
+                        <p class="px-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Oversight</p>
+
+                        <x-sidebar-link :href="route('admin.oversight.field')" :active="request()->routeIs('admin.oversight.field')" icon="household">
+                            Field Operations
+                        </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.oversight.nutrition')" :active="request()->routeIs('admin.oversight.nutrition')" icon="metrics">
+                            Nutrition Oversight
+                        </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.oversight.clinical')" :active="request()->routeIs('admin.oversight.clinical')" icon="sync">
+                            Clinical Oversight
+                        </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.reports.index')" :active="request()->routeIs('admin.reports.*')" icon="metrics">
+                            Reports Hub
                         </x-sidebar-link>
                     </div>
 
@@ -103,7 +139,7 @@
                         <p class="text-sm font-semibold text-gray-800 truncate">{{ Auth::user()->name }}</p>
                         <p class="text-xs text-gray-500 truncate">{{ Auth::user()->email }}</p>
                     </div>
-                    <button @click="sidebarOpen = false" class="text-gray-400 hover:text-tubigon transition-colors">
+                    <button @click="closeSidebar()" class="text-gray-400 transition-colors hover:text-tubigon lg:hidden" aria-label="Close sidebar">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
                         </svg>
@@ -112,12 +148,12 @@
             </div>
         </aside>
 
-        <div :class="sidebarOpen ? 'lg:ml-64' : ''" class="transition-all duration-300">
+        <div :class="isDesktop && sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'">
             <nav class="bg-white border-b border-gray-200 shadow-sm">
                 <div class="px-4 mx-auto sm:px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
                         <div class="flex items-center">
-                            <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                            <button @click="toggleSidebar()" class="text-gray-500 hover:text-gray-700 focus:outline-none" aria-label="Toggle sidebar">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                                 </svg>
@@ -206,6 +242,16 @@
                             </svg>
                         </button>
                         <span class="block sm:inline">{{ session('error') }}</span>
+                    </div>
+                @endif
+
+                @if($isOverrideWorkspace)
+                    <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                        <p class="font-semibold uppercase tracking-[0.18em] text-amber-800">Supervisory Override</p>
+                        <p class="mt-2 leading-6">
+                            This municipal admin workspace is for exceptional intervention, data correction, and continuity support.
+                            Routine encoding and day-to-day operations should stay inside the Secretary, BHW, BNS, PHN, and MHO role modules whenever possible.
+                        </p>
                     </div>
                 @endif
 

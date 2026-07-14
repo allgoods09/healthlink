@@ -136,11 +136,18 @@
                                             @method('PATCH')
                                             <button type="submit" class="text-green-600 hover:text-green-900">Restore</button>
                                         </form>
-                                        <form action="{{ route('admin.archive.purge', $archive) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to permanently purge this record? This cannot be undone.')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="text-red-600 hover:text-red-900">Purge</button>
-                                        </form>
+                                        <x-destructive-confirm-modal
+                                            :action="route('admin.archive.purge', $archive)"
+                                            method="DELETE"
+                                            title="Purge Archived Record"
+                                            description="This permanently purges the selected archive entry from the active archive set."
+                                            trigger-label="Purge"
+                                            trigger-class="text-red-600 hover:text-red-900"
+                                            confirmation-word="PURGE"
+                                            submit-label="Purge Record"
+                                            reason-label="Reason for permanent purge"
+                                            reason-placeholder="Explain why this archive entry is being permanently purged."
+                                        />
                                     @endif
                                 </div>
                             </td>
