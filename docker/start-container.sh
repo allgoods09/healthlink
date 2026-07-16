@@ -29,6 +29,7 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ] && [ "${CONTAINER_ROLE}" = "web" ]; t
     php artisan migrate --force
 fi
 
+php artisan package:discover --ansi
 php artisan config:cache
 php artisan view:cache
 
