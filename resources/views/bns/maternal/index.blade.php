@@ -5,6 +5,19 @@
 @section('subheader', 'Current pregnant and lactating profiles, maternal history entries, and the mother-linked infant feeding follow-up workflow.')
 
 @section('content')
+    @php
+        $femaleResidentSearchOptions = $femaleResidents->map(fn ($femaleResident) => [
+            'value' => $femaleResident->id,
+            'label' => $femaleResident->formal_name,
+            'description' => $femaleResident->household?->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $femaleResident->formal_name,
+                $femaleResident->official_resident_code,
+                $femaleResident->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Pregnant</p>
@@ -44,14 +57,15 @@
                     @csrf
                     <div>
                         <label for="resident_id" class="block text-sm font-medium text-slate-700">Verified Female Resident</label>
-                        <select name="resident_id" id="resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                            <option value="">Select a resident</option>
-                            @foreach($femaleResidents as $femaleResident)
-                                <option value="{{ $femaleResident->id }}" @selected((string) old('resident_id') === (string) $femaleResident->id)>
-                                    {{ $femaleResident->formal_name }} · {{ $femaleResident->household?->purok?->display_name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <x-searchable-record-select
+                            name="resident_id"
+                            id="resident_id"
+                            :options="$femaleResidentSearchOptions"
+                            :selected="old('resident_id')"
+                            placeholder="Search resident name"
+                            empty-message="No resident matches your search."
+                            required
+                        />
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
                         <label class="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">

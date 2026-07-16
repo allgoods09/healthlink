@@ -11,6 +11,19 @@
 @endsection
 
 @section('content')
+    @php
+        $infantResidentSearchOptions = $infantResidents->map(fn ($infantResident) => [
+            'value' => $infantResident->id,
+            'label' => $infantResident->formal_name,
+            'description' => $infantResident->household?->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $infantResident->formal_name,
+                $infantResident->official_resident_code,
+                $infantResident->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="space-y-6">
             <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -173,14 +186,15 @@
                         @csrf
                         <div>
                             <label for="resident_id" class="block text-sm font-medium text-slate-700">Verified Child</label>
-                            <select name="resident_id" id="resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                                <option value="">Select a child aged 0-24 months</option>
-                                @foreach($infantResidents as $infantResident)
-                                    <option value="{{ $infantResident->id }}" @selected((string) old('resident_id') === (string) $infantResident->id)>
-                                        {{ $infantResident->formal_name }} · {{ $infantResident->household?->purok?->display_name }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <x-searchable-record-select
+                                name="resident_id"
+                                id="resident_id"
+                                :options="$infantResidentSearchOptions"
+                                :selected="old('resident_id')"
+                                placeholder="Search child name"
+                                empty-message="No eligible child matches your search."
+                                required
+                            />
                         </div>
                         <div class="grid gap-4 md:grid-cols-2">
                             <div>

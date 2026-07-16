@@ -92,18 +92,47 @@
 
                     <div x-show="destination === 'existing_household'">
                         <label for="target_household_id" class="block text-sm font-medium text-slate-700">Target Household</label>
-                        <select
-                            name="target_household_id"
-                            id="target_household_id"
-                            x-model="targetHouseholdId"
-                            class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('target_household_id') border-red-500 @enderror"
-                            :disabled="households.length === 0"
-                        >
-                            <option value="">Select household</option>
-                            <template x-for="household in households" :key="household.id">
-                                <option :value="String(household.id)" x-text="`#${household.household_no} - ${household.household_address}`"></option>
-                            </template>
-                        </select>
+                        <div class="relative">
+                            <input type="hidden" name="target_household_id" x-model="targetHouseholdId">
+                            <input
+                                type="text"
+                                id="target_household_id"
+                                x-ref="targetHouseholdSearchInput"
+                                x-model="targetHouseholdSearchQuery"
+                                :disabled="households.length === 0"
+                                :placeholder="households.length === 0 ? 'Select a purok with households first' : 'Search household number or address'"
+                                class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('target_household_id') border-red-500 @enderror"
+                                autocomplete="off"
+                                @focus="openTargetHouseholdSearch()"
+                                @input="handleTargetHouseholdSearchInput()"
+                                @blur="closeTargetHouseholdSearch()"
+                                @keydown.arrow-down.prevent="moveTargetHouseholdSelection(1)"
+                                @keydown.arrow-up.prevent="moveTargetHouseholdSelection(-1)"
+                                @keydown.enter.prevent="selectHighlightedTargetHousehold()"
+                                @keydown.escape.prevent="targetHouseholdSearchOpen = false"
+                            >
+                            <div
+                                x-cloak
+                                x-show="targetHouseholdSearchOpen"
+                                class="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
+                            >
+                                <div class="max-h-72 overflow-y-auto py-2">
+                                    <template x-if="filteredHouseholds.length === 0">
+                                        <div class="px-4 py-3 text-sm text-slate-500">No household matches your search.</div>
+                                    </template>
+                                    <template x-for="(household, index) in filteredHouseholds" :key="household.id">
+                                        <button
+                                            type="button"
+                                            class="block w-full px-4 py-3 text-left transition"
+                                            :class="index === highlightedHouseholdIndex ? 'bg-tubigon/10 text-tubigon' : 'text-slate-700 hover:bg-slate-50'"
+                                            @mousedown.prevent="selectTargetHousehold(household)"
+                                        >
+                                            <span class="block text-sm font-medium" x-text="targetHouseholdLabel(household)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                         @error('target_household_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -188,16 +217,118 @@
                 destination: initialDestination || 'existing_household',
                 targetPurokId: initialPurok || '',
                 targetHouseholdId: initialHousehold || '',
+                targetHouseholdSearchQuery: '',
+                targetHouseholdSearchOpen: false,
                 households: initialHouseholds || [],
+                filteredHouseholds: [],
+                highlightedHouseholdIndex: 0,
                 init() {
+                    this.syncTargetHouseholdSearch();
+
                     if (this.targetPurokId && this.destination === 'existing_household' && this.households.length === 0) {
                         this.loadHouseholds();
                     }
+                },
+                targetHouseholdLabel(household) {
+                    return `#${household.household_no} - ${household.household_address}`;
+                },
+                refreshTargetHouseholdResults() {
+                    const term = this.targetHouseholdSearchQuery.trim().toLowerCase();
+
+                    if (!term) {
+                        this.filteredHouseholds = [];
+                        this.highlightedHouseholdIndex = 0;
+                        return;
+                    }
+
+                    this.filteredHouseholds = this.households
+                        .filter((household) => [household.household_no, household.household_address].join(' ').toLowerCase().includes(term))
+                        .slice(0, 12);
+
+                    if (this.highlightedHouseholdIndex >= this.filteredHouseholds.length) {
+                        this.highlightedHouseholdIndex = 0;
+                    }
+                },
+                syncTargetHouseholdSearch() {
+                    const selectedHousehold = this.households.find((household) => String(household.id) === String(this.targetHouseholdId));
+
+                    if (selectedHousehold) {
+                        this.targetHouseholdSearchQuery = this.targetHouseholdLabel(selectedHousehold);
+                    } else if (!this.targetHouseholdSearchOpen) {
+                        this.targetHouseholdSearchQuery = '';
+                    }
+
+                    this.refreshTargetHouseholdResults();
+                    this.syncTargetHouseholdValidity();
+                },
+                handleTargetHouseholdSearchInput() {
+                    const selectedHousehold = this.households.find((household) => String(household.id) === String(this.targetHouseholdId));
+
+                    if (!selectedHousehold || this.targetHouseholdSearchQuery !== this.targetHouseholdLabel(selectedHousehold)) {
+                        this.targetHouseholdId = '';
+                    }
+
+                    this.highlightedHouseholdIndex = 0;
+                    this.refreshTargetHouseholdResults();
+                    this.targetHouseholdSearchOpen = this.targetHouseholdSearchQuery.trim().length > 0;
+                    this.syncTargetHouseholdValidity();
+                },
+                openTargetHouseholdSearch() {
+                    if (this.households.length === 0) {
+                        return;
+                    }
+
+                    this.refreshTargetHouseholdResults();
+                    this.targetHouseholdSearchOpen = this.targetHouseholdSearchQuery.trim().length > 0;
+                },
+                closeTargetHouseholdSearch() {
+                    window.setTimeout(() => {
+                        this.targetHouseholdSearchOpen = false;
+                        this.syncTargetHouseholdValidity();
+                    }, 120);
+                },
+                moveTargetHouseholdSelection(step) {
+                    if (!this.targetHouseholdSearchOpen) {
+                        this.openTargetHouseholdSearch();
+                    }
+
+                    if (this.filteredHouseholds.length === 0) {
+                        return;
+                    }
+
+                    const total = this.filteredHouseholds.length;
+                    this.highlightedHouseholdIndex = (this.highlightedHouseholdIndex + step + total) % total;
+                },
+                selectHighlightedTargetHousehold() {
+                    if (!this.filteredHouseholds[this.highlightedHouseholdIndex]) {
+                        return;
+                    }
+
+                    this.selectTargetHousehold(this.filteredHouseholds[this.highlightedHouseholdIndex]);
+                },
+                selectTargetHousehold(household) {
+                    this.targetHouseholdId = String(household.id);
+                    this.targetHouseholdSearchQuery = this.targetHouseholdLabel(household);
+                    this.targetHouseholdSearchOpen = false;
+                    this.highlightedHouseholdIndex = 0;
+                    this.syncTargetHouseholdValidity();
+                },
+                syncTargetHouseholdValidity() {
+                    if (!this.$refs.targetHouseholdSearchInput) {
+                        return;
+                    }
+
+                    this.$refs.targetHouseholdSearchInput.setCustomValidity(
+                        this.destination === 'existing_household' && this.households.length > 0 && !this.targetHouseholdId
+                            ? 'Please select a household from the search results.'
+                            : '',
+                    );
                 },
                 async loadHouseholds() {
                     if (!this.targetPurokId) {
                         this.households = [];
                         this.targetHouseholdId = '';
+                        this.syncTargetHouseholdSearch();
                         return;
                     }
 
@@ -207,6 +338,8 @@
                     if (!this.households.find((household) => String(household.id) === String(this.targetHouseholdId))) {
                         this.targetHouseholdId = '';
                     }
+
+                    this.syncTargetHouseholdSearch();
                 },
             };
         }

@@ -34,19 +34,49 @@
 
     <div>
         <label for="household_id" class="block text-sm font-medium text-gray-700">Household</label>
-        <select
-            name="household_id"
-            id="household_id"
-            x-model="householdId"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('household_id') border-red-500 @enderror"
-            :disabled="households.length === 0"
-            required
-        >
-            <option value="">Select household</option>
-            <template x-for="household in households" :key="household.id">
-                <option :value="String(household.id)" x-text="`#${household.household_no} - ${household.household_address}`"></option>
-            </template>
-        </select>
+        <div class="relative">
+            <input type="hidden" name="household_id" x-model="householdId">
+            <input
+                type="text"
+                id="household_id"
+                x-ref="householdSearchInput"
+                x-model="householdSearchQuery"
+                :disabled="households.length === 0"
+                :placeholder="households.length === 0 ? 'Select a purok with households first' : 'Search household number or address'"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('household_id') border-red-500 @enderror"
+                autocomplete="off"
+                @focus="openHouseholdSearch()"
+                @input="handleHouseholdSearchInput()"
+                @blur="closeHouseholdSearch()"
+                @keydown.arrow-down.prevent="moveHouseholdSelection(1)"
+                @keydown.arrow-up.prevent="moveHouseholdSelection(-1)"
+                @keydown.enter.prevent="selectHighlightedHousehold()"
+                @keydown.escape.prevent="householdSearchOpen = false"
+                required
+            >
+            <div
+                x-cloak
+                x-show="householdSearchOpen"
+                class="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
+            >
+                <div class="max-h-72 overflow-y-auto py-2">
+                    <template x-if="filteredHouseholds.length === 0">
+                        <div class="px-4 py-3 text-sm text-slate-500">No household matches your search.</div>
+                    </template>
+                    <template x-for="(household, index) in filteredHouseholds" :key="household.id">
+                        <button
+                            type="button"
+                            class="block w-full px-4 py-3 text-left transition"
+                            :class="index === highlightedHouseholdIndex ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'"
+                            @mousedown.prevent="selectHousehold(household)"
+                        >
+                            <span class="block text-sm font-medium" x-text="householdLabel(household)"></span>
+                            <span class="mt-1 block text-xs text-slate-500" x-text="household.purok_name ? household.purok_name : 'Loaded household'"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
         @error('household_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror

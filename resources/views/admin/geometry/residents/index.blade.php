@@ -5,6 +5,18 @@
 
 @php
     $routePrefix = $routePrefix ?? 'admin';
+    $householdSearchOptions = $households->map(fn ($household) => [
+        'value' => $household->id,
+        'label' => $household->purok->barangay->name.' - '.$household->purok->display_name.' - #'.$household->household_no,
+        'description' => $household->household_address ?: 'No household address',
+        'search' => collect([
+            $household->purok->barangay->name,
+            $household->purok->display_name,
+            $household->household_no ? 'household '.$household->household_no : null,
+            $household->household_address,
+            $household->headResident?->formal_name,
+        ])->filter()->implode(' '),
+    ])->values()->all();
 @endphp
 
 @section('actions')
@@ -46,14 +58,15 @@
 
                 <div>
                     <label for="household_id" class="block text-sm font-medium text-gray-700">Household</label>
-                    <select name="household_id" id="household_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All households</option>
-                        @foreach($households as $household)
-                            <option value="{{ $household->id }}" {{ request('household_id') == $household->id ? 'selected' : '' }}>
-                                {{ $household->purok->barangay->name }} - {{ $household->purok->display_name }} - #{{ $household->household_no }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-searchable-record-select
+                        name="household_id"
+                        id="household_id"
+                        :options="$householdSearchOptions"
+                        :selected="request('household_id')"
+                        placeholder="Search household number or address"
+                        empty-message="No household matches your search."
+                        class="rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    />
                 </div>
 
                 <div>

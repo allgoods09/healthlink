@@ -3,6 +3,141 @@
 import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;
+window.searchableRecordSelect = (config = {}) => ({
+    options: Array.isArray(config.options) ? config.options : [],
+    selectedValue: config.selected === undefined || config.selected === null ? '' : String(config.selected),
+    placeholder: config.placeholder || 'Search records',
+    emptyMessage: config.emptyMessage || 'No matching records found.',
+    required: Boolean(config.required),
+    disabled: Boolean(config.disabled),
+    maxResults: Number.parseInt(config.maxResults ?? 12, 10),
+    query: '',
+    isOpen: false,
+    highlightedIndex: 0,
+    normalizedOptions: [],
+    filteredOptions: [],
+
+    init() {
+        this.setOptions(this.options);
+    },
+
+    setOptions(options) {
+        this.options = Array.isArray(options) ? options : [];
+        this.normalizedOptions = this.options
+            .map((option) => ({
+                value: String(option.value ?? option.id ?? ''),
+                label: String(option.label ?? ''),
+                search: String(option.search ?? option.label ?? '').toLowerCase(),
+                description: String(option.description ?? ''),
+            }))
+            .filter((option) => option.value !== '');
+
+        if (!this.normalizedOptions.find((option) => option.value === this.selectedValue)) {
+            this.selectedValue = '';
+        }
+
+        this.syncQueryToSelection();
+        this.refreshResults();
+        this.syncValidity();
+    },
+
+    syncQueryToSelection() {
+        const selectedOption = this.normalizedOptions.find((option) => option.value === this.selectedValue);
+        this.query = selectedOption ? selectedOption.label : '';
+    },
+
+    handleInput() {
+        const selectedOption = this.normalizedOptions.find((option) => option.value === this.selectedValue);
+
+        if (!selectedOption || this.query !== selectedOption.label) {
+            this.selectedValue = '';
+        }
+
+        this.highlightedIndex = 0;
+        this.refreshResults();
+        this.isOpen = this.query.trim().length > 0;
+        this.syncValidity();
+    },
+
+    handleBlur() {
+        window.setTimeout(() => {
+            this.isOpen = false;
+            this.syncValidity();
+        }, 120);
+    },
+
+    openIfSearching() {
+        if (this.disabled) {
+            return;
+        }
+
+        this.refreshResults();
+        this.isOpen = this.query.trim().length > 0;
+    },
+
+    refreshResults() {
+        const term = this.query.trim().toLowerCase();
+
+        if (!term) {
+            this.filteredOptions = [];
+            this.highlightedIndex = 0;
+            return;
+        }
+
+        this.filteredOptions = this.normalizedOptions
+            .filter((option) => option.label.toLowerCase().includes(term) || option.search.includes(term))
+            .slice(0, this.maxResults);
+
+        if (this.highlightedIndex >= this.filteredOptions.length) {
+            this.highlightedIndex = 0;
+        }
+    },
+
+    move(step) {
+        if (this.disabled) {
+            return;
+        }
+
+        if (!this.isOpen) {
+            this.openIfSearching();
+        }
+
+        if (this.filteredOptions.length === 0) {
+            return;
+        }
+
+        const total = this.filteredOptions.length;
+        this.highlightedIndex = (this.highlightedIndex + step + total) % total;
+    },
+
+    selectHighlighted() {
+        if (!this.filteredOptions[this.highlightedIndex]) {
+            return;
+        }
+
+        this.selectOption(this.filteredOptions[this.highlightedIndex]);
+    },
+
+    selectOption(option) {
+        this.selectedValue = option.value;
+        this.query = option.label;
+        this.isOpen = false;
+        this.highlightedIndex = 0;
+        this.syncValidity();
+    },
+
+    syncValidity() {
+        if (!this.$refs.searchInput) {
+            return;
+        }
+
+        this.$refs.searchInput.setCustomValidity(
+            this.required && !this.selectedValue
+                ? 'Please select a record from the search results.'
+                : '',
+        );
+    },
+});
 
 Alpine.data('sidebarLayout', (sidebarContext = 'default', desktopBreakpoint = 1024) => ({
     storageKey: 'healthlink.sidebar.desktop.open',

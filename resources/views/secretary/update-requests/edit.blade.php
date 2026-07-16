@@ -21,6 +21,25 @@
         $subject = $profileUpdateRequest->subject_type === \App\Models\ProfileUpdateRequest::SUBJECT_RESIDENT
             ? $profileUpdateRequest->resident
             : $profileUpdateRequest->household;
+        $householdSearchOptions = $households->map(fn ($household) => [
+            'value' => $household->id,
+            'label' => $household->purok?->display_name.' · Household #'.$household->household_no,
+            'description' => $household->household_address ?: 'No household address',
+            'search' => collect([
+                $household->purok?->display_name,
+                $household->household_no ? 'household '.$household->household_no : null,
+                $household->household_address,
+                $household->headResident?->formal_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+        $headResidentSearchOptions = collect($subject?->residents ?? [])->map(fn ($resident) => [
+            'value' => $resident->id,
+            'label' => $resident->formal_name,
+            'search' => collect([
+                $resident->formal_name,
+                $resident->official_resident_code,
+            ])->filter()->implode(' '),
+        ])->values()->all();
     @endphp
 
     <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -48,13 +67,14 @@
                         <div class="grid gap-4 md:grid-cols-2">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">Household</label>
-                                <select name="household_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon" required>
-                                    @foreach($households as $household)
-                                        <option value="{{ $household->id }}" {{ (string) old('household_id', data_get($proposed, 'household_id', $subject?->household_id)) === (string) $household->id ? 'selected' : '' }}>
-                                            {{ $household->purok?->display_name }} · Household #{{ $household->household_no }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <x-searchable-record-select
+                                    name="household_id"
+                                    :options="$householdSearchOptions"
+                                    :selected="old('household_id', data_get($proposed, 'household_id', $subject?->household_id))"
+                                    placeholder="Search household number or address"
+                                    empty-message="No household matches your search."
+                                    required
+                                />
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">PhilSys ID</label>
@@ -177,14 +197,13 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">Head of Household</label>
-                                <select name="head_resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                                    <option value="">No assigned head</option>
-                                    @foreach($subject?->residents ?? [] as $resident)
-                                        <option value="{{ $resident->id }}" {{ (string) old('head_resident_id', data_get($proposed, 'head_resident_id', $subject?->head_resident_id)) === (string) $resident->id ? 'selected' : '' }}>
-                                            {{ $resident->formal_name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <x-searchable-record-select
+                                    name="head_resident_id"
+                                    :options="$headResidentSearchOptions"
+                                    :selected="old('head_resident_id', data_get($proposed, 'head_resident_id', $subject?->head_resident_id))"
+                                    placeholder="Search resident name"
+                                    empty-message="No resident matches your search."
+                                />
                             </div>
                             <div>
                                 <input type="hidden" name="has_sanitary_toilet" value="0">

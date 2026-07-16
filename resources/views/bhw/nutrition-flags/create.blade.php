@@ -5,6 +5,19 @@
 @section('subheader', 'Flag an at-risk child for BNS assessment using the verified resident pool.')
 
 @section('content')
+    @php
+        $residentSearchOptions = $residentOptions->map(fn ($residentOption) => [
+            'value' => $residentOption->id,
+            'label' => $residentOption->formal_name,
+            'description' => $residentOption->household?->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $residentOption->formal_name,
+                $residentOption->official_resident_code,
+                $residentOption->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     @if($errors->any())
         <div class="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <p class="font-semibold">Please review the nutrition flag details.</p>
@@ -25,14 +38,15 @@
             <div class="grid gap-6 p-6">
                 <div>
                     <label for="resident_id" class="block text-sm font-medium text-slate-700">Verified Child</label>
-                    <select name="resident_id" id="resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">Select a child</option>
-                        @foreach($residentOptions as $residentOption)
-                            <option value="{{ $residentOption->id }}" @selected((string) old('resident_id', $selectedResident?->id) === (string) $residentOption->id)>
-                                {{ $residentOption->formal_name }} · {{ $residentOption->household?->purok?->display_name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-searchable-record-select
+                        name="resident_id"
+                        id="resident_id"
+                        :options="$residentSearchOptions"
+                        :selected="old('resident_id', $selectedResident?->id)"
+                        placeholder="Search child name"
+                        empty-message="No verified child matches your search."
+                        required
+                    />
                 </div>
                 <div>
                     <label for="flag_reason" class="block text-sm font-medium text-slate-700">Reason for Referral</label>

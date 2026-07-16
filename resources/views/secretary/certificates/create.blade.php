@@ -11,6 +11,31 @@
 @endsection
 
 @section('content')
+    @php
+        $residentSearchOptions = $residents->map(fn ($resident) => [
+            'value' => $resident->id,
+            'label' => $resident->formal_name,
+            'description' => 'Household #'.$resident->household?->household_no.' · '.($resident->household?->purok?->display_name ?? 'Unknown purok'),
+            'search' => collect([
+                $resident->formal_name,
+                $resident->official_resident_code,
+                $resident->household?->household_no ? 'household '.$resident->household->household_no : null,
+                $resident->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+        $householdSearchOptions = $households->map(fn ($household) => [
+            'value' => $household->id,
+            'label' => 'Household #'.$household->household_no,
+            'description' => ($household->purok?->display_name ?? 'Unknown purok').' · '.($household->headResident?->formal_name ?: 'No assigned head yet'),
+            'search' => collect([
+                $household->household_no ? 'household '.$household->household_no : null,
+                $household->household_address,
+                $household->purok?->display_name,
+                $household->headResident?->formal_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     <div class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-6">
             <form method="POST" action="{{ route('secretary.certificates.store') }}" x-data="{ recipientType: '{{ old('recipient_type', 'resident') }}' }">
@@ -56,14 +81,14 @@
 
                     <div x-show="recipientType === 'resident'" x-cloak class="md:col-span-2">
                         <label for="resident_id" class="block text-sm font-medium text-slate-700">Resident</label>
-                        <select name="resident_id" id="resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('resident_id') border-red-500 @enderror">
-                            <option value="">Select resident</option>
-                            @foreach($residents as $resident)
-                                <option value="{{ $resident->id }}" {{ (string) old('resident_id') === (string) $resident->id ? 'selected' : '' }}>
-                                    {{ $resident->formal_name }} · Household #{{ $resident->household?->household_no }} · {{ $resident->household?->purok?->display_name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <x-searchable-record-select
+                            name="resident_id"
+                            id="resident_id"
+                            :options="$residentSearchOptions"
+                            :selected="old('resident_id')"
+                            placeholder="Search resident name"
+                            empty-message="No resident matches your search."
+                        />
                         @error('resident_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -71,14 +96,14 @@
 
                     <div x-show="recipientType === 'household'" x-cloak class="md:col-span-2">
                         <label for="household_id" class="block text-sm font-medium text-slate-700">Household</label>
-                        <select name="household_id" id="household_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('household_id') border-red-500 @enderror">
-                            <option value="">Select household</option>
-                            @foreach($households as $household)
-                                <option value="{{ $household->id }}" {{ (string) old('household_id') === (string) $household->id ? 'selected' : '' }}>
-                                    Household #{{ $household->household_no }} · {{ $household->purok?->display_name }} · {{ $household->headResident?->formal_name ?: 'No assigned head yet' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <x-searchable-record-select
+                            name="household_id"
+                            id="household_id"
+                            :options="$householdSearchOptions"
+                            :selected="old('household_id')"
+                            placeholder="Search household number or head name"
+                            empty-message="No household matches your search."
+                        />
                         @error('household_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror

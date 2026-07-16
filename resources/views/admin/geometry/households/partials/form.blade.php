@@ -54,20 +54,25 @@
         <label for="head_resident_id" class="block text-sm font-medium text-gray-700">Head of Household</label>
         @php
             $headCandidates = $headCandidates ?? ($household->relationLoaded('residents') ? $household->residents : collect());
+            $headResidentSearchOptions = $headCandidates->map(fn ($candidate) => [
+                'value' => $candidate->id,
+                'label' => $candidate->formal_name ?? $candidate->full_name,
+                'search' => collect([
+                    $candidate->formal_name ?? $candidate->full_name,
+                    $candidate->official_resident_code,
+                ])->filter()->implode(' '),
+            ])->values()->all();
         @endphp
-        <select
+        <x-searchable-record-select
             name="head_resident_id"
             id="head_resident_id"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('head_resident_id') border-red-500 @enderror"
-            {{ $headCandidates->isEmpty() ? 'disabled' : '' }}
-        >
-            <option value="">{{ $headCandidates->isEmpty() ? 'Add residents first' : 'No assigned head yet' }}</option>
-            @foreach($headCandidates as $candidate)
-                <option value="{{ $candidate->id }}" {{ (string) old('head_resident_id', $household->head_resident_id ?? '') === (string) $candidate->id ? 'selected' : '' }}>
-                    {{ $candidate->formal_name ?? $candidate->full_name }}
-                </option>
-            @endforeach
-        </select>
+            :options="$headResidentSearchOptions"
+            :selected="old('head_resident_id', $household->head_resident_id ?? '')"
+            placeholder="{{ $headCandidates->isEmpty() ? 'Add residents first' : 'Search resident name' }}"
+            empty-message="No resident matches your search."
+            :disabled="$headCandidates->isEmpty()"
+            class="rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+        />
         @error('head_resident_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @else

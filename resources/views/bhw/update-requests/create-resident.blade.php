@@ -15,6 +15,29 @@
 @endsection
 
 @section('content')
+    @php
+        $residentSearchOptions = $residentOptions->map(fn ($residentOption) => [
+            'value' => $residentOption->id,
+            'label' => $residentOption->formal_name,
+            'description' => $residentOption->household?->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $residentOption->formal_name,
+                $residentOption->official_resident_code,
+                $residentOption->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+        $householdSearchOptions = $householdOptions->map(fn ($householdOption) => [
+            'value' => $householdOption->id,
+            'label' => $householdOption->full_identifier,
+            'description' => $householdOption->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $householdOption->full_identifier,
+                $householdOption->household_address,
+                $householdOption->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     @if($errors->any())
         <div class="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <p class="font-semibold">Please review the resident correction details.</p>
@@ -35,25 +58,26 @@
             <div class="grid gap-6 p-6 md:grid-cols-2">
                 <div>
                     <label for="subject_id" class="block text-sm font-medium text-slate-700">Verified Resident</label>
-                    <select name="subject_id" id="subject_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">Select a resident</option>
-                        @foreach($residentOptions as $residentOption)
-                            <option value="{{ $residentOption->id }}" @selected((string) old('subject_id', $selectedResident?->id) === (string) $residentOption->id)>
-                                {{ $residentOption->formal_name }} · {{ $residentOption->household?->purok?->display_name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-searchable-record-select
+                        name="subject_id"
+                        id="subject_id"
+                        :options="$residentSearchOptions"
+                        :selected="old('subject_id', $selectedResident?->id)"
+                        placeholder="Search resident name"
+                        empty-message="No resident matches your search."
+                        required
+                    />
                 </div>
                 <div>
                     <label for="household_id" class="block text-sm font-medium text-slate-700">Proposed Household</label>
-                    <select name="household_id" id="household_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">Select a household</option>
-                        @foreach($householdOptions as $householdOption)
-                            <option value="{{ $householdOption->id }}" @selected((string) old('household_id', $selectedResident?->household_id) === (string) $householdOption->id)>
-                                {{ $householdOption->full_identifier }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-searchable-record-select
+                        name="household_id"
+                        id="household_id"
+                        :options="$householdSearchOptions"
+                        :selected="old('household_id', $selectedResident?->household_id)"
+                        placeholder="Search household number or address"
+                        empty-message="No household matches your search."
+                    />
                 </div>
             </div>
         </div>

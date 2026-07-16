@@ -11,6 +11,19 @@
 @endsection
 
 @section('content')
+    @php
+        $residentSearchOptions = $residentOptions->map(fn ($residentOption) => [
+            'value' => $residentOption->id,
+            'label' => $residentOption->formal_name,
+            'description' => $residentOption->household?->purok?->display_name ?? 'Unknown purok',
+            'search' => collect([
+                $residentOption->formal_name,
+                $residentOption->official_resident_code,
+                $residentOption->household?->purok?->display_name,
+            ])->filter()->implode(' '),
+        ])->values()->all();
+    @endphp
+
     <div class="mx-auto max-w-4xl rounded-[28px] border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-5">
             <h2 class="text-lg font-semibold text-slate-900">Supplementation Details</h2>
@@ -33,14 +46,15 @@
 
                 <div>
                     <label for="resident_id" class="block text-sm font-medium text-slate-700">Verified Resident</label>
-                    <select name="resident_id" id="resident_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">Select a resident</option>
-                        @foreach($residentOptions as $residentOption)
-                            <option value="{{ $residentOption->id }}" @selected((string) old('resident_id') === (string) $residentOption->id)>
-                                {{ $residentOption->formal_name }} · {{ $residentOption->household?->purok?->display_name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <x-searchable-record-select
+                        name="resident_id"
+                        id="resident_id"
+                        :options="$residentSearchOptions"
+                        :selected="old('resident_id')"
+                        placeholder="Search resident name"
+                        empty-message="No resident matches your search."
+                        required
+                    />
                 </div>
 
                 <div class="grid gap-6 md:grid-cols-2">

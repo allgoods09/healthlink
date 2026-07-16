@@ -55,12 +55,113 @@
                 barangayId: initialBarangay || '',
                 purokId: initialPurok || '',
                 householdId: initialHousehold || '',
+                householdSearchQuery: '',
+                householdSearchOpen: false,
+                filteredHouseholds: [],
+                highlightedHouseholdIndex: 0,
                 puroks: [],
                 households: [],
                 init() {
+                    this.syncHouseholdSearch();
+
                     if (this.barangayId) {
                         this.loadPuroks();
                     }
+                },
+                householdLabel(household) {
+                    return `#${household.household_no} - ${household.household_address}`;
+                },
+                refreshHouseholdResults() {
+                    const term = this.householdSearchQuery.trim().toLowerCase();
+
+                    if (!term) {
+                        this.filteredHouseholds = [];
+                        this.highlightedHouseholdIndex = 0;
+                        return;
+                    }
+
+                    this.filteredHouseholds = this.households
+                        .filter((household) => [household.household_no, household.household_address].join(' ').toLowerCase().includes(term))
+                        .slice(0, 12);
+
+                    if (this.highlightedHouseholdIndex >= this.filteredHouseholds.length) {
+                        this.highlightedHouseholdIndex = 0;
+                    }
+                },
+                syncHouseholdSearch() {
+                    const selectedHousehold = this.households.find((household) => String(household.id) === String(this.householdId));
+
+                    if (selectedHousehold) {
+                        this.householdSearchQuery = this.householdLabel(selectedHousehold);
+                    } else if (!this.householdSearchOpen) {
+                        this.householdSearchQuery = '';
+                    }
+
+                    this.refreshHouseholdResults();
+                    this.syncHouseholdSearchValidity();
+                },
+                handleHouseholdSearchInput() {
+                    const selectedHousehold = this.households.find((household) => String(household.id) === String(this.householdId));
+
+                    if (!selectedHousehold || this.householdSearchQuery !== this.householdLabel(selectedHousehold)) {
+                        this.householdId = '';
+                    }
+
+                    this.highlightedHouseholdIndex = 0;
+                    this.refreshHouseholdResults();
+                    this.householdSearchOpen = this.householdSearchQuery.trim().length > 0;
+                    this.syncHouseholdSearchValidity();
+                },
+                openHouseholdSearch() {
+                    if (this.households.length === 0) {
+                        return;
+                    }
+
+                    this.refreshHouseholdResults();
+                    this.householdSearchOpen = this.householdSearchQuery.trim().length > 0;
+                },
+                closeHouseholdSearch() {
+                    window.setTimeout(() => {
+                        this.householdSearchOpen = false;
+                        this.syncHouseholdSearchValidity();
+                    }, 120);
+                },
+                moveHouseholdSelection(step) {
+                    if (!this.householdSearchOpen) {
+                        this.openHouseholdSearch();
+                    }
+
+                    if (this.filteredHouseholds.length === 0) {
+                        return;
+                    }
+
+                    const total = this.filteredHouseholds.length;
+                    this.highlightedHouseholdIndex = (this.highlightedHouseholdIndex + step + total) % total;
+                },
+                selectHighlightedHousehold() {
+                    if (!this.filteredHouseholds[this.highlightedHouseholdIndex]) {
+                        return;
+                    }
+
+                    this.selectHousehold(this.filteredHouseholds[this.highlightedHouseholdIndex]);
+                },
+                selectHousehold(household) {
+                    this.householdId = String(household.id);
+                    this.householdSearchQuery = this.householdLabel(household);
+                    this.householdSearchOpen = false;
+                    this.highlightedHouseholdIndex = 0;
+                    this.syncHouseholdSearchValidity();
+                },
+                syncHouseholdSearchValidity() {
+                    if (!this.$refs.householdSearchInput) {
+                        return;
+                    }
+
+                    this.$refs.householdSearchInput.setCustomValidity(
+                        this.households.length > 0 && !this.householdId
+                            ? 'Please select a household from the search results.'
+                            : '',
+                    );
                 },
                 async loadPuroks() {
                     if (!this.barangayId) {
@@ -68,6 +169,7 @@
                         this.purokId = '';
                         this.households = [];
                         this.householdId = '';
+                        this.syncHouseholdSearch();
                         return;
                     }
 
@@ -84,6 +186,7 @@
                     if (!this.purokId) {
                         this.households = [];
                         this.householdId = '';
+                        this.syncHouseholdSearch();
                         return;
                     }
 
@@ -93,6 +196,8 @@
                     if (!this.households.find((household) => String(household.id) === String(this.householdId))) {
                         this.householdId = '';
                     }
+
+                    this.syncHouseholdSearch();
                 },
             };
         }
