@@ -1,36 +1,45 @@
 {
-  "expo": {
-    "name": "HealthLink BHW",
-    "slug": "healthlink-bhw",
-    "version": "1.0.0",
-    "platforms": [
-      "android"
-    ],
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "CAMERA"
-      ]
-    },
-    "plugins": [
-      "expo-sqlite",
-      "expo-secure-store",
-      "expo-localization",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "HealthLink uses the camera so BHWs can capture visit photos for record integrity."
+    "expo": {
+        "name": "HealthLink BHW",
+        "slug": "healthlink-bhw",
+        "version": "1.0.10",
+        "scheme": "healthlinkbhw",
+        "platforms": ["android"],
+        "orientation": "portrait",
+        "icon": "./assets/tubigon-logo.png",
+        "userInterfaceStyle": "light",
+        "android": {
+            "package": "com.allgoods09.healthlink.bhw",
+            "versionCode": 10,
+            "usesCleartextTraffic": true,
+            "adaptiveIcon": {
+                "backgroundColor": "#E6F4FE",
+                "foregroundImage": "./assets/tubigon-logo.png",
+                "monochromeImage": "./assets/android-icon-monochrome.png"
+            },
+            "predictiveBackGestureEnabled": false,
+            "permissions": [
+                "CAMERA",
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO"
+            ]
+        },
+        "plugins": [
+            "expo-sqlite",
+            "expo-secure-store",
+            "expo-localization",
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "HealthLink uses the camera so BHWs can capture visit photos for record integrity."
+                }
+            ],
+            "@react-native-community/datetimepicker"
+        ],
+        "extra": {
+            "eas": {
+                "projectId": "e1ffcafe-2022-4413-ac74-02f37af5c609"
+            }
         }
-      ]
-    ]
-  }
+    }
 }
