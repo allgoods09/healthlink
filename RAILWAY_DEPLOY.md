@@ -20,21 +20,21 @@ The web app, API, and Blade frontend all live in one Laravel app. The database i
 ## App service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm ci && npm run build`
+- Build command: `npm run build`
 - Start command: leave blank so Railway can auto-detect Laravel and run `php-fpm` with Caddy
 - Pre-deploy command: `chmod +x ./railway/init-app.sh && sh ./railway/init-app.sh`
-- Healthcheck path: `/`
+- Healthcheck path: `/up`
 
 ## Worker service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm ci && npm run build`
+- Build command: `npm run build`
 - Start command: `chmod +x ./railway/run-worker.sh && sh ./railway/run-worker.sh`
 
 ## Optional cron service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm ci && npm run build`
+- Build command: `npm run build`
 - Start command: `chmod +x ./railway/run-cron.sh && sh ./railway/run-cron.sh`
 - Cron schedule: optional
 
@@ -84,11 +84,21 @@ BHW_MOBILE_APK_URL=
 
 ## Volume
 
-The project currently writes uploaded APKs and mobile visit photos to Laravel's local disk. Attach a Railway Volume to the app service at:
+The project currently writes uploaded APKs and mobile visit photos to Laravel's local disk. Create a Railway Volume from the project canvas, then connect it to the app service and mount it at:
 
 `/app/storage/app`
 
 This keeps files inside `storage/app` persistent across deploys.
+
+### How to create the volume in Railway
+
+Railway does not show a volume section inside a service until the volume already exists.
+
+1. Open the project canvas.
+2. Press `Cmd/Ctrl + K` and search for `New Volume`, or right-click the canvas.
+3. Create the volume.
+4. When prompted, connect it to `healthlink-app`.
+5. Set the mount path to `/app/storage/app`.
 
 ## Notes
 
