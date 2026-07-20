@@ -13,6 +13,7 @@ import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
+import { formatFriendlyDateTime } from '../lib/format';
 import { getVisits } from '../lib/storage';
 import { theme } from '../theme';
 import { FieldVisitRecord } from '../types';
@@ -86,9 +87,13 @@ export function VisitsScreen({ navigation }: any) {
               <Text style={styles.cardTitle}>{item.household_no ?? 'Household'}</Text>
               <Text style={styles.badge}>{item.sync_status}</Text>
             </View>
-            <Text style={styles.cardText}>{item.visited_at}</Text>
-            <Text style={styles.cardText}>{item.notes || 'No notes'}</Text>
-            <Text style={styles.cardMeta}>{item.photos.length} photo(s)</Text>
+            <Text style={styles.cardText}>
+              {formatFriendlyDateTime(item.visited_at) ?? item.visited_at}
+            </Text>
+            <Text style={styles.cardText}>{item.notes || i18n.t('noNotesSaved')}</Text>
+            <Text style={styles.cardMeta}>
+              {i18n.t('photoCountLabel', { count: item.photos.length })}
+            </Text>
             <Pressable
               onPress={() => navigation.navigate('VisitForm', { localId: item.local_id })}
               style={styles.textAction}

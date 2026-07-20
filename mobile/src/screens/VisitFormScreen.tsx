@@ -1,6 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -15,6 +19,10 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import {
+  formatFriendlyDate,
+  formatFriendlyTime,
+} from '../lib/format';
+import {
   getHouseholdByLocalId,
   getHouseholds,
   getVisitByLocalId,
@@ -27,6 +35,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   const cameraRef = useRef<CameraView | null>(null);
   const { assignment, bumpDataVersion } = useAppContext();
   const [permission, requestPermission] = useCameraPermissions();
+  const [mediaPermission, requestMediaPermission] = ImagePicker.useMediaLibraryPermissions();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [chooserVisible, setChooserVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
@@ -34,7 +43,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   const [localId, setLocalId] = useState<number | null>(null);
   const [serverId, setServerId] = useState<number | null>(null);
   const [mobileUuid, setMobileUuid] = useState<string | null>(null);
-  const [visitedAt, setVisitedAt] = useState(new Date().toISOString());
+  const [visitedAt, setVisitedAt] = useState(() => new Date());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
   const assignedPurokId = assignment?.purok?.id ?? null;
@@ -70,7 +79,8 @@ export function VisitFormScreen({ route, navigation }: any) {
       setLocalId(existing.local_id ?? null);
       setServerId(existing.server_id ?? null);
       setMobileUuid(existing.mobile_uuid ?? null);
-      setVisitedAt(existing.visited_at);
+      const existingVisitedAt = new Date(existing.visited_at);
+      setVisitedAt(Number.isNaN(existingVisitedAt.getTime()) ? new Date() : existingVisitedAt);
       setNotes(existing.notes ?? '');
       setPhotos(existing.photos ?? []);
 
@@ -89,6 +99,90 @@ export function VisitFormScreen({ route, navigation }: any) {
 
     void loadExisting();
   }, [route.params?.householdLocalId, route.params?.localId]);
+
+  function appendPhoto(photo: VisitPhoto) {
+    setPhotos((current) => [...current, photo]);
+  }
+
+  function openVisitDatePicker() {
+    DateTimePickerAndroid.open({
+      value: visitedAt,
+      mode: 'date',
+      onChange: (event, selectedDate) => {
+        if (event.type !== 'set' || !selectedDate) {
+          return;
+        }
+
+        setVisitedAt((current) => {
+          const next = new Date(current);
+          next.setFullYear(
+            selectedDate.getFullYear(),
+            selectedDate.getMonth(),
+            selectedDate.getDate()
+          );
+
+          return next;
+        });
+      },
+    });
+  }
+
+  function openVisitTimePicker() {
+    DateTimePickerAndroid.open({
+      value: visitedAt,
+      mode: 'time',
+      is24Hour: false,
+      onChange: (event, selectedDate) => {
+        if (event.type !== 'set' || !selectedDate) {
+          return;
+        }
+
+        setVisitedAt((current) => {
+          const next = new Date(current);
+          next.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+
+          return next;
+        });
+      },
+    });
+  }
+
+  async function handlePickFromGallery() {
+    if (!mediaPermission?.granted) {
+      const result = await requestMediaPermission();
+
+      if (!result.granted) {
+        Alert.alert(i18n.t('uploadFromGallery'), i18n.t('galleryPermissionBody'));
+        return;
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 0.6,
+      base64: true,
+    });
+
+    if (result.canceled || result.assets.length === 0) {
+      return;
+    }
+
+    const asset = result.assets[0];
+
+    if (!asset.base64) {
+      return;
+    }
+
+    appendPhoto({
+      uri: asset.uri,
+      base64: asset.base64,
+      file_name: asset.fileName ?? `visit-gallery-${Date.now()}.jpg`,
+      mime_type: asset.mimeType ?? 'image/jpeg',
+      file_size_bytes: asset.fileSize ?? null,
+      captured_at: new Date().toISOString(),
+    });
+  }
 
   async function handleTakePhoto() {
     if (!permission?.granted) {
@@ -111,17 +205,18 @@ export function VisitFormScreen({ route, navigation }: any) {
       return;
     }
 
-    setPhotos((current) => [
-      ...current,
-      {
-        uri: photo.uri,
-        base64: photo.base64,
-        file_name: `visit-${Date.now()}.jpg`,
-        mime_type: 'image/jpeg',
-        captured_at: new Date().toISOString(),
-      },
-    ]);
+    appendPhoto({
+      uri: photo.uri,
+      base64: photo.base64,
+      file_name: `visit-${Date.now()}.jpg`,
+      mime_type: 'image/jpeg',
+      captured_at: new Date().toISOString(),
+    });
     setCameraVisible(false);
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
   }
 
   async function handleSave() {
@@ -133,7 +228,7 @@ export function VisitFormScreen({ route, navigation }: any) {
       mobile_uuid: mobileUuid,
       household_server_id: selectedHousehold.server_id ?? null,
       household_mobile_uuid: selectedHousehold.mobile_uuid ?? null,
-      visited_at: visitedAt,
+      visited_at: visitedAt.toISOString(),
       notes,
       photos,
     });
@@ -152,7 +247,33 @@ export function VisitFormScreen({ route, navigation }: any) {
         </Pressable>
 
         <Text style={styles.label}>{i18n.t('visitedAt')}</Text>
-        <TextInput value={visitedAt} onChangeText={setVisitedAt} style={styles.input} />
+        <View style={styles.dateRow}>
+          <View style={styles.dateFieldBlock}>
+            <Text style={styles.secondaryLabel}>{i18n.t('visitDate')}</Text>
+            <Pressable onPress={openVisitDatePicker} style={[styles.input, styles.dateSelector]}>
+              <Text style={styles.dateSelectorText}>
+                {formatFriendlyDate(visitedAt.toISOString()) ?? i18n.t('birthDatePlaceholder')}
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={openVisitDatePicker} style={styles.calendarButton}>
+            <Text style={styles.calendarButtonText}>{i18n.t('openCalendar')}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.dateRow}>
+          <View style={styles.dateFieldBlock}>
+            <Text style={styles.secondaryLabel}>{i18n.t('visitTime')}</Text>
+            <Pressable onPress={openVisitTimePicker} style={[styles.input, styles.dateSelector]}>
+              <Text style={styles.dateSelectorText}>
+                {formatFriendlyTime(visitedAt.toISOString()) ?? '--:--'}
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={openVisitTimePicker} style={styles.calendarButton}>
+            <Text style={styles.calendarButtonText}>{i18n.t('openClock')}</Text>
+          </Pressable>
+        </View>
 
         <Text style={styles.label}>{i18n.t('notes')}</Text>
         <TextInput
@@ -164,20 +285,32 @@ export function VisitFormScreen({ route, navigation }: any) {
 
         <Text style={styles.photoNote}>{i18n.t('photoIntegrityNote')}</Text>
 
-        <Pressable onPress={handleTakePhoto} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>
-            {photos.length > 0 ? i18n.t('addAnotherPhoto') : i18n.t('takePhoto')}
-          </Text>
-        </Pressable>
+        <View style={styles.photoActionRow}>
+          <Pressable onPress={handleTakePhoto} style={[styles.secondaryButton, styles.photoActionButton]}>
+            <Text style={styles.secondaryButtonText}>
+              {photos.length > 0 ? i18n.t('addAnotherPhoto') : i18n.t('takePhoto')}
+            </Text>
+          </Pressable>
+          <Pressable onPress={handlePickFromGallery} style={[styles.secondaryButton, styles.photoActionButton]}>
+            <Text style={styles.secondaryButtonText}>{i18n.t('uploadFromGallery')}</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.photoGrid}>
           {photos.map((photo, index) => (
             <View key={`${photo.file_name}-${index}`} style={styles.photoCard}>
+              <Pressable
+                onPress={() => removePhoto(index)}
+                style={styles.removePhotoButton}
+                hitSlop={10}
+              >
+                <Ionicons name="close" size={14} color="#fff" />
+              </Pressable>
               {photo.uri ? (
                 <Image source={{ uri: photo.uri }} style={styles.photo} />
               ) : (
                 <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoPlaceholderText}>Synced photo</Text>
+                  <Text style={styles.photoPlaceholderText}>{i18n.t('syncedPhotoLabel')}</Text>
                 </View>
               )}
             </View>
@@ -258,6 +391,41 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     color: theme.colors.text,
   },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: theme.spacing.sm,
+    marginTop: 10,
+  },
+  dateFieldBlock: {
+    flex: 1,
+  },
+  secondaryLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  dateSelector: {
+    justifyContent: 'center',
+  },
+  dateSelectorText: {
+    color: theme.colors.text,
+  },
+  calendarButton: {
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    minWidth: 112,
+  },
+  calendarButtonText: {
+    color: theme.colors.primaryDark,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   multiline: {
     minHeight: 120,
     textAlignVertical: 'top',
@@ -285,9 +453,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
   },
+  photoActionRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: 16,
+  },
+  photoActionButton: {
+    flex: 1,
+    marginTop: 0,
+  },
   secondaryButtonText: {
     color: theme.colors.text,
     fontWeight: '700',
+    textAlign: 'center',
   },
   photoGrid: {
     flexDirection: 'row',
@@ -301,6 +479,19 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     overflow: 'hidden',
     backgroundColor: theme.colors.surfaceMuted,
+    position: 'relative',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   photo: {
     width: '100%',

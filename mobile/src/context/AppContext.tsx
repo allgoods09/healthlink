@@ -72,6 +72,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 const appConfig = require('../../app.json');
 const APP_VERSION = appConfig.expo?.version ?? '1.0.0';
 const APP_VERSION_CODE = Number(appConfig.expo?.android?.versionCode ?? 1);
+const MINIMUM_STARTUP_SPLASH_MS = 1000;
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
@@ -162,6 +163,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function boot() {
+      const bootStartedAt = Date.now();
+
       await initializeStorage();
 
       const [
@@ -208,6 +211,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       await refreshPendingSyncCount();
+
+      const remainingSplashTime =
+        MINIMUM_STARTUP_SPLASH_MS - (Date.now() - bootStartedAt);
+
+      if (remainingSplashTime > 0) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, remainingSplashTime);
+        });
+      }
+
       setIsReady(true);
     }
 

@@ -29,6 +29,23 @@ export function formatFriendlyDateTime(value: string | null | undefined) {
   return `${datePart} at ${timePart}`;
 }
 
+export function formatFriendlyTime(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
 export function formatFriendlyDate(value: string | null | undefined) {
   if (!value) {
     return null;
