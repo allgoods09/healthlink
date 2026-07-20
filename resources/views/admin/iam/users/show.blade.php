@@ -8,6 +8,9 @@
         <a href="{{ route('admin.users.index') }}" class="inline-flex items-center rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
             Back
         </a>
+        <a href="{{ route('admin.users.assignment', $user) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+            Manage Assignment
+        </a>
         <a href="{{ route('admin.users.edit', $user) }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             Edit User
         </a>
@@ -39,6 +42,17 @@
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Email</dt>
                             <dd class="mt-1 text-sm text-gray-900">{{ $user->email }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Email Verification</dt>
+                            <dd class="mt-1">
+                                <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $user->hasVerifiedEmail() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">
+                                    {{ $user->email_verification_status_label }}
+                                </span>
+                                @if($user->hasVerifiedEmail())
+                                    <div class="mt-1 text-xs text-gray-500">{{ $user->email_verified_at?->format('F d, Y h:i A') }}</div>
+                                @endif
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Role</dt>
@@ -92,9 +106,17 @@
                 <div class="space-y-4 p-6">
                     @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
                         <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                            This account was self-registered and is waiting for admin approval.
+                            This account was self-registered and is waiting for approval. Use the assignment workflow first if the barangay or purok still needs to be finalized.
                         </div>
                     @endif
+
+                    <div class="rounded-lg border {{ $user->hasVerifiedEmail() ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900' }} p-4 text-sm">
+                        @if($user->hasVerifiedEmail())
+                            This email address is already verified and can be used for password recovery and mobile access.
+                        @else
+                            This email address is still unverified. Self-registered users must verify their email before mobile access will be granted.
+                        @endif
+                    </div>
 
                     @if($user->requested_role)
                         <div>
@@ -137,6 +159,12 @@
                     @endif
 
                     @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
+                        <div class="pt-2">
+                            <a href="{{ route('admin.users.assignment', $user) }}" class="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
+                                Open Assignment Workflow
+                            </a>
+                        </div>
+
                         <div class="flex flex-wrap items-center gap-2 pt-2">
                             <form action="{{ route('admin.users.approve', $user) }}" method="POST" onsubmit="return confirm('Approve this registration?')">
                                 @csrf
@@ -156,6 +184,25 @@
                             </form>
                         </div>
                     @endif
+
+                    @unless($user->hasVerifiedEmail())
+                        <div class="flex flex-wrap items-center gap-2 pt-2">
+                            <form action="{{ route('admin.users.verification.resend', $user) }}" method="POST">
+                                @csrf
+                                <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                    Resend Verification Email
+                                </button>
+                            </form>
+
+                            <form action="{{ route('admin.users.verification.mark', $user) }}" method="POST" onsubmit="return confirm('Mark this email as verified manually?')">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+                                    Mark as Verified
+                                </button>
+                            </form>
+                        </div>
+                    @endunless
                 </div>
             </div>
         </div>

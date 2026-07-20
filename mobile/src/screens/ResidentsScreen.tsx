@@ -40,7 +40,7 @@ export function ResidentsScreen({ navigation }: any) {
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>{i18n.t('syncRequiredTitle')}</Text>
           <Text style={styles.emptyBody}>{i18n.t('noDataSyncPrompt')}</Text>
-          <Pressable onPress={() => syncNow('manual')} style={styles.primaryButton}>
+          <Pressable onPress={syncNow} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>{i18n.t('syncNow')}</Text>
           </Pressable>
         </View>

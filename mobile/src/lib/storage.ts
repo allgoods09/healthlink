@@ -13,6 +13,15 @@ import {
 const TOKEN_KEY = 'healthlink_mobile_token';
 const DB_NAME = 'healthlink_bhw.db';
 const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type PendingChangeSummary = {
+  households: number;
+  residents: number;
+  visits: number;
+  total: number;
+};
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -32,12 +41,60 @@ function intToBool(value: number | null | undefined) {
   return value === 1;
 }
 
+async function hasColumn(
+  db: SQLite.SQLiteDatabase,
+  table: string,
+  column: string
+) {
+  const rows = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+
+  return rows.some((row) => row.name === column);
+}
+
+async function ensureColumn(
+  db: SQLite.SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string
+) {
+  if (await hasColumn(db, table, column)) {
+    return;
+  }
+
+  await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+}
+
 function createUuid() {
   if (globalThis.crypto?.randomUUID) {
     return globalThis.crypto.randomUUID();
   }
 
-  return `local-${Date.now()}-${Math.round(Math.random() * 100000)}`;
+  const bytes = new Uint8Array(16);
+
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
+
+function isValidUuid(value: string | null | undefined) {
+  return Boolean(value && UUID_REGEX.test(value));
 }
 
 function parsePhotos(raw: string | null | undefined): VisitPhoto[] {
@@ -67,6 +124,8 @@ export async function initializeStorage() {
       local_id INTEGER PRIMARY KEY AUTOINCREMENT,
       server_id INTEGER UNIQUE,
       mobile_uuid TEXT UNIQUE,
+      purok_id INTEGER,
+      purok_display_name TEXT,
       household_no TEXT NOT NULL,
       household_address TEXT NOT NULL,
       is_social_aid_beneficiary INTEGER NOT NULL DEFAULT 0,
@@ -114,6 +173,10 @@ export async function initializeStorage() {
     );
   `);
 
+  await ensureColumn(db, 'households', 'purok_id', 'INTEGER');
+  await ensureColumn(db, 'households', 'purok_display_name', 'TEXT');
+  await repairInvalidMobileUuids(db);
+
   const serverUrl = await getAppState('api_base_url');
   if (!serverUrl) {
     await setAppState('api_base_url', DEFAULT_SERVER_URL);
@@ -128,6 +191,92 @@ export async function getAppState(key: string) {
   );
 
   return row?.value ?? null;
+}
+
+async function repairInvalidMobileUuids(db: SQLite.SQLiteDatabase) {
+  await db.withTransactionAsync(async () => {
+    const invalidHouseholds = await db.getAllAsync<{
+      local_id: number;
+      mobile_uuid: string | null;
+    }>(
+      `SELECT local_id, mobile_uuid
+       FROM households
+       WHERE mobile_uuid IS NOT NULL`
+    );
+
+    for (const household of invalidHouseholds) {
+      if (isValidUuid(household.mobile_uuid)) {
+        continue;
+      }
+
+      const nextUuid = createUuid();
+
+      await db.runAsync(
+        `UPDATE households
+         SET mobile_uuid = ?
+         WHERE local_id = ?`,
+        [nextUuid, household.local_id]
+      );
+
+      await db.runAsync(
+        `UPDATE residents
+         SET household_mobile_uuid = ?
+         WHERE household_mobile_uuid = ?`,
+        [nextUuid, household.mobile_uuid]
+      );
+
+      await db.runAsync(
+        `UPDATE field_visits
+         SET household_mobile_uuid = ?
+         WHERE household_mobile_uuid = ?`,
+        [nextUuid, household.mobile_uuid]
+      );
+    }
+
+    const invalidResidents = await db.getAllAsync<{
+      local_id: number;
+      mobile_uuid: string | null;
+    }>(
+      `SELECT local_id, mobile_uuid
+       FROM residents
+       WHERE mobile_uuid IS NOT NULL`
+    );
+
+    for (const resident of invalidResidents) {
+      if (isValidUuid(resident.mobile_uuid)) {
+        continue;
+      }
+
+      await db.runAsync(
+        `UPDATE residents
+         SET mobile_uuid = ?
+         WHERE local_id = ?`,
+        [createUuid(), resident.local_id]
+      );
+    }
+
+    const invalidVisits = await db.getAllAsync<{
+      local_id: number;
+      mobile_uuid: string | null;
+    }>(
+      `SELECT local_id, mobile_uuid
+       FROM field_visits
+       WHERE mobile_uuid IS NOT NULL`
+    );
+
+    for (const visit of invalidVisits) {
+      if (isValidUuid(visit.mobile_uuid)) {
+        continue;
+      }
+
+      await db.runAsync(
+        `UPDATE field_visits
+         SET mobile_uuid = ?
+         WHERE local_id = ?`,
+        [createUuid(), visit.local_id]
+      );
+    }
+  });
 }
 
 export async function setAppState(key: string, value: string) {
@@ -163,16 +312,20 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
         `INSERT INTO households (
           server_id,
           mobile_uuid,
+          purok_id,
+          purok_display_name,
           household_no,
           household_address,
           is_social_aid_beneficiary,
           is_active,
           sync_status,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
         [
           household.id,
           household.mobile_uuid,
+          household.purok_id,
+          household.purok_display_name,
           household.household_no,
           household.household_address,
           boolToInt(household.is_social_aid_beneficiary),
@@ -260,6 +413,8 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
   });
 
   await setAppState('bootstrap_completed', '1');
+  await setAppState('dataset_owner_user_id', String(payload.user.id));
+  await setAppState('dataset_assignment', JSON.stringify(payload.assignment));
   await setAppState('last_sync_at', payload.server_time);
 }
 
@@ -273,9 +428,19 @@ export async function clearOperationalData() {
   });
 
   await setAppState('bootstrap_completed', '0');
+  await setAppState('dataset_owner_user_id', '');
+  await setAppState('dataset_assignment', '');
   await setAppState('last_sync_at', '');
   await setAppState('session_user', '');
   await setAppState('session_assignment', '');
+}
+
+export async function getDatasetOwnerUserId() {
+  return getAppState('dataset_owner_user_id');
+}
+
+export async function getDatasetAssignment() {
+  return getAppState('dataset_assignment');
 }
 
 export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
@@ -284,6 +449,8 @@ export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
     local_id: number;
     server_id: number | null;
     mobile_uuid: string | null;
+    purok_id: number | null;
+    purok_display_name: string | null;
     household_no: string;
     household_address: string;
     is_social_aid_beneficiary: number;
@@ -309,7 +476,9 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
   const rows = await db.getAllAsync<any>(
     `SELECT
       residents.*,
-      households.household_no AS household_no
+      households.household_no AS household_no,
+      households.purok_id AS household_purok_id
+      ,households.purok_display_name AS household_purok_display_name
      FROM residents
      LEFT JOIN households ON households.server_id = residents.household_server_id
        OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = residents.household_mobile_uuid)
@@ -320,6 +489,7 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
 
   return rows.map((row: any) => ({
     ...row,
+    household_purok_id: row.household_purok_id ?? null,
     is_active: intToBool(row.is_active),
   }));
 }
@@ -329,7 +499,9 @@ export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
   const rows = await db.getAllAsync<any>(
     `SELECT
       field_visits.*,
-      households.household_no AS household_no
+      households.household_no AS household_no,
+      households.purok_id AS household_purok_id,
+      households.purok_display_name AS household_purok_display_name
      FROM field_visits
      LEFT JOIN households ON households.server_id = field_visits.household_server_id
        OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = field_visits.household_mobile_uuid)
@@ -340,6 +512,7 @@ export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
 
   return rows.map((row: any) => ({
     ...row,
+    household_purok_id: row.household_purok_id ?? null,
     photos: parsePhotos(row.photos_json),
   }));
 }
@@ -352,6 +525,34 @@ export async function getHouseholdByLocalId(localId: number) {
 export async function getResidentByLocalId(localId: number) {
   const residents = await getResidents();
   return residents.find((resident) => resident.local_id === localId) ?? null;
+}
+
+export async function getResidentsForHousehold(household: {
+  server_id?: number | null;
+  mobile_uuid?: string | null;
+}) {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT
+      residents.*,
+      households.household_no AS household_no,
+      households.purok_id AS household_purok_id,
+      households.purok_display_name AS household_purok_display_name
+     FROM residents
+     LEFT JOIN households ON households.server_id = residents.household_server_id
+       OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = residents.household_mobile_uuid)
+     WHERE (residents.household_server_id = ?)
+        OR (residents.household_mobile_uuid IS NOT NULL AND residents.household_mobile_uuid = ?)
+     ORDER BY residents.last_name ASC, residents.first_name ASC`,
+    [household.server_id ?? null, household.mobile_uuid ?? null]
+  );
+
+  return rows.map((row: any) => ({
+    ...row,
+    household_purok_id: row.household_purok_id ?? null,
+    household_purok_display_name: row.household_purok_display_name ?? null,
+    is_active: intToBool(row.is_active),
+  }));
 }
 
 export async function getVisitByLocalId(localId: number) {
@@ -369,11 +570,13 @@ export async function saveHousehold(
   if (values.local_id) {
     await db.runAsync(
       `UPDATE households
-       SET mobile_uuid = ?, household_no = ?, household_address = ?, is_social_aid_beneficiary = ?,
+       SET mobile_uuid = ?, purok_id = ?, purok_display_name = ?, household_no = ?, household_address = ?, is_social_aid_beneficiary = ?,
            is_active = ?, sync_status = ?, updated_at = ?
        WHERE local_id = ?`,
       [
         mobileUuid,
+        values.purok_id ?? null,
+        values.purok_display_name ?? null,
         values.household_no,
         values.household_address,
         boolToInt(values.is_social_aid_beneficiary),
@@ -391,16 +594,20 @@ export async function saveHousehold(
     `INSERT INTO households (
       server_id,
       mobile_uuid,
+      purok_id,
+      purok_display_name,
       household_no,
       household_address,
       is_social_aid_beneficiary,
       is_active,
       sync_status,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       values.server_id ?? null,
       mobileUuid,
+      values.purok_id ?? null,
+      values.purok_display_name ?? null,
       values.household_no,
       values.household_address,
       boolToInt(values.is_social_aid_beneficiary),
@@ -565,6 +772,7 @@ export async function hasBootstrapData() {
 
 export async function getPendingSyncPayload() {
   const db = await getDatabase();
+  await repairInvalidMobileUuids(db);
   const households = await db.getAllAsync<any>(
     `SELECT * FROM households WHERE sync_status != 'synced' ORDER BY local_id ASC`
   );
@@ -694,11 +902,14 @@ export async function applyResolvedRecords(resolved: SyncResponse['resolved_reco
       );
     }
   });
-
-  await setAppState('last_sync_at', new Date().toISOString());
 }
 
 export async function hasPendingChanges() {
+  const summary = await getPendingChangeSummary();
+  return summary.total > 0;
+}
+
+export async function getPendingChangeSummary(): Promise<PendingChangeSummary> {
   const db = await getDatabase();
   const householdRow = await db.getFirstAsync<{ total: number }>(
     `SELECT COUNT(*) AS total FROM households WHERE sync_status != 'synced'`
@@ -710,5 +921,14 @@ export async function hasPendingChanges() {
     `SELECT COUNT(*) AS total FROM field_visits WHERE sync_status != 'synced'`
   );
 
-  return (householdRow?.total ?? 0) + (residentRow?.total ?? 0) + (visitRow?.total ?? 0) > 0;
+  const households = householdRow?.total ?? 0;
+  const residents = residentRow?.total ?? 0;
+  const visits = visitRow?.total ?? 0;
+
+  return {
+    households,
+    residents,
+    visits,
+    total: households + residents + visits,
+  };
 }

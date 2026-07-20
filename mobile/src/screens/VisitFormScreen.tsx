@@ -25,7 +25,7 @@ import { HouseholdRecord, VisitPhoto } from '../types';
 
 export function VisitFormScreen({ route, navigation }: any) {
   const cameraRef = useRef<CameraView | null>(null);
-  const { bumpDataVersion } = useAppContext();
+  const { assignment, bumpDataVersion } = useAppContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [chooserVisible, setChooserVisible] = useState(false);
@@ -37,10 +37,20 @@ export function VisitFormScreen({ route, navigation }: any) {
   const [visitedAt, setVisitedAt] = useState(new Date().toISOString());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const assignedPurokId = assignment?.purok?.id ?? null;
 
   useEffect(() => {
-    void getHouseholds().then(setHouseholds);
-  }, []);
+    async function loadWritableHouseholds() {
+      const records = await getHouseholds();
+      setHouseholds(
+        assignedPurokId === null
+          ? records
+          : records.filter((household) => household.purok_id === assignedPurokId)
+      );
+    }
+
+    void loadWritableHouseholds();
+  }, [assignedPurokId]);
 
   useEffect(() => {
     async function loadExisting() {

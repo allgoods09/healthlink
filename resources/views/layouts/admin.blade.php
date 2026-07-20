@@ -104,6 +104,10 @@
                         <x-sidebar-link :href="route('admin.sync-logs.index')" :active="request()->routeIs('admin.sync-logs.*')" icon="sync">
                             Sync Logs
                         </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.mobile-releases.index')" :active="request()->routeIs('admin.mobile-releases.*')" icon="devices">
+                            Mobile Releases
+                        </x-sidebar-link>
                     </div>
 
                     <div class="pt-4 mt-4 border-t border-gray-200/80 pb-20">

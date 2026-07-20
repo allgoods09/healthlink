@@ -106,8 +106,8 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $bhw->created_at->format('M d, Y') }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bns.team.show', $bhw) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
                                     <a href="{{ route('bns.team.edit', $bhw) }}" class="text-indigo-600 hover:text-indigo-800">Manage</a>
                                     <a href="{{ route('bns.team.password.edit', $bhw) }}" class="text-amber-700 hover:text-amber-900">Password</a>

@@ -116,6 +116,7 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'admin',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
+            'email_verified_at' => now()
         ]);
 
         $phn = $this->upsertUser([
@@ -124,6 +125,7 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'phn',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
+            'email_verified_at' => now()
         ], $admin);
 
         $mho = $this->upsertUser([
@@ -132,6 +134,7 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'mho',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
+            'email_verified_at' => now()
         ], $admin);
 
         $barangays = Barangay::query()->orderBy('name')->get();
@@ -150,6 +153,7 @@ class MockOperationalDataSeeder extends Seeder
                 'role' => 'secretary',
                 'assigned_barangay_id' => $barangay->id,
                 'assigned_purok_id' => null,
+                'email_verified_at' => now(),
             ], $admin);
 
             $bns = $this->upsertUser([
@@ -158,6 +162,7 @@ class MockOperationalDataSeeder extends Seeder
                 'role' => 'bns',
                 'assigned_barangay_id' => $barangay->id,
                 'assigned_purok_id' => null,
+                'email_verified_at' => now(),
             ], $admin);
 
             $purokContexts = collect();
@@ -180,6 +185,7 @@ class MockOperationalDataSeeder extends Seeder
                     'role' => 'bhw',
                     'assigned_barangay_id' => $barangay->id,
                     'assigned_purok_id' => $purok->id,
+                    'email_verified_at' => now(),
                 ], $secretary);
 
                 [$households, $residentsByHousehold] = $this->seedPurokHouseholds(
@@ -226,6 +232,7 @@ class MockOperationalDataSeeder extends Seeder
                     'role' => 'secretary',
                     'assigned_barangay_id' => $firstBarangay->id,
                     'assigned_purok_id' => null,
+                    'email_verified_at' => now(),
                 ], $admin);
             }
 
@@ -236,6 +243,7 @@ class MockOperationalDataSeeder extends Seeder
                     'role' => 'bns',
                     'assigned_barangay_id' => $firstBarangay->id,
                     'assigned_purok_id' => null,
+                    'email_verified_at' => now(),
                 ], $admin);
             }
 
@@ -246,6 +254,7 @@ class MockOperationalDataSeeder extends Seeder
                     'role' => 'bhw',
                     'assigned_barangay_id' => $firstBarangay->id,
                     'assigned_purok_id' => $firstPurok->id,
+                    'email_verified_at' => now(),
                 ], $admin);
             }
         }
@@ -1191,6 +1200,7 @@ class MockOperationalDataSeeder extends Seeder
                 'requested_barangay_id' => null,
                 'requested_purok_id' => null,
                 'approval_notes' => 'Seeded Tubigon demo account',
+                'email_verified_at' => now(),
                 'approved_at' => now(),
                 'approved_by' => $approvedBy?->id,
                 'rejected_at' => null,

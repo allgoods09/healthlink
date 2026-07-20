@@ -56,7 +56,7 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $assignment->target_label }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $assignment->assignment_status_label }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('bhw.campaigns.show', $assignment) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                             </td>
                         </tr>

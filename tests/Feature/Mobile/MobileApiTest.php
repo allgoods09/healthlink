@@ -75,14 +75,15 @@ class MobileApiTest extends TestCase
         ]);
 
         $response->assertForbidden()
-            ->assertJsonPath('message', 'Verify your email address before signing in to the mobile app.');
+            ->assertJsonPath('message', 'Verify your email address on the web before signing in to the mobile app.');
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
-    public function test_mobile_bootstrap_only_returns_records_from_the_assigned_purok(): void
+    public function test_mobile_bootstrap_returns_the_whole_assigned_barangay_but_excludes_other_barangays(): void
     {
         $barangay = Barangay::factory()->create();
+        $foreignBarangay = Barangay::factory()->create();
         $assignedPurok = Purok::factory()->create([
             'barangay_id' => $barangay->id,
             'purok_number' => 3,
@@ -91,6 +92,10 @@ class MobileApiTest extends TestCase
             'barangay_id' => $barangay->id,
             'purok_number' => 4,
         ]);
+        $foreignBarangayPurok = Purok::factory()->create([
+            'barangay_id' => $foreignBarangay->id,
+            'purok_number' => 1,
+        ]);
         $assignedHousehold = Household::create([
             'purok_id' => $assignedPurok->id,
             'household_no' => 'HH-301',
@@ -98,10 +103,17 @@ class MobileApiTest extends TestCase
             'is_social_aid_beneficiary' => false,
             'is_active' => true,
         ]);
-        $foreignHousehold = Household::create([
+        $sameBarangayHousehold = Household::create([
             'purok_id' => $otherPurok->id,
             'household_no' => 'HH-401',
-            'household_address' => 'Foreign address',
+            'household_address' => 'Same barangay address',
+            'is_social_aid_beneficiary' => false,
+            'is_active' => true,
+        ]);
+        $foreignHousehold = Household::create([
+            'purok_id' => $foreignBarangayPurok->id,
+            'household_no' => 'HH-901',
+            'household_address' => 'Foreign barangay address',
             'is_social_aid_beneficiary' => false,
             'is_active' => true,
         ]);
@@ -123,8 +135,8 @@ class MobileApiTest extends TestCase
             'relationship_to_head' => 'Head',
             'is_active' => true,
         ]);
-        Resident::create([
-            'household_id' => $foreignHousehold->id,
+        $sameBarangayResident = Resident::create([
+            'household_id' => $sameBarangayHousehold->id,
             'philsys_card_no' => 'PS-401',
             'last_name' => 'Lopez',
             'first_name' => 'Mico',
@@ -138,6 +150,24 @@ class MobileApiTest extends TestCase
             'religion' => 'Catholic',
             'contact_number' => '09172222222',
             'email_address' => 'mico@example.com',
+            'relationship_to_head' => 'Head',
+            'is_active' => true,
+        ]);
+        Resident::create([
+            'household_id' => $foreignHousehold->id,
+            'philsys_card_no' => 'PS-901',
+            'last_name' => 'Rivera',
+            'first_name' => 'Dina',
+            'middle_name' => 'Santos',
+            'suffix' => null,
+            'birth_date' => '1997-02-02',
+            'birth_place' => 'Tubigon',
+            'sex' => 'Female',
+            'civil_status' => 'Single',
+            'citizenship' => 'Filipino',
+            'religion' => 'Catholic',
+            'contact_number' => '09174444444',
+            'email_address' => 'dina@example.com',
             'relationship_to_head' => 'Head',
             'is_active' => true,
         ]);
@@ -160,18 +190,102 @@ class MobileApiTest extends TestCase
             'source' => 'mobile',
             'last_synced_at' => now(),
         ]);
+        FieldVisit::create([
+            'mobile_uuid' => (string) fake()->uuid(),
+            'household_id' => $sameBarangayHousehold->id,
+            'recorded_by_user_id' => $bhw->id,
+            'visited_at' => now()->subDay(),
+            'notes' => 'Same barangay visit',
+            'photos' => [],
+            'source' => 'mobile',
+            'last_synced_at' => now(),
+        ]);
+        FieldVisit::create([
+            'mobile_uuid' => (string) fake()->uuid(),
+            'household_id' => $foreignHousehold->id,
+            'recorded_by_user_id' => $bhw->id,
+            'visited_at' => now()->subDays(2),
+            'notes' => 'Foreign barangay visit',
+            'photos' => [],
+            'source' => 'mobile',
+            'last_synced_at' => now(),
+        ]);
 
         Sanctum::actingAs($bhw, ['mobile']);
 
         $response = $this->getJson('/api/mobile/bootstrap');
 
         $response->assertOk()
-            ->assertJsonCount(1, 'households')
-            ->assertJsonCount(1, 'residents')
-            ->assertJsonCount(1, 'field_visits')
-            ->assertJsonPath('households.0.id', $assignedHousehold->id)
-            ->assertJsonPath('residents.0.id', $assignedResident->id)
-            ->assertJsonPath('field_visits.0.household_id', $assignedHousehold->id);
+            ->assertJsonCount(2, 'households')
+            ->assertJsonCount(2, 'residents')
+            ->assertJsonCount(2, 'field_visits')
+            ->assertJsonPath('sync.supports_auto_upload_when_online', false);
+
+        $payload = $response->json();
+
+        $this->assertEqualsCanonicalizing(
+            [$assignedHousehold->id, $sameBarangayHousehold->id],
+            collect($payload['households'])->pluck('id')->all()
+        );
+        $this->assertEqualsCanonicalizing(
+            [$assignedResident->id, $sameBarangayResident->id],
+            collect($payload['residents'])->pluck('id')->all()
+        );
+        $this->assertEqualsCanonicalizing(
+            [$assignedHousehold->id, $sameBarangayHousehold->id],
+            collect($payload['field_visits'])->pluck('household_id')->all()
+        );
+        $this->assertNotContains($foreignHousehold->id, collect($payload['households'])->pluck('id')->all());
+    }
+
+    public function test_mobile_sync_still_rejects_writes_outside_the_assigned_purok(): void
+    {
+        $barangay = Barangay::factory()->create();
+        $assignedPurok = Purok::factory()->create([
+            'barangay_id' => $barangay->id,
+            'purok_number' => 5,
+        ]);
+        $otherPurok = Purok::factory()->create([
+            'barangay_id' => $barangay->id,
+            'purok_number' => 6,
+        ]);
+        $foreignHousehold = Household::create([
+            'purok_id' => $otherPurok->id,
+            'household_no' => 'HH-611',
+            'household_address' => 'Other purok address',
+            'is_social_aid_beneficiary' => false,
+            'is_active' => true,
+        ]);
+        $bhw = User::factory()->create([
+            'role' => 'bhw',
+            'assigned_barangay_id' => $barangay->id,
+            'assigned_purok_id' => $assignedPurok->id,
+            'approval_status' => User::APPROVAL_APPROVED,
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        Sanctum::actingAs($bhw, ['mobile']);
+
+        $response = $this->postJson('/api/mobile/sync', [
+            'field_visits' => [
+                [
+                    'mobile_uuid' => (string) fake()->uuid(),
+                    'household_id' => $foreignHousehold->id,
+                    'visited_at' => now()->toIso8601String(),
+                    'notes' => 'Attempted out-of-scope visit',
+                ],
+            ],
+            'device_name' => 'Field Tablet',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('records_synced', 0)
+            ->assertJsonPath('failed_records.0.collection', 'field_visits')
+            ->assertJsonPath('failed_records.0.message', 'Visit household not found in the assigned purok.');
+
+        $this->assertDatabaseCount('field_visits', 0);
     }
 
     public function test_mobile_sync_can_create_household_resident_and_field_visit_using_mobile_uuids(): void

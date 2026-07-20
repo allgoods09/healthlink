@@ -81,4 +81,55 @@ class UserApprovalController extends Controller
 
         return back()->with('success', "Registration for {$user->name} has been rejected.");
     }
+
+    /**
+     * Resend the verification email to the selected user.
+     */
+    public function resendVerification(User $user): RedirectResponse
+    {
+        Gate::authorize('update', $user);
+
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', "{$user->name} already has a verified email address.");
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        AuditLog::log([
+            'user_id' => Auth::id(),
+            'event_type' => 'updated',
+            'event_description' => "Verification email re-sent to {$user->email}",
+            'model_type' => User::class,
+            'model_id' => $user->id,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'metadata' => [
+                'action' => 'resend_verification_email',
+            ],
+        ]);
+
+        return back()->with('success', "A fresh verification email was sent to {$user->email}.");
+    }
+
+    /**
+     * Manually mark a user's email address as verified.
+     */
+    public function markVerified(User $user): RedirectResponse
+    {
+        Gate::authorize('update', $user);
+
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', "{$user->name} already has a verified email address.");
+        }
+
+        $oldValues = $user->toArray();
+
+        $user->forceFill([
+            'email_verified_at' => now(),
+        ])->save();
+
+        AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
+
+        return back()->with('success', "{$user->name}'s email has been marked as verified.");
+    }
 }

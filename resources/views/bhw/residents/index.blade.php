@@ -69,8 +69,8 @@
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 {{ ucfirst($resident->resident_status) }}
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bhw.residents.show', $resident) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                                     <a href="{{ route('bhw.triage.create', ['resident_id' => $resident->id]) }}" class="text-indigo-600 hover:text-indigo-800">Triage</a>
                                 </div>

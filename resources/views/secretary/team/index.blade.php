@@ -11,68 +11,72 @@
 @endsection
 
 @section('content')
-    <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="p-5">
-            <form method="GET" action="{{ route('secretary.team.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
-                <div>
-                    <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
-                    <input type="text" name="search" id="search" value="{{ request('search') }}" placeholder="Name or email" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                </div>
+    <div class="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-tubigon">Filters</h2>
+            </div>
+            <div class="p-5">
+                <form method="GET" action="{{ route('secretary.team.index') }}" class="space-y-4">
+                    <div>
+                        <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
+                        <input type="text" name="search" id="search" value="{{ request('search') }}" placeholder="Name or email" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                    </div>
 
-                <div>
-                    <label for="role" class="block text-sm font-medium text-slate-700">Role</label>
-                    <select name="role" id="role" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All roles</option>
-                        <option value="bhw" {{ request('role') === 'bhw' ? 'selected' : '' }}>BHW</option>
-                        <option value="bns" {{ request('role') === 'bns' ? 'selected' : '' }}>BNS</option>
-                    </select>
-                </div>
+                    <div>
+                        <label for="role" class="block text-sm font-medium text-slate-700">Role</label>
+                        <select name="role" id="role" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                            <option value="">All roles</option>
+                            <option value="bhw" {{ request('role') === 'bhw' ? 'selected' : '' }}>BHW</option>
+                            <option value="bns" {{ request('role') === 'bns' ? 'selected' : '' }}>BNS</option>
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="purok_id" class="block text-sm font-medium text-slate-700">Purok</label>
-                    <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All puroks</option>
-                        @foreach($puroks as $purok)
-                            <option value="{{ $purok->id }}" {{ (string) request('purok_id') === (string) $purok->id ? 'selected' : '' }}>
-                                {{ $purok->display_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div>
+                        <label for="purok_id" class="block text-sm font-medium text-slate-700">Purok</label>
+                        <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                            <option value="">All puroks</option>
+                            @foreach($puroks as $purok)
+                                <option value="{{ $purok->id }}" {{ (string) request('purok_id') === (string) $purok->id ? 'selected' : '' }}>
+                                    {{ $purok->display_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="approval_status" class="block text-sm font-medium text-slate-700">Approval</label>
-                    <select name="approval_status" id="approval_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All approvals</option>
-                        <option value="{{ \App\Models\User::APPROVAL_PENDING }}" {{ request('approval_status') === \App\Models\User::APPROVAL_PENDING ? 'selected' : '' }}>Pending Approval</option>
-                        <option value="{{ \App\Models\User::APPROVAL_APPROVED }}" {{ request('approval_status') === \App\Models\User::APPROVAL_APPROVED ? 'selected' : '' }}>Approved</option>
-                        <option value="{{ \App\Models\User::APPROVAL_REJECTED }}" {{ request('approval_status') === \App\Models\User::APPROVAL_REJECTED ? 'selected' : '' }}>Rejected</option>
-                    </select>
-                </div>
+                    <div>
+                        <label for="approval_status" class="block text-sm font-medium text-slate-700">Approval</label>
+                        <select name="approval_status" id="approval_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                            <option value="">All approvals</option>
+                            <option value="{{ \App\Models\User::APPROVAL_PENDING }}" {{ request('approval_status') === \App\Models\User::APPROVAL_PENDING ? 'selected' : '' }}>Pending Approval</option>
+                            <option value="{{ \App\Models\User::APPROVAL_APPROVED }}" {{ request('approval_status') === \App\Models\User::APPROVAL_APPROVED ? 'selected' : '' }}>Approved</option>
+                            <option value="{{ \App\Models\User::APPROVAL_REJECTED }}" {{ request('approval_status') === \App\Models\User::APPROVAL_REJECTED ? 'selected' : '' }}>Rejected</option>
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="status" class="block text-sm font-medium text-slate-700">Status</label>
-                    <select name="status" id="status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All statuses</option>
-                        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-                    </select>
-                </div>
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-slate-700">Status</label>
+                        <select name="status" id="status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                            <option value="">All statuses</option>
+                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                        </select>
+                    </div>
 
-                <div class="flex items-end gap-2">
-                    <button type="submit" class="rounded-xl bg-tubigon px-4 py-2 text-sm font-medium text-white transition hover:bg-tubigon-hover">
-                        Apply Filters
-                    </button>
-                    <a href="{{ route('secretary.team.index') }}" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200">
-                        Reset
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
+                    <div class="flex flex-wrap gap-2 pt-2">
+                        <button type="submit" class="rounded-xl bg-tubigon px-4 py-2 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                            Apply Filters
+                        </button>
+                        <a href="{{ route('secretary.team.index') }}" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200">
+                            Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </aside>
 
-    <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
+        <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -91,6 +95,11 @@
                                 <p class="text-sm font-semibold text-slate-900">{{ $frontlineUser->name }}</p>
                                 <p class="text-sm text-slate-500">{{ $frontlineUser->email }}</p>
                                 <p class="mt-1 text-xs text-slate-400">Registered via {{ $frontlineUser->registered_via_label }}</p>
+                                <div class="mt-1">
+                                    <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium {{ $frontlineUser->hasVerifiedEmail() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                        Email {{ $frontlineUser->email_verification_status_label }}
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 <p class="font-medium text-slate-900">{{ $frontlineUser->role_label }}</p>
@@ -113,8 +122,8 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $frontlineUser->created_at->format('M d, Y') }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('secretary.team.show', $frontlineUser) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
                                     <a href="{{ route('secretary.team.edit', $frontlineUser) }}" class="text-indigo-600 hover:text-indigo-800">Manage</a>
                                     <a href="{{ route('secretary.team.password.edit', $frontlineUser) }}" class="text-amber-700 hover:text-amber-900">Password</a>
@@ -143,10 +152,11 @@
                     @endforelse
                 </tbody>
             </table>
-        </div>
+            </div>
 
-        <div class="border-t border-slate-200 px-6 py-4">
-            {{ $users->links() }}
+            <div class="border-t border-slate-200 px-6 py-4">
+                {{ $users->links() }}
+            </div>
         </div>
     </div>
 @endsection

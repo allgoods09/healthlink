@@ -8,6 +8,133 @@
     }
 }
 
+@layer components {
+    .table-actions {
+        @apply flex flex-wrap items-center justify-end gap-2;
+    }
+
+    .table-actions-cell form,
+    .table-actions form {
+        @apply inline-flex;
+    }
+
+    .table-actions-cell a,
+    .table-actions a,
+    .table-actions-cell button:not([class*='bg-']),
+    .table-actions button:not([class*='bg-']) {
+        @apply inline-flex items-center justify-center whitespace-nowrap rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1;
+    }
+
+    .table-actions-cell a,
+    .table-actions a {
+        @apply no-underline;
+    }
+
+    .table-actions-cell a:not([class*='text-']),
+    .table-actions a:not([class*='text-']),
+    .table-actions-cell button:not([class*='bg-']):not([class*='text-']),
+    .table-actions button:not([class*='bg-']):not([class*='text-']) {
+        @apply text-slate-700 hover:bg-slate-100 hover:text-slate-900;
+    }
+
+    .table-actions-cell .text-blue-600,
+    .table-actions-cell .text-blue-700,
+    .table-actions-cell .text-tubigon,
+    .table-actions-cell .text-tubigon-hover,
+    .table-actions .text-blue-600,
+    .table-actions .text-blue-700,
+    .table-actions .text-tubigon,
+    .table-actions .text-tubigon-hover {
+        @apply border-blue-200 bg-blue-50;
+    }
+
+    .table-actions-cell .text-blue-600:hover,
+    .table-actions-cell .text-blue-700:hover,
+    .table-actions-cell .text-tubigon:hover,
+    .table-actions-cell .text-tubigon-hover:hover,
+    .table-actions .text-blue-600:hover,
+    .table-actions .text-blue-700:hover,
+    .table-actions .text-tubigon:hover,
+    .table-actions .text-tubigon-hover:hover {
+        @apply bg-blue-100;
+    }
+
+    .table-actions-cell .text-indigo-600,
+    .table-actions-cell .text-indigo-700,
+    .table-actions .text-indigo-600,
+    .table-actions .text-indigo-700 {
+        @apply border-indigo-200 bg-indigo-50;
+    }
+
+    .table-actions-cell .text-indigo-600:hover,
+    .table-actions-cell .text-indigo-700:hover,
+    .table-actions .text-indigo-600:hover,
+    .table-actions .text-indigo-700:hover {
+        @apply bg-indigo-100;
+    }
+
+    .table-actions-cell .text-teal-600,
+    .table-actions-cell .text-cyan-600,
+    .table-actions .text-teal-600,
+    .table-actions .text-cyan-600 {
+        @apply border-teal-200 bg-teal-50;
+    }
+
+    .table-actions-cell .text-teal-600:hover,
+    .table-actions-cell .text-cyan-600:hover,
+    .table-actions .text-teal-600:hover,
+    .table-actions .text-cyan-600:hover {
+        @apply bg-teal-100;
+    }
+
+    .table-actions-cell .text-green-600,
+    .table-actions-cell .text-emerald-600,
+    .table-actions .text-green-600,
+    .table-actions .text-emerald-600 {
+        @apply border-emerald-200 bg-emerald-50;
+    }
+
+    .table-actions-cell .text-green-600:hover,
+    .table-actions-cell .text-emerald-600:hover,
+    .table-actions .text-green-600:hover,
+    .table-actions .text-emerald-600:hover {
+        @apply bg-emerald-100;
+    }
+
+    .table-actions-cell .text-yellow-600,
+    .table-actions-cell .text-amber-600,
+    .table-actions-cell .text-amber-700,
+    .table-actions .text-yellow-600,
+    .table-actions .text-amber-600,
+    .table-actions .text-amber-700 {
+        @apply border-amber-200 bg-amber-50;
+    }
+
+    .table-actions-cell .text-yellow-600:hover,
+    .table-actions-cell .text-amber-600:hover,
+    .table-actions-cell .text-amber-700:hover,
+    .table-actions .text-yellow-600:hover,
+    .table-actions .text-amber-600:hover,
+    .table-actions .text-amber-700:hover {
+        @apply bg-amber-100;
+    }
+
+    .table-actions-cell .text-red-600,
+    .table-actions-cell .text-rose-600,
+    .table-actions .text-red-600,
+    .table-actions .text-rose-600 {
+        @apply border-rose-200 bg-rose-50;
+    }
+
+    .table-actions-cell .text-red-600:hover,
+    .table-actions-cell .text-rose-600:hover,
+    .table-actions .text-red-600:hover,
+    .table-actions .text-rose-600:hover {
+        @apply bg-rose-100;
+    }
+
+}
+
 @layer utilities {
     .sidebar-scrollbar {
         scrollbar-width: thin;

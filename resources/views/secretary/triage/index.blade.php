@@ -105,7 +105,7 @@
                                 </span>
                                 <p class="mt-2 text-xs text-slate-500">{{ $triageRecord->consumedBy?->name ?? 'Waiting for PHN/MHO consumer' }}</p>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('secretary.triage.show', $triageRecord) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
                             </td>
                         </tr>

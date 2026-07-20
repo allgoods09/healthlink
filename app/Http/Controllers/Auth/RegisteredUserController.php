@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Barangay;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -59,7 +60,10 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        return redirect()->route('login')
-            ->with('status', 'Registration submitted successfully. Please wait for your barangay secretary to approve your account and finalize the assignment.');
+        Auth::login($user);
+
+        return redirect()
+            ->route('verification.notice')
+            ->with('status', 'registration-submitted');
     }
 }

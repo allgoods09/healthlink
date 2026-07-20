@@ -2,9 +2,10 @@
 
 namespace App\Support;
 
+use App\Models\FieldVisit;
 use App\Models\Household;
+use App\Models\Resident;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
 
 class MobileBootstrapPayload
 {
@@ -15,18 +16,33 @@ class MobileBootstrapPayload
     {
         $user->loadMissing(['assignedBarangay', 'assignedPurok.barangay']);
 
+        $barangayId = $user->assigned_barangay_id;
+
         $households = Household::query()
-            ->where('purok_id', $user->assigned_purok_id)
+            ->when($barangayId, fn ($query) => $query->whereHas('purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
             ->with([
                 'purok.barangay',
-                'residents' => fn ($query) => $query
-                    ->orderBy('last_name')
-                    ->orderBy('first_name'),
-                'fieldVisits' => fn ($query) => $query
-                    ->with('recordedBy:id,name')
-                    ->latest('visited_at'),
             ])
+            ->withCount('residents')
             ->orderBy('household_no')
+            ->get();
+
+        $residents = Resident::query()
+            ->when($barangayId, fn ($query) => $query->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
+            ->with([
+                'household:id,mobile_uuid',
+            ])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $fieldVisits = FieldVisit::query()
+            ->when($barangayId, fn ($query) => $query->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
+            ->with([
+                'household:id,mobile_uuid',
+                'recordedBy:id,name',
+            ])
+            ->latest('visited_at')
             ->get();
 
         return [
@@ -54,10 +70,11 @@ class MobileBootstrapPayload
                     'display_name' => $user->assignedPurok->display_name,
                 ] : null,
             ],
-            'households' => $households->map(fn (Household $household) => $this->householdPayload($household))->values()->all(),
-            'residents' => $households
-                ->pluck('residents')
-                ->flatten(1)
+            'households' => $households
+                ->map(fn (Household $household) => $this->householdPayload($household))
+                ->values()
+                ->all(),
+            'residents' => $residents
                 ->map(fn ($resident) => [
                     'id' => $resident->id,
                     'mobile_uuid' => $resident->mobile_uuid,
@@ -82,9 +99,7 @@ class MobileBootstrapPayload
                 ])
                 ->values()
                 ->all(),
-            'field_visits' => $households
-                ->pluck('fieldVisits')
-                ->flatten(1)
+            'field_visits' => $fieldVisits
                 ->map(fn ($visit) => [
                     'id' => $visit->id,
                     'mobile_uuid' => $visit->mobile_uuid,
@@ -110,7 +125,7 @@ class MobileBootstrapPayload
                 'mode' => 'full-bootstrap',
                 'requires_initial_download' => true,
                 'supports_manual_upload' => true,
-                'supports_auto_upload_when_online' => true,
+                'supports_auto_upload_when_online' => false,
                 'supported_locales' => ['en', 'ceb'],
             ],
         ];
@@ -125,11 +140,12 @@ class MobileBootstrapPayload
             'id' => $household->id,
             'mobile_uuid' => $household->mobile_uuid,
             'purok_id' => $household->purok_id,
+            'purok_display_name' => $household->purok?->display_name,
             'household_no' => $household->household_no,
             'household_address' => $household->household_address,
             'is_social_aid_beneficiary' => $household->is_social_aid_beneficiary,
             'is_active' => $household->is_active,
-            'resident_count' => $household->residents->count(),
+            'resident_count' => $household->residents_count ?? $household->residents()->count(),
             'updated_at' => optional($household->updated_at)->toIso8601String(),
         ];
     }

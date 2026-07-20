@@ -39,6 +39,26 @@ Route::middleware(['auth', 'no-cache'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
+    Route::get('registration/pending', function () {
+        $user = request()->user();
+
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        if (! $user->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
+        if ($user->approval_status !== \App\Models\User::APPROVAL_PENDING) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('auth.pending-approval', [
+            'user' => $user,
+        ]);
+    })->name('registration.pending');
+
     Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
         ->middleware(['signed', 'throttle:6,1'])
         ->name('verification.verify');

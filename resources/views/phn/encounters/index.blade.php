@@ -110,7 +110,7 @@
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $encounter->encounter_source_label }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $encounter->clinical_status_label }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $encounter->follow_up_status_label }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('phn.encounters.show', $encounter) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                             </td>
                         </tr>

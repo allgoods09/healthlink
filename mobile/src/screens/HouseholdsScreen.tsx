@@ -56,7 +56,7 @@ export function HouseholdsScreen({ navigation }: any) {
           <Text style={styles.emptyTitle}>{i18n.t('syncRequiredTitle')}</Text>
           <Text style={styles.emptyBody}>{i18n.t('noDataSyncPrompt')}</Text>
           <Pressable
-            onPress={() => syncNow('manual')}
+            onPress={syncNow}
             style={styles.primaryButton}
             disabled={!isOnline || isSyncing}
           >
@@ -78,7 +78,7 @@ export function HouseholdsScreen({ navigation }: any) {
               >
                 <Text style={styles.secondaryButtonText}>{i18n.t('createHousehold')}</Text>
               </Pressable>
-              <Pressable onPress={() => syncNow('manual')} style={styles.secondaryButton}>
+              <Pressable onPress={syncNow} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>{i18n.t('syncNow')}</Text>
               </Pressable>
             </View>

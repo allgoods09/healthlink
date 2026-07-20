@@ -133,6 +133,9 @@ class UserController extends Controller
         $data['approval_status'] = User::APPROVAL_APPROVED;
         $data['registered_via'] = 'admin';
         $data['is_active'] = $data['is_active'] ?? true;
+        $data['approved_at'] = now();
+        $data['approved_by'] = Auth::id();
+        $data['email_verified_at'] = now();
 
         $user = User::create($data);
 
@@ -176,6 +179,26 @@ class UserController extends Controller
             : collect();
 
         return view('admin.iam.users.edit', compact('user', 'roles', 'barangays', 'puroks'));
+    }
+
+    /**
+     * Show the assignment workflow for the specified user.
+     */
+    public function assignment(User $user)
+    {
+        Gate::authorize('update', $user);
+
+        $roles = User::ROLES;
+        $barangays = Barangay::active()->get();
+        $selectedBarangayId = old(
+            'assigned_barangay_id',
+            $user->assigned_barangay_id ?? $user->requested_barangay_id
+        );
+        $puroks = $selectedBarangayId
+            ? Purok::where('barangay_id', $selectedBarangayId)->active()->orderBy('purok_number')->get()
+            : collect();
+
+        return view('admin.iam.users.assignment', compact('user', 'roles', 'barangays', 'puroks'));
     }
 
     /**

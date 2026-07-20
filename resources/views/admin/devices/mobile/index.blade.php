@@ -125,8 +125,8 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-600">{{ $device['last_used'] ? $device['last_used']->diffForHumans() : 'Never' }}</td>
                             <td class="px-6 py-4 text-sm text-gray-600">{{ $device['created_at']->format('M d, Y h:i A') }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <form action="{{ route($routePrefix.'.devices.revoke', $device['token']->id) }}" method="POST" class="inline" onsubmit="return confirm('Revoke this device token? The BHW will lose sync access immediately.')">
                                         @csrf
                                         @method('DELETE')

@@ -30,6 +30,7 @@ export type HouseholdRecord = {
   server_id?: number | null;
   mobile_uuid?: string | null;
   purok_id?: number | null;
+  purok_display_name?: string | null;
   household_no: string;
   household_address: string;
   is_social_aid_beneficiary: boolean;
@@ -46,6 +47,8 @@ export type ResidentRecord = {
   household_server_id?: number | null;
   household_mobile_uuid?: string | null;
   household_no?: string | null;
+  household_purok_id?: number | null;
+  household_purok_display_name?: string | null;
   philsys_card_no?: string | null;
   last_name: string;
   first_name: string;
@@ -82,6 +85,8 @@ export type FieldVisitRecord = {
   household_server_id?: number | null;
   household_mobile_uuid?: string | null;
   household_no?: string | null;
+  household_purok_id?: number | null;
+  household_purok_display_name?: string | null;
   recorded_by_name?: string | null;
   visited_at: string;
   notes?: string | null;
@@ -107,6 +112,7 @@ export type BootstrapPayload = {
     id: number;
     mobile_uuid: string | null;
     purok_id: number;
+    purok_display_name: string | null;
     household_no: string;
     household_address: string;
     is_social_aid_beneficiary: boolean;
@@ -155,6 +161,43 @@ export type BootstrapPayload = {
     supports_manual_upload: boolean;
     supports_auto_upload_when_online: boolean;
     supported_locales: string[];
+  };
+};
+
+export type MobileReleasePayload = {
+  id: number;
+  version_name: string;
+  version_code: number;
+  release_title: string | null;
+  release_notes: string | null;
+  status: string;
+  status_label: string;
+  update_mode: 'optional' | 'required';
+  update_mode_label: string;
+  artifact_source: string;
+  artifact_source_label: string;
+  published_at: string | null;
+  published_at_human: string | null;
+  download_url: string;
+  update_page_url: string;
+};
+
+export type MobileReleaseCheck = {
+  scope: string;
+  platform: string;
+  checked_at: string;
+  release: MobileReleasePayload | null;
+  update: {
+    available: boolean;
+    required: boolean;
+    can_continue_offline: boolean;
+    message: string | null;
+  };
+  maintenance: {
+    login_enabled: boolean;
+    sync_upload_enabled: boolean;
+    sync_download_enabled: boolean;
+    maintenance_message: string | null;
   };
 };
 

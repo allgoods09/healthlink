@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Mobile\AuthController;
+use App\Http\Controllers\Api\Mobile\ReleaseController;
 use App\Http\Controllers\Api\Mobile\SyncController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,8 @@ Route::prefix('mobile')
                 Route::post('/login', [AuthController::class, 'login'])->name('login');
                 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
             });
+
+        Route::get('/release-check', [ReleaseController::class, 'show'])->name('release-check');
 
         Route::middleware(['auth:sanctum', 'mobile-token', 'dynamic-throttle:api-global'])
             ->group(function () {

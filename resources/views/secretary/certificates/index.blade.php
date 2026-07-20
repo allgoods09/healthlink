@@ -97,8 +97,8 @@
                                 <div>{{ $certificate->issued_at?->format('M d, Y') }}</div>
                                 <div class="mt-1 text-xs text-slate-500">{{ $certificate->issuedBy?->name ?? 'System' }}</div>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex items-center justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('secretary.certificates.show', $certificate) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                     <a href="{{ route('secretary.certificates.pdf', $certificate) }}" class="text-rose-600 hover:text-rose-900">PDF</a>
                                 </div>

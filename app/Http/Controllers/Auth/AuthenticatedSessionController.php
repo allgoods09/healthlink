@@ -28,6 +28,16 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $user = $request->user();
+
+        if (! $user->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
+        if ($user->approval_status === \App\Models\User::APPROVAL_PENDING) {
+            return redirect()->route('registration.pending');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

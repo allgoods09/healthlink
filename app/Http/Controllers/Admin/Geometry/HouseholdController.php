@@ -137,14 +137,20 @@ class HouseholdController extends Controller
     {
         Gate::authorize('create', Household::class);
 
+        $selectedBarangayId = $request->input('barangay_id');
+        $availablePuroks = $selectedBarangayId
+            ? Purok::where('barangay_id', $selectedBarangayId)->active()->orderBy('purok_number')->get()
+            : collect();
+
         return view('admin.geometry.households.create', [
             'household' => new Household([
                 'is_active' => true,
                 'is_social_aid_beneficiary' => false,
             ]),
             'barangays' => Barangay::active()->orderBy('name')->get(),
-            'selectedBarangayId' => $request->input('barangay_id'),
+            'selectedBarangayId' => $selectedBarangayId,
             'selectedPurokId' => $request->input('purok_id'),
+            'availablePuroks' => $availablePuroks,
         ]);
     }
 
@@ -188,11 +194,16 @@ class HouseholdController extends Controller
         Gate::authorize('update', $household);
 
         $household->load(['purok.barangay', 'headResident', 'residents']);
+        $availablePuroks = Purok::where('barangay_id', $household->purok->barangay_id)
+            ->active()
+            ->orderBy('purok_number')
+            ->get();
 
         return view('admin.geometry.households.edit', [
             'household' => $household,
             'barangays' => Barangay::active()->orderBy('name')->get(),
             'selectedBarangayId' => $household->purok->barangay_id,
+            'availablePuroks' => $availablePuroks,
         ]);
     }
 

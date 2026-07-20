@@ -7,10 +7,11 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
-import { setLocale, SupportedLocale } from '../i18n';
+import { i18n, setLocale, SupportedLocale } from '../i18n';
 import {
+  mobileCheckRelease,
   mobileBootstrap,
   mobileForgotPassword,
   mobileLogin,
@@ -23,16 +24,18 @@ import {
   clearToken,
   clearOperationalData,
   getAppState,
+  getDatasetAssignment,
+  getDatasetOwnerUserId,
+  getPendingChangeSummary,
   getPendingSyncPayload,
   hasBootstrapData,
-  hasPendingChanges,
   initializeStorage,
   loadToken,
   replaceBootstrapData,
   setAppState,
   storeToken,
 } from '../lib/storage';
-import { MobileAssignment, MobileUser } from '../types';
+import { MobileAssignment, MobileReleaseCheck, MobileUser } from '../types';
 
 type AppContextValue = {
   isReady: boolean;
@@ -45,13 +48,20 @@ type AppContextValue = {
   assignment: MobileAssignment | null;
   language: SupportedLocale;
   apiBaseUrl: string;
+  appVersion: string;
+  appVersionCode: number;
   lastSyncAt: string | null;
   statusMessage: string | null;
   dataVersion: number;
+  initialSyncInProgress: boolean;
+  pendingSyncCount: number;
+  releaseCheck: MobileReleaseCheck | null;
   signIn: (params: { email: string; password: string; apiBaseUrl: string }) => Promise<void>;
   requestPasswordReset: (params: { email: string; apiBaseUrl: string }) => Promise<string>;
   signOut: () => Promise<void>;
-  syncNow: (mode?: 'manual' | 'background') => Promise<void>;
+  syncNow: () => Promise<void>;
+  retryInitialSync: () => Promise<void>;
+  refreshReleaseStatus: () => Promise<void>;
   setLanguagePreference: (locale: SupportedLocale) => Promise<void>;
   setServerUrl: (baseUrl: string) => Promise<void>;
   bumpDataVersion: () => void;
@@ -59,7 +69,9 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const APP_VERSION = '1.0.0';
+const appConfig = require('../../app.json');
+const APP_VERSION = appConfig.expo?.version ?? '1.0.0';
+const APP_VERSION_CODE = Number(appConfig.expo?.android?.versionCode ?? 1);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
@@ -74,6 +86,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const [initialSyncInProgress, setInitialSyncInProgress] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [releaseCheck, setReleaseCheck] = useState<MobileReleaseCheck | null>(null);
+
+  async function refreshPendingSyncCount() {
+    const summary = await getPendingChangeSummary();
+    setPendingSyncCount(summary.total);
+
+    return summary;
+  }
+
+  async function hydrateBootstrapSession(bootstrap: Awaited<ReturnType<typeof mobileBootstrap>>) {
+    await replaceBootstrapData(bootstrap);
+    await setAppState('session_assignment', JSON.stringify(bootstrap.assignment));
+
+    setAssignment(bootstrap.assignment);
+    setBootstrapCompleted(true);
+    setLastSyncAt(bootstrap.server_time);
+    setStatusMessage(null);
+    await refreshPendingSyncCount();
+    setDataVersion((current) => current + 1);
+  }
+
+  async function refreshReleaseStatusWithBaseUrl(nextBaseUrl: string) {
+    if (!nextBaseUrl.trim()) {
+      return;
+    }
+
+    try {
+      const nextReleaseCheck = await mobileCheckRelease(
+        nextBaseUrl,
+        APP_VERSION_CODE
+      );
+      setReleaseCheck(nextReleaseCheck);
+    } catch {
+      // Keep mobile boot resilient when the release endpoint is not reachable.
+    }
+  }
+
+  async function performInitialSync(
+    nextApiBaseUrl: string,
+    nextToken: string,
+    fallbackMessage = i18n.t('initialSyncFailed')
+  ) {
+    setBootstrapCompleted(false);
+
+    if (!isOnline) {
+      setInitialSyncInProgress(false);
+      setStatusMessage(i18n.t('initialSyncOffline'));
+      return;
+    }
+
+    setInitialSyncInProgress(true);
+    setStatusMessage(i18n.t('initialSyncing'));
+
+    try {
+      const bootstrap = await mobileBootstrap(nextApiBaseUrl, nextToken);
+      await hydrateBootstrapSession(bootstrap);
+    } catch (error) {
+      setBootstrapCompleted(false);
+      setStatusMessage(error instanceof Error ? error.message : fallbackMessage);
+    } finally {
+      setInitialSyncInProgress(false);
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -87,16 +164,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async function boot() {
       await initializeStorage();
 
-      const [storedToken, storedLanguage, storedApiBaseUrl, storedLastSyncAt, bootstrapped] =
+      const [
+        storedToken,
+        storedLanguage,
+        storedApiBaseUrl,
+        storedLastSyncAt,
+        bootstrapped,
+        storedSessionUser,
+        storedSessionAssignment,
+      ] =
         await Promise.all([
           loadToken(),
           getAppState('language'),
           getAppState('api_base_url'),
           getAppState('last_sync_at'),
           hasBootstrapData(),
+          getAppState('session_user'),
+          getAppState('session_assignment'),
         ]);
-      const storedUser = await getAppState('session_user');
-      const storedAssignment = await getAppState('session_assignment');
 
       const nextLanguage =
         storedLanguage === 'ceb' || storedLanguage === 'en'
@@ -109,18 +194,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLastSyncAt(storedLastSyncAt || null);
       setBootstrapCompleted(bootstrapped);
 
-      if (storedUser) {
-        setUser(JSON.parse(storedUser) as MobileUser);
-      }
-
-      if (storedAssignment) {
-        setAssignment(JSON.parse(storedAssignment) as MobileAssignment);
-      }
-
       if (storedToken) {
         setToken(storedToken);
+        if (storedSessionUser) {
+          setUser(JSON.parse(storedSessionUser) as MobileUser);
+        }
+        if (storedSessionAssignment) {
+          setAssignment(JSON.parse(storedSessionAssignment) as MobileAssignment);
+        }
+        if (!bootstrapped) {
+          setStatusMessage(i18n.t('initialSyncPendingMessage'));
+        }
       }
 
+      await refreshPendingSyncCount();
       setIsReady(true);
     }
 
@@ -138,12 +225,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [apiBaseUrl, isOnline, token]);
 
   useEffect(() => {
-    if (!isReady || !token || !isOnline || isSyncing) {
+    if (!isReady || !isOnline) {
       return;
     }
 
-    void syncNow('background');
-  }, [apiBaseUrl, dataVersion, isOnline, isReady, isSyncing, token]);
+    void refreshReleaseStatusWithBaseUrl(apiBaseUrl);
+  }, [apiBaseUrl, isOnline, isReady]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && isReady && isOnline) {
+        void refreshReleaseStatusWithBaseUrl(apiBaseUrl);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [apiBaseUrl, isOnline, isReady]);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    void refreshPendingSyncCount();
+  }, [dataVersion, isReady]);
 
   async function signIn({
     email,
@@ -162,37 +269,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
       app_version: APP_VERSION,
     });
 
+    const [existingDatasetOwnerUserId, existingDatasetAssignment, bootstrapped, storedLastSyncAt] =
+      await Promise.all([
+        getDatasetOwnerUserId(),
+        getDatasetAssignment(),
+        hasBootstrapData(),
+        getAppState('last_sync_at'),
+      ]);
+
+    const nextUserId = String(response.user.id);
+    const isDifferentDatasetOwner =
+      Boolean(existingDatasetOwnerUserId) && existingDatasetOwnerUserId !== nextUserId;
+    const canReuseCachedData =
+      existingDatasetOwnerUserId === nextUserId && bootstrapped;
+
+    if (isDifferentDatasetOwner) {
+      await clearOperationalData();
+    }
+
     await storeToken(response.token);
     await setAppState('api_base_url', nextApiBaseUrl);
     await setAppState('session_user', JSON.stringify(response.user));
 
     setApiBaseUrlState(nextApiBaseUrl);
-    setToken(response.token);
     setUser(response.user);
     setStatusMessage(null);
+    setInitialSyncInProgress(false);
+    await refreshReleaseStatusWithBaseUrl(nextApiBaseUrl);
 
-    if (isOnline) {
-      try {
-        await clearOperationalData();
-        const bootstrap = await mobileBootstrap(nextApiBaseUrl, response.token);
-        await replaceBootstrapData(bootstrap);
-        await setAppState('session_assignment', JSON.stringify(bootstrap.assignment));
-        setAssignment(bootstrap.assignment);
-        setBootstrapCompleted(true);
-        setLastSyncAt(bootstrap.server_time);
-        setDataVersion((current) => current + 1);
-      } catch (error) {
-        setBootstrapCompleted(false);
-        setStatusMessage(
-          error instanceof Error
-            ? error.message
-            : 'Login worked, but the initial sync did not finish.'
-        );
+    if (canReuseCachedData) {
+      if (existingDatasetAssignment) {
+        const cachedAssignment = JSON.parse(existingDatasetAssignment) as MobileAssignment;
+        await setAppState('session_assignment', existingDatasetAssignment);
+        setAssignment(cachedAssignment);
+      } else {
+        setAssignment(null);
       }
-    } else {
-      setBootstrapCompleted(false);
-      setStatusMessage('You are offline. Connect to the internet to download your assigned records.');
+
+      setBootstrapCompleted(true);
+      setLastSyncAt(storedLastSyncAt || null);
+      setToken(response.token);
+      await refreshPendingSyncCount();
+
+      return;
     }
+
+    await setAppState('session_assignment', '');
+    setAssignment(null);
+    setBootstrapCompleted(false);
+    setToken(response.token);
+    await refreshPendingSyncCount();
+    await performInitialSync(nextApiBaseUrl, response.token);
   }
 
   async function requestPasswordReset({
@@ -219,27 +346,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     await clearToken();
-    await clearOperationalData();
+    await setAppState('session_user', '');
+    await setAppState('session_assignment', '');
     setToken(null);
     setUser(null);
     setAssignment(null);
     setBootstrapCompleted(false);
+    setInitialSyncInProgress(false);
     setLastSyncAt(null);
     setStatusMessage(null);
-    setDataVersion((current) => current + 1);
+    await refreshPendingSyncCount();
   }
 
-  async function syncNow(mode: 'manual' | 'background' = 'manual') {
+  async function syncNow() {
     if (!token || !isOnline || isSyncing) {
+      return;
+    }
+
+    if (releaseCheck?.update.available && releaseCheck.update.required) {
+      setStatusMessage(
+        releaseCheck.update.message ?? i18n.t('syncBlockedUpdateRequired')
+      );
       return;
     }
 
     setIsSyncing(true);
 
     try {
-      const pending = await hasPendingChanges();
+      const pendingSummary = await refreshPendingSyncCount();
 
-      if (pending) {
+      if (pendingSummary.total > 0) {
+        setStatusMessage(i18n.t('uploadingChanges'));
         const payload = await getPendingSyncPayload();
         const syncResponse = await mobileSync(apiBaseUrl, token, {
           ...payload,
@@ -248,12 +385,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
 
         await applyResolvedRecords(syncResponse.resolved_records);
+        await setAppState('last_sync_at', syncResponse.synced_at);
         setLastSyncAt(syncResponse.synced_at);
+        const remainingSummary = await refreshPendingSyncCount();
 
-        if (syncResponse.status !== 'success') {
+        if (syncResponse.status !== 'success' || remainingSummary.total > 0) {
           setStatusMessage(
             syncResponse.failed_records[0]?.message ??
-              'Some records could not be uploaded yet.'
+              i18n.t('syncUploadIncomplete')
           );
           setDataVersion((current) => current + 1);
 
@@ -261,23 +400,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      const downloadGuard = await refreshPendingSyncCount();
+      if (downloadGuard.total > 0) {
+        setStatusMessage(i18n.t('syncDownloadSkipped'));
+        return;
+      }
+
+      setStatusMessage(i18n.t('downloadingLatest'));
       const bootstrap = await mobileBootstrap(apiBaseUrl, token);
-      await replaceBootstrapData(bootstrap);
-      await setAppState('session_assignment', JSON.stringify(bootstrap.assignment));
-      setAssignment(bootstrap.assignment);
-      setBootstrapCompleted(true);
-      setLastSyncAt(bootstrap.server_time);
-      setStatusMessage(
-        mode === 'manual' ? 'Sync complete. Local records are up to date.' : null
-      );
-      setDataVersion((current) => current + 1);
+      await hydrateBootstrapSession(bootstrap);
+      setStatusMessage(i18n.t('syncComplete'));
     } catch (error) {
       setStatusMessage(
-        error instanceof Error ? error.message : 'Sync failed. Please try again.'
+        error instanceof Error ? error.message : i18n.t('syncFailed')
       );
     } finally {
       setIsSyncing(false);
     }
+  }
+
+  async function retryInitialSync() {
+    if (!token || initialSyncInProgress) {
+      return;
+    }
+
+    await performInitialSync(apiBaseUrl, token);
   }
 
   async function setLanguagePreference(locale: SupportedLocale) {
@@ -303,13 +450,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       assignment,
       language,
       apiBaseUrl,
+      appVersion: APP_VERSION,
+      appVersionCode: APP_VERSION_CODE,
       lastSyncAt,
       statusMessage,
       dataVersion,
+      initialSyncInProgress,
+      pendingSyncCount,
+      releaseCheck,
       signIn,
       requestPasswordReset,
       signOut: () => signOut(false),
       syncNow,
+      retryInitialSync,
+      refreshReleaseStatus: () => refreshReleaseStatusWithBaseUrl(apiBaseUrl),
       setLanguagePreference,
       setServerUrl,
       bumpDataVersion: () => setDataVersion((current) => current + 1),
@@ -319,11 +473,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       assignment,
       bootstrapCompleted,
       dataVersion,
+      releaseCheck,
       isOnline,
       isReady,
       isSyncing,
+      initialSyncInProgress,
       language,
       lastSyncAt,
+      pendingSyncCount,
       statusMessage,
       token,
       user,

@@ -59,8 +59,8 @@
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 {{ number_format($household->residents_count) }} resident(s)
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bhw.households.show', $household) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                                     <a href="{{ route('bhw.update-requests.create-household', ['household_id' => $household->id]) }}" class="text-indigo-600 hover:text-indigo-800">Request Update</a>
                                 </div>

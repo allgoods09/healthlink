@@ -57,8 +57,8 @@
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $draft->purok?->display_name ?? 'No purok selected' }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($draft->resident_drafts_count) }} resident draft(s)</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $draft->draft_status_label }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bhw.drafts.show', $draft) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                                     @if($draft->draft_status === \App\Models\HouseholdDraft::STATUS_PENDING)
                                         <a href="{{ route('bhw.drafts.edit', $draft) }}" class="text-indigo-600 hover:text-indigo-800">Edit</a>

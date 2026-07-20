@@ -225,6 +225,23 @@
                 init() {
                     this.syncTargetHouseholdSearch();
 
+                    this.$watch('destination', (value) => {
+                        if (value !== 'existing_household') {
+                            this.targetHouseholdId = '';
+                            this.targetHouseholdSearchQuery = '';
+                            this.targetHouseholdSearchOpen = false;
+                            this.syncTargetHouseholdValidity();
+                            return;
+                        }
+
+                        if (this.targetPurokId && this.households.length === 0) {
+                            this.loadHouseholds();
+                            return;
+                        }
+
+                        this.syncTargetHouseholdValidity();
+                    });
+
                     if (this.targetPurokId && this.destination === 'existing_household' && this.households.length === 0) {
                         this.loadHouseholds();
                     }

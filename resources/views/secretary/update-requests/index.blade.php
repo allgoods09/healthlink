@@ -77,8 +77,8 @@
                                     {{ $updateRequest->request_status_label }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('secretary.update-requests.show', $updateRequest) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
                                     @if($updateRequest->request_status === \App\Models\ProfileUpdateRequest::STATUS_PENDING)
                                         <a href="{{ route('secretary.update-requests.edit', $updateRequest) }}" class="text-indigo-600 hover:text-indigo-800">Review</a>

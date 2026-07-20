@@ -156,7 +156,7 @@
                                     {{ ucfirst($log->status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="{{ route($routePrefix.'.sync-logs.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
                             </td>
                         </tr>

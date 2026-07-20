@@ -54,14 +54,6 @@ class LoginRequest extends FormRequest
 
         $user = Auth::user();
 
-        if ($user && $user->approval_status === \App\Models\User::APPROVAL_PENDING) {
-            Auth::logout();
-
-            throw ValidationException::withMessages([
-                'email' => 'Your account is pending approval. Please wait for an administrator to approve your registration.',
-            ]);
-        }
-
         if ($user && $user->approval_status === \App\Models\User::APPROVAL_REJECTED) {
             Auth::logout();
 
@@ -70,7 +62,7 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if ($user && ! $user->is_active) {
+        if ($user && $user->approval_status !== \App\Models\User::APPROVAL_PENDING && ! $user->is_active) {
             Auth::logout();
 
             throw ValidationException::withMessages([

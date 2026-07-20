@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import {
   FlatList,
   Modal,
@@ -14,7 +15,13 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import {
-  getHouseholdByLocalId,
+  birthDateInputFromServer,
+  dateInputFromPicker,
+  datePickerValueFromInput,
+  formatBirthDateInput,
+  normalizeBirthDateInput,
+} from '../lib/format';
+import {
   getHouseholds,
   getResidentByLocalId,
   saveResident,
@@ -23,7 +30,7 @@ import { theme } from '../theme';
 import { HouseholdRecord } from '../types';
 
 export function ResidentFormScreen({ route, navigation }: any) {
-  const { bumpDataVersion } = useAppContext();
+  const { assignment, bumpDataVersion } = useAppContext();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [chooserVisible, setChooserVisible] = useState(false);
   const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRecord | null>(null);
@@ -43,10 +50,23 @@ export function ResidentFormScreen({ route, navigation }: any) {
   const [emailAddress, setEmailAddress] = useState('');
   const [relationshipToHead, setRelationshipToHead] = useState('Head');
   const [active, setActive] = useState(true);
+  const [formError, setFormError] = useState<string | null>(null);
+  const assignedPurokId = assignment?.purok?.id ?? null;
+  const assignedPurokLabel =
+    assignment?.purok?.display_name ?? i18n.t('assignedPurokOnly');
 
   useEffect(() => {
-    void getHouseholds().then(setHouseholds);
-  }, []);
+    async function loadWritableHouseholds() {
+      const records = await getHouseholds();
+      setHouseholds(
+        assignedPurokId === null
+          ? records
+          : records.filter((household) => household.purok_id === assignedPurokId)
+      );
+    }
+
+    void loadWritableHouseholds();
+  }, [assignedPurokId]);
 
   useEffect(() => {
     async function loadExisting() {
@@ -62,7 +82,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       setFirstName(existing.first_name);
       setLastName(existing.last_name);
       setMiddleName(existing.middle_name ?? '');
-      setBirthDate(existing.birth_date);
+      setBirthDate(birthDateInputFromServer(existing.birth_date));
       setBirthPlace(existing.birth_place);
       setSex(existing.sex);
       setCivilStatus(existing.civil_status);
@@ -89,8 +109,39 @@ export function ResidentFormScreen({ route, navigation }: any) {
     void loadExisting();
   }, [route.params?.localId]);
 
+  function openBirthDatePicker() {
+    DateTimePickerAndroid.open({
+      value: datePickerValueFromInput(birthDate),
+      mode: 'date',
+      maximumDate: new Date(),
+      onChange: (event, selectedDate) => {
+        if (event.type === 'set' && selectedDate) {
+          setBirthDate(dateInputFromPicker(selectedDate));
+          setFormError(null);
+        }
+      },
+    });
+  }
+
   async function handleSave() {
-    if (!selectedHousehold) return;
+    const normalizedBirthDate = normalizeBirthDateInput(birthDate);
+
+    if (!selectedHousehold) {
+      setFormError(i18n.t('householdRequiredMessage'));
+      return;
+    }
+
+    if (!firstName.trim() || !lastName.trim() || !birthPlace.trim()) {
+      setFormError(i18n.t('residentRequiredMessage'));
+      return;
+    }
+
+    if (!normalizedBirthDate) {
+      setFormError(i18n.t('invalidBirthDate'));
+      return;
+    }
+
+    setFormError(null);
 
     await saveResident({
       local_id: localId ?? undefined,
@@ -101,7 +152,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       last_name: lastName,
       first_name: firstName,
       middle_name: middleName || null,
-      birth_date: birthDate,
+      birth_date: normalizedBirthDate,
       birth_place: birthPlace,
       sex,
       civil_status: civilStatus,
@@ -125,21 +176,48 @@ export function ResidentFormScreen({ route, navigation }: any) {
             {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
           </Text>
         </Pressable>
+        <Text style={styles.helperText}>
+          {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
+        </Text>
 
         <Text style={styles.label}>{i18n.t('firstName')}</Text>
-        <TextInput value={firstName} onChangeText={setFirstName} style={styles.input} />
+        <TextInput value={firstName} onChangeText={(value) => {
+          setFirstName(value);
+          if (formError) setFormError(null);
+        }} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('lastName')}</Text>
-        <TextInput value={lastName} onChangeText={setLastName} style={styles.input} />
+        <TextInput value={lastName} onChangeText={(value) => {
+          setLastName(value);
+          if (formError) setFormError(null);
+        }} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('middleName')}</Text>
         <TextInput value={middleName} onChangeText={setMiddleName} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('birthDate')}</Text>
-        <TextInput value={birthDate} onChangeText={setBirthDate} style={styles.input} />
+        <View style={styles.dateRow}>
+          <TextInput
+            value={birthDate}
+            onChangeText={(value) => {
+              setBirthDate(formatBirthDateInput(value));
+              if (formError) setFormError(null);
+            }}
+            style={[styles.input, styles.dateInput]}
+            placeholder={i18n.t('birthDatePlaceholder')}
+            maxLength={10}
+          />
+          <Pressable onPress={openBirthDatePicker} style={styles.calendarButton}>
+            <Text style={styles.calendarButtonText}>{i18n.t('openCalendar')}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.helperText}>{i18n.t('birthDateHelper')}</Text>
 
         <Text style={styles.label}>{i18n.t('birthPlace')}</Text>
-        <TextInput value={birthPlace} onChangeText={setBirthPlace} style={styles.input} />
+        <TextInput value={birthPlace} onChangeText={(value) => {
+          setBirthPlace(value);
+          if (formError) setFormError(null);
+        }} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('sex')}</Text>
         <View style={styles.segmentRow}>
@@ -182,6 +260,12 @@ export function ResidentFormScreen({ route, navigation }: any) {
           <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
           <Switch value={active} onValueChange={setActive} />
         </View>
+
+        {formError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{formError}</Text>
+          </View>
+        ) : null}
       </View>
 
       <Pressable onPress={handleSave} style={styles.primaryButton}>
@@ -194,12 +278,17 @@ export function ResidentFormScreen({ route, navigation }: any) {
             <FlatList
               data={households}
               keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
-              ListHeaderComponent={<Text style={styles.modalTitle}>{i18n.t('chooseHousehold')}</Text>}
+              ListHeaderComponent={
+                <Text style={styles.modalTitle}>
+                  {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
+                </Text>
+              }
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => {
                     setSelectedHousehold(item);
                     setChooserVisible(false);
+                    setFormError(null);
                   }}
                   style={styles.modalItem}
                 >
@@ -243,6 +332,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     color: theme.colors.text,
   },
+  helperText: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+  },
   pickerButton: {
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -253,6 +348,26 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     color: theme.colors.text,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    alignItems: 'center',
+  },
+  dateInput: {
+    flex: 1,
+  },
+  calendarButton: {
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primarySoft,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  calendarButtonText: {
+    color: theme.colors.primary,
+    fontWeight: '700',
   },
   segmentRow: {
     flexDirection: 'row',
@@ -286,6 +401,17 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     color: theme.colors.text,
+    fontWeight: '600',
+  },
+  errorBox: {
+    marginTop: theme.spacing.md,
+    backgroundColor: theme.colors.dangerSoft,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+  },
+  errorText: {
+    color: theme.colors.danger,
+    lineHeight: 21,
     fontWeight: '600',
   },
   primaryButton: {

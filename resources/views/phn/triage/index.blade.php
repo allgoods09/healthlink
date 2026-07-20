@@ -105,7 +105,7 @@
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $triageRecord->recordedBy?->name ?? 'Unknown BHW' }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $triageRecord->measured_at?->format('M d, Y h:i A') }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $triageRecord->triage_status_label }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('phn.triage.show', $triageRecord) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                             </td>
                         </tr>

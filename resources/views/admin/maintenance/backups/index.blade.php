@@ -187,8 +187,8 @@
                                     Never
                                 @endif
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex items-center justify-end space-x-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('admin.backups.show', $backup) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                     @if($backup->is_verifiable)
                                         <form action="{{ route('admin.backups.verify', $backup) }}" method="POST" class="inline">

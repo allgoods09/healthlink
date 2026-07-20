@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\IAM\UserStatusController;
 use App\Http\Controllers\Admin\Maintenance\BackupController;
 use App\Http\Controllers\Admin\Maintenance\DataArchiveController;
 use App\Http\Controllers\Admin\Maintenance\SystemMetricsController;
+use App\Http\Controllers\Admin\Mobile\MobileReleaseController;
 use App\Http\Controllers\Admin\Oversight\ClinicalOversightController;
 use App\Http\Controllers\Admin\Oversight\FieldOperationsMonitorController;
 use App\Http\Controllers\Admin\Oversight\NutritionOversightController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Bhw\CampaignTaskController as BhwCampaignTaskController
 use App\Http\Controllers\Bhw\DashboardController as BhwDashboardController;
 use App\Http\Controllers\Bhw\HouseholdController as BhwHouseholdController;
 use App\Http\Controllers\Bhw\HouseholdDraftController as BhwHouseholdDraftController;
+use App\Http\Controllers\Bhw\MobileAppController as BhwMobileAppController;
 use App\Http\Controllers\Bhw\NutritionFlagController as BhwNutritionFlagController;
 use App\Http\Controllers\Bhw\ResidentController as BhwResidentController;
 use App\Http\Controllers\Bhw\TriageController as BhwTriageController;
@@ -45,6 +47,7 @@ use App\Http\Controllers\Phn\FollowUpController as PhnFollowUpController;
 use App\Http\Controllers\Phn\ResidentController as PhnResidentController;
 use App\Http\Controllers\Phn\TriageQueueController as PhnTriageQueueController;
 use App\Http\Controllers\Phn\UpdateRequestController as PhnUpdateRequestController;
+use App\Http\Controllers\Mobile\BhwReleaseController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Secretary\ActivityFeedController as SecretaryActivityFeedController;
 use App\Http\Controllers\Secretary\CertificateController as SecretaryCertificateController;
@@ -70,10 +73,26 @@ Route::get('/', function () {
         : redirect()->route('login');
 })->middleware('no-cache');
 
+Route::prefix('mobile/bhw')
+    ->name('mobile.bhw.')
+    ->controller(BhwReleaseController::class)
+    ->group(function () {
+        Route::get('/update', 'show')->name('update');
+        Route::get('/download', 'download')->name('download');
+    });
+
 Route::get('/dashboard', function () {
     $user = request()->user();
 
     if ($user) {
+        if (! $user->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
+        if ($user->approval_status === \App\Models\User::APPROVAL_PENDING) {
+            return redirect()->route('registration.pending');
+        }
+
         return match ($user->role) {
             'admin' => redirect()->route('admin.dashboard'),
             'bns' => redirect()->route('bns.dashboard'),
@@ -86,7 +105,7 @@ Route::get('/dashboard', function () {
     }
 
     return view('dashboard');
-})->middleware(['auth', 'active', 'no-cache'])->name('dashboard');
+})->middleware(['auth', 'no-cache'])->name('dashboard');
 
 // =============================================
 // AUTHENTICATION ROUTES (Breeze handles these)
@@ -107,7 +126,7 @@ Route::middleware(['auth', 'no-cache'])->group(function () {
 // BNS ROUTES (Protected by 'auth', 'active', 'role:bns')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:bns', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
     ->prefix('bns')
     ->name('bns.')
     ->group(function () {
@@ -185,11 +204,19 @@ Route::middleware(['auth', 'active', 'role:bns', 'no-cache'])
 // BHW ROUTES (Protected by 'auth', 'active', 'role:bhw')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:bhw', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
     ->prefix('bhw')
     ->name('bhw.')
     ->group(function () {
         Route::get('/dashboard', BhwDashboardController::class)->name('dashboard');
+
+        Route::prefix('mobile-app')
+            ->name('mobile-app.')
+            ->controller(BhwMobileAppController::class)
+            ->group(function () {
+                Route::get('/', 'show')->name('show');
+                Route::get('/download', 'download')->name('download');
+            });
 
         Route::prefix('residents')
             ->name('residents.')
@@ -266,7 +293,7 @@ Route::middleware(['auth', 'active', 'role:bhw', 'no-cache'])
 // SECRETARY ROUTES (Protected by 'auth', 'active', 'role:secretary')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:secretary', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
     ->prefix('secretary')
     ->name('secretary.')
     ->group(function () {
@@ -342,6 +369,8 @@ Route::middleware(['auth', 'active', 'role:secretary', 'no-cache'])
                 Route::get('/export/{format}', 'export')->name('export');
                 Route::patch('/{user}/approve', 'approve')->name('approve');
                 Route::patch('/{user}/reject', 'reject')->name('reject');
+                Route::post('/{user}/verification/resend', 'resendVerification')->name('verification.resend');
+                Route::patch('/{user}/verification/mark', 'markVerified')->name('verification.mark');
                 Route::get('/{user}', 'show')->name('show');
                 Route::get('/{user}/edit', 'edit')->name('edit');
                 Route::put('/{user}', 'update')->name('update');
@@ -413,7 +442,7 @@ Route::middleware(['auth', 'active', 'role:secretary', 'no-cache'])
 // PHN ROUTES (Protected by 'auth', 'active', 'role:phn')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:phn', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:phn', 'no-cache'])
     ->prefix('phn')
     ->name('phn.')
     ->group(function () {
@@ -475,7 +504,7 @@ Route::middleware(['auth', 'active', 'role:phn', 'no-cache'])
 // MHO ROUTES (Protected by 'auth', 'active', 'role:mho')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:mho', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:mho', 'no-cache'])
     ->prefix('mho')
     ->name('mho.')
     ->group(function () {
@@ -514,7 +543,7 @@ Route::middleware(['auth', 'active', 'role:mho', 'no-cache'])
 // ADMIN ROUTES (Protected by 'auth', 'active', 'role:admin')
 // =============================================
 
-Route::middleware(['auth', 'active', 'role:admin', 'no-cache'])
+Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
      ->prefix('admin')
      ->name('admin.')
      ->group(function () {
@@ -540,6 +569,7 @@ Route::middleware(['auth', 'active', 'role:admin', 'no-cache'])
             // AJAX endpoint for loading puroks
             Route::get('/get-puroks', 'getPuroks')->name('get-puroks');
             Route::get('/{user}', 'show')->name('show');
+            Route::get('/{user}/assignment', 'assignment')->name('assignment');
             Route::get('/{user}/edit', 'edit')->name('edit');
             Route::put('/{user}', 'update')->name('update');
             Route::delete('/{user}', 'destroy')->name('destroy');
@@ -553,6 +583,8 @@ Route::middleware(['auth', 'active', 'role:admin', 'no-cache'])
          ->group(function () {
             Route::patch('/{user}/approve', 'approve')->name('approve');
             Route::patch('/{user}/reject', 'reject')->name('reject');
+            Route::post('/{user}/verification/resend', 'resendVerification')->name('verification.resend');
+            Route::patch('/{user}/verification/mark', 'markVerified')->name('verification.mark');
          });
 
     Route::prefix('users')
@@ -702,6 +734,22 @@ Route::middleware(['auth', 'active', 'role:admin', 'no-cache'])
             Route::get('/export', 'export')->name('export');
             Route::get('/{syncLog}', 'show')->name('show');
             Route::delete('/clear-old', 'clearOld')->name('clear-old');
+         });
+
+    Route::prefix('mobile-releases')
+         ->name('mobile-releases.')
+         ->controller(MobileReleaseController::class)
+         ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::put('/settings', 'updateSettings')->name('settings.update');
+            Route::get('/{mobileRelease}', 'show')->name('show');
+            Route::get('/{mobileRelease}/edit', 'edit')->name('edit');
+            Route::put('/{mobileRelease}', 'update')->name('update');
+            Route::post('/{mobileRelease}/publish', 'publish')->name('publish');
+            Route::post('/{mobileRelease}/retire', 'retire')->name('retire');
+            Route::get('/{mobileRelease}/download', 'download')->name('download');
          });
 
     // =============================================

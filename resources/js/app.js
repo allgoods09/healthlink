@@ -324,4 +324,53 @@ Alpine.data('sidebarLayout', (sidebarContext = 'default', desktopBreakpoint = 10
     },
 }));
 
+function initializeProgressivePurokFilters() {
+    const filterGroups = document.querySelectorAll('[data-progressive-purok-filter]');
+
+    filterGroups.forEach((group) => {
+        const barangaySelect = group.querySelector('[data-barangay-filter-select]');
+        const purokSelect = group.querySelector('[data-purok-filter-select]');
+
+        if (!(barangaySelect instanceof HTMLSelectElement) || !(purokSelect instanceof HTMLSelectElement)) {
+            return;
+        }
+
+        const placeholderOption = purokSelect.querySelector('option[value=""]')?.cloneNode(true)
+            ?? new Option('All puroks', '');
+
+        const allOptions = Array.from(purokSelect.querySelectorAll('option'))
+            .filter((option) => option.value !== '')
+            .map((option) => ({
+                value: option.value,
+                text: option.textContent ?? '',
+                barangayId: option.dataset.barangayId ?? '',
+            }));
+
+        const rebuildOptions = () => {
+            const selectedBarangayId = barangaySelect.value;
+            const previousPurokValue = purokSelect.value;
+            const allowedOptions = selectedBarangayId
+                ? allOptions.filter((option) => option.barangayId === selectedBarangayId)
+                : allOptions;
+
+            purokSelect.innerHTML = '';
+            purokSelect.appendChild(placeholderOption.cloneNode(true));
+
+            allowedOptions.forEach((option) => {
+                const nextOption = new Option(option.text, option.value);
+                nextOption.dataset.barangayId = option.barangayId;
+                purokSelect.appendChild(nextOption);
+            });
+
+            const canKeepPreviousSelection = allowedOptions.some((option) => option.value === previousPurokValue);
+            purokSelect.value = canKeepPreviousSelection ? previousPurokValue : '';
+            purokSelect.disabled = selectedBarangayId !== '' && allowedOptions.length === 0;
+        };
+
+        barangaySelect.addEventListener('change', rebuildOptions);
+        rebuildOptions();
+    });
+}
+
 Alpine.start();
+initializeProgressivePurokFilters();

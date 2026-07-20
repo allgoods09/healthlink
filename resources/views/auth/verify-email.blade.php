@@ -5,11 +5,21 @@
     hero-title="Verified email keeps account recovery and notices dependable"
     hero-description="HealthLink uses your email for important verification and recovery steps, so confirming it early reduces friction later."
 >
+    @if (session('status') === 'registration-submitted')
+        <div class="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">
+            Your registration has been saved. Verify your email first, then wait for barangay approval before HealthLink access is opened.
+        </div>
+    @endif
+
     @if (session('status') == 'verification-link-sent')
         <div class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             {{ __('A new verification link has been sent to the email address you provided during registration.') }}
         </div>
     @endif
+
+    <div class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Email verification confirms your identity. Account approval is still handled separately by the Barangay Secretary or municipal admin after your email is verified.
+    </div>
 
     <div class="space-y-5">
         <form method="POST" action="{{ route('verification.send') }}">

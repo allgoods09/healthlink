@@ -1,10 +1,16 @@
+@php
+    $availablePuroks = collect($availablePuroks ?? []);
+    $availableHouseholds = collect($availableHouseholds ?? []);
+@endphp
+
 <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
     <div>
         <label for="barangay_id" class="block text-sm font-medium text-gray-700">Barangay</label>
         <select
+            name="barangay_id"
             id="barangay_id"
             x-model="barangayId"
-            @change="loadPuroks"
+            @change="loadPuroks()"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             required
         >
@@ -18,18 +24,29 @@
     <div>
         <label for="purok_id" class="block text-sm font-medium text-gray-700">Purok</label>
         <select
+            name="purok_id"
             id="purok_id"
+            x-ref="purokSelect"
             x-model="purokId"
-            @change="loadHouseholds"
+            @change="loadHouseholds()"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            :disabled="puroks.length === 0"
+            :disabled="!barangayId || puroks.length === 0"
             required
         >
             <option value="">Select purok</option>
             <template x-for="purok in puroks" :key="purok.id">
-                <option :value="String(purok.id)" x-text="purok.purok_name ? `Purok ${purok.purok_number} - ${purok.purok_name}` : `Purok ${purok.purok_number}`"></option>
+                <option
+                    :value="String(purok.id)"
+                    :selected="String(purok.id) === String(purokId)"
+                    x-text="purok.purok_name ? `Purok ${purok.purok_number} - ${purok.purok_name}` : `Purok ${purok.purok_number}`"
+                ></option>
             </template>
         </select>
+        @if($availablePuroks->isEmpty())
+            <p class="mt-1 text-xs text-gray-500">Choose a barangay first to narrow the list of puroks.</p>
+        @else
+            <p class="mt-1 text-xs text-gray-500">Only puroks under the selected barangay can be chosen.</p>
+        @endif
     </div>
 
     <div>
@@ -41,7 +58,7 @@
                 id="household_id"
                 x-ref="householdSearchInput"
                 x-model="householdSearchQuery"
-                :disabled="households.length === 0"
+                :disabled="!purokId || households.length === 0"
                 :placeholder="households.length === 0 ? 'Select a purok with households first' : 'Search household number or address'"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('household_id') border-red-500 @enderror"
                 autocomplete="off"
@@ -79,6 +96,12 @@
         </div>
         @error('household_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @else
+            @if($availableHouseholds->isEmpty())
+                <p class="mt-1 text-xs text-gray-500">After choosing a purok, only households from that purok will appear here.</p>
+            @else
+                <p class="mt-1 text-xs text-gray-500">This search only shows households under the selected purok.</p>
+            @endif
         @enderror
     </div>
 </div>

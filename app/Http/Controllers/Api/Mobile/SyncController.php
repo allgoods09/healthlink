@@ -7,17 +7,34 @@ use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Models\SyncLog;
 use App\Support\MobileBootstrapPayload;
+use App\Support\MobileReleaseManager;
 use App\Support\MobileSyncProcessor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SyncController extends Controller
 {
+    public function __construct(
+        private readonly MobileReleaseManager $releaseManager
+    ) {
+    }
+
     /**
-     * Download the full mobile bootstrap data for the assigned purok.
+     * Download the full mobile bootstrap data for the assigned barangay.
      */
     public function bootstrap(Request $request, MobileBootstrapPayload $bootstrapPayload): JsonResponse
     {
+        $settings = $this->releaseManager->releaseSettings();
+
+        if (! $settings['sync_download_enabled']) {
+            return response()->json([
+                'message' => $settings['maintenance_message']
+                    ?: 'Mobile data download is temporarily paused while HealthLink BHW updates are being prepared.',
+                'maintenance' => $settings,
+                'release' => $this->releaseManager->releasePayload(),
+            ], 503);
+        }
+
         return response()->json($bootstrapPayload->build($request->user()));
     }
 
@@ -34,6 +51,17 @@ class SyncController extends Controller
      */
     public function sync(Request $request, MobileSyncProcessor $processor): JsonResponse
     {
+        $settings = $this->releaseManager->releaseSettings();
+
+        if (! $settings['sync_upload_enabled']) {
+            return response()->json([
+                'message' => $settings['maintenance_message']
+                    ?: 'Mobile upload sync is temporarily paused while HealthLink BHW updates are being prepared.',
+                'maintenance' => $settings,
+                'release' => $this->releaseManager->releasePayload(),
+            ], 503);
+        }
+
         $request->validate([
             'households' => ['nullable', 'array'],
             'residents' => ['nullable', 'array'],
@@ -123,6 +151,8 @@ class SyncController extends Controller
         return response()->json([
             'valid' => true,
             'server_time' => now()->toIso8601String(),
+            'maintenance' => $this->releaseManager->releaseSettings(),
+            'release' => $this->releaseManager->releasePayload(),
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,

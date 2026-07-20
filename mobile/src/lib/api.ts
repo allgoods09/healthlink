@@ -1,4 +1,4 @@
-import { BootstrapPayload, SyncResponse } from '../types';
+import { BootstrapPayload, MobileReleaseCheck, SyncResponse } from '../types';
 
 type LoginPayload = {
   email: string;
@@ -72,6 +72,15 @@ export async function mobileForgotPassword(baseUrl: string, email: string) {
       method: 'POST',
       body: JSON.stringify({ email }),
     }
+  );
+}
+
+export async function mobileCheckRelease(baseUrl: string, versionCode?: number | null) {
+  const query = versionCode ? `?version_code=${encodeURIComponent(String(versionCode))}` : '';
+
+  return request<MobileReleaseCheck>(
+    baseUrl,
+    `/api/mobile/release-check${query}`
   );
 }
 

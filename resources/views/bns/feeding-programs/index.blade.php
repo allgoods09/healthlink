@@ -88,8 +88,8 @@
                                     {{ $feedingProgram->program_status_label }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bns.feeding-programs.show', $feedingProgram) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                                     <a href="{{ route('bns.feeding-programs.edit', $feedingProgram) }}" class="text-indigo-600 hover:text-indigo-800">Edit</a>
                                 </div>

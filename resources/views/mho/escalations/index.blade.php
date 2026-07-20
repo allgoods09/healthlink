@@ -120,7 +120,7 @@
                                     <span class="font-medium text-amber-600">Pending municipal review</span>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('mho.escalations.show', $encounter) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                             </td>
                         </tr>

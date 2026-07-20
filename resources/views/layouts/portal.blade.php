@@ -161,6 +161,12 @@
                     ['label' => 'Households', 'href' => route('bhw.households.index'), 'active' => request()->routeIs('bhw.households.*'), 'icon' => 'barangay'],
                 ],
             ],
+            [
+                'label' => 'Mobile',
+                'items' => [
+                    ['label' => 'Download App', 'href' => route('bhw.mobile-app.show'), 'active' => request()->routeIs('bhw.mobile-app.*'), 'icon' => 'devices'],
+                ],
+            ],
         ],
         default => [
             [

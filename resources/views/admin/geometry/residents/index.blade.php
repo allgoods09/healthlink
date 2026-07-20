@@ -28,7 +28,7 @@
 @section('content')
     <div class="mb-6 rounded-lg bg-white shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route($routePrefix.'.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-8">
+            <form method="GET" action="{{ route($routePrefix.'.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-8" data-progressive-purok-filter>
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or PhilSys ID">
@@ -36,7 +36,7 @@
 
                 <div>
                     <label for="barangay_id" class="block text-sm font-medium text-gray-700">Barangay</label>
-                    <select name="barangay_id" id="barangay_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <select name="barangay_id" id="barangay_id" data-barangay-filter-select class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">All barangays</option>
                         @foreach($barangays as $barangay)
                             <option value="{{ $barangay->id }}" {{ request('barangay_id') == $barangay->id ? 'selected' : '' }}>{{ $barangay->name }}</option>
@@ -46,10 +46,10 @@
 
                 <div>
                     <label for="purok_id" class="block text-sm font-medium text-gray-700">Purok</label>
-                    <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <select name="purok_id" id="purok_id" data-purok-filter-select class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">All puroks</option>
                         @foreach($puroks as $purok)
-                            <option value="{{ $purok->id }}" {{ request('purok_id') == $purok->id ? 'selected' : '' }}>
+                            <option value="{{ $purok->id }}" data-barangay-id="{{ $purok->barangay_id }}" {{ request('purok_id') == $purok->id ? 'selected' : '' }}>
                                 {{ $purok->barangay->name }} - {{ $purok->display_name }}
                             </option>
                         @endforeach
@@ -166,8 +166,8 @@
                                 <div>{{ $resident->resident_status_label }}</div>
                                 <div class="mt-1 text-xs text-gray-400">{{ $resident->trashed() ? 'Deleted' : 'Current record' }}</div>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     @if(!$resident->trashed())
                                         <a href="{{ route($routePrefix.'.residents.show', $resident) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                         <a href="{{ route($routePrefix.'.residents.edit', $resident) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>

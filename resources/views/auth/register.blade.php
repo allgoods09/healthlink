@@ -9,7 +9,7 @@
         class="space-y-6"
     >
         <div class="rounded-2xl border border-tubigon/10 bg-tubigon-light px-4 py-3 text-sm text-tubigon">
-            Your registration will remain pending until the assigned Barangay Secretary validates your role and final local assignment.
+            After submitting, you must verify your email address first. Your account will still remain pending until the assigned Barangay Secretary validates your role and final local assignment.
         </div>
 
         <form method="POST" action="{{ route('register') }}" class="space-y-5">
@@ -93,7 +93,7 @@
         </form>
 
         <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Self-registration is available for <strong>BHW</strong> and <strong>BNS</strong> accounts only. The Barangay Secretary will finalize the local assignment after review.
+            Self-registration is available for <strong>BHW</strong> and <strong>BNS</strong> accounts only. Email verification and secretary approval are both required before the account can start working inside HealthLink.
         </div>
     </div>
 

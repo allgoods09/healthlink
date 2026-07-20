@@ -140,6 +140,11 @@ class HouseholdController extends Controller
     {
         Gate::authorize('create', Household::class);
 
+        $availablePuroks = $this->secretaryPuroksQuery()
+            ->active()
+            ->orderBy('purok_number')
+            ->get();
+
         return view('admin.geometry.households.create', [
             'layout' => 'layouts.portal',
             'routePrefix' => 'secretary',
@@ -152,6 +157,7 @@ class HouseholdController extends Controller
             'barangays' => Barangay::query()->whereKey($this->assignedBarangayId())->get(),
             'selectedBarangayId' => $request->input('barangay_id', $this->assignedBarangayId()),
             'selectedPurokId' => $request->input('purok_id'),
+            'availablePuroks' => $availablePuroks,
         ]);
     }
 
@@ -194,6 +200,10 @@ class HouseholdController extends Controller
         $this->ensureHouseholdBelongsToBarangay($household);
 
         $household->load(['purok.barangay', 'headResident', 'residents']);
+        $availablePuroks = $this->secretaryPuroksQuery()
+            ->active()
+            ->orderBy('purok_number')
+            ->get();
 
         return view('admin.geometry.households.edit', [
             'layout' => 'layouts.portal',
@@ -203,6 +213,7 @@ class HouseholdController extends Controller
             'household' => $household,
             'barangays' => Barangay::query()->whereKey($this->assignedBarangayId())->get(),
             'selectedBarangayId' => $household->purok->barangay_id,
+            'availablePuroks' => $availablePuroks,
         ]);
     }
 

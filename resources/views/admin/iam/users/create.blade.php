@@ -98,7 +98,7 @@
                     <!-- Purok Assignment -->
                     <div x-show="showPurok()">
                         <label for="assigned_purok_id" class="block text-sm font-medium text-gray-700">Assigned Purok</label>
-                        <select name="assigned_purok_id" id="assigned_purok_id"
+                        <select name="assigned_purok_id" id="assigned_purok_id" x-model="purokId"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('assigned_purok_id') border-red-500 @enderror">
                             <option value="">Select Purok</option>
                             <template x-for="purok in puroks" :key="purok.id">
@@ -136,7 +136,13 @@
         return {
             role: '{{ old("role") }}',
             barangayId: '{{ old("assigned_barangay_id") }}',
+            purokId: '{{ old("assigned_purok_id") }}',
             puroks: [],
+            init() {
+                if (this.barangayId && this.showBarangay()) {
+                    this.loadPuroks();
+                }
+            },
             
             showBarangay() {
                 return ['secretary', 'bns', 'bhw'].includes(this.role);
@@ -147,13 +153,22 @@
             },
             
             updateAssignments() {
-                this.barangayId = '';
-                this.puroks = [];
+                if (!this.showBarangay()) {
+                    this.barangayId = '';
+                    this.puroks = [];
+                    this.purokId = '';
+                    return;
+                }
+
+                if (!this.showPurok()) {
+                    this.purokId = '';
+                }
             },
             
             async loadPuroks() {
                 if (!this.barangayId) {
                     this.puroks = [];
+                    this.purokId = '';
                     return;
                 }
                 
@@ -161,9 +176,14 @@
                     const response = await fetch(`{{ route('admin.users.get-puroks') }}?barangay_id=${this.barangayId}`);
                     const data = await response.json();
                     this.puroks = data;
+
+                    if (!this.puroks.find((purok) => String(purok.id) === String(this.purokId))) {
+                        this.purokId = '';
+                    }
                 } catch (error) {
                     console.error('Error loading puroks:', error);
                     this.puroks = [];
+                    this.purokId = '';
                 }
             }
         }

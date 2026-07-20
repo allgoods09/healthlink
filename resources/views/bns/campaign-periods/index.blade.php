@@ -96,8 +96,8 @@
                                     {{ $campaignPeriod->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bns.campaign-periods.edit', $campaignPeriod) }}" class="text-tubigon hover:text-tubigon-hover">Edit</a>
                                     @if($campaignPeriod->campaign_type === \App\Models\NutritionCampaignPeriod::TYPE_OPT_PLUS)
                                         <a href="{{ route('bns.opt-measurements.index', ['campaign_period_id' => $campaignPeriod->id]) }}" class="text-indigo-600 hover:text-indigo-800">Measurements</a>

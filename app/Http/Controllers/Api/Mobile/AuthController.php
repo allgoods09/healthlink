@@ -7,6 +7,7 @@ use App\Http\Requests\Mobile\MobileForgotPasswordRequest;
 use App\Http\Requests\Mobile\MobileLoginRequest;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\MobileReleaseManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -14,11 +15,27 @@ use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly MobileReleaseManager $releaseManager
+    ) {
+    }
+
     /**
      * Authenticate a BHW and issue a single active mobile token.
      */
     public function login(MobileLoginRequest $request): JsonResponse
     {
+        $settings = $this->releaseManager->releaseSettings();
+
+        if (! $settings['login_enabled']) {
+            return response()->json([
+                'message' => $settings['maintenance_message']
+                    ?: 'Mobile sign-in is temporarily disabled while the HealthLink BHW app is being updated.',
+                'maintenance' => $settings,
+                'release' => $this->releaseManager->releasePayload(),
+            ], 503);
+        }
+
         $request->ensureIsNotRateLimited();
 
         $user = User::query()
@@ -45,7 +62,7 @@ class AuthController extends Controller
 
         if (! $user->hasVerifiedEmail()) {
             return response()->json([
-                'message' => 'Verify your email address before signing in to the mobile app.',
+                'message' => 'Verify your email address on the web before signing in to the mobile app.',
             ], 403);
         }
 
@@ -106,6 +123,8 @@ class AuthController extends Controller
             'server_time' => now()->toIso8601String(),
             'single_device_enforced' => true,
             'revoked_tokens' => $revokedTokens,
+            'maintenance' => $settings,
+            'release' => $this->releaseManager->releasePayload(),
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,

@@ -15,7 +15,7 @@ import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
 import { theme } from '../theme';
 
 export function HouseholdFormScreen({ route, navigation }: any) {
-  const { bumpDataVersion } = useAppContext();
+  const { assignment, bumpDataVersion } = useAppContext();
   const [householdNo, setHouseholdNo] = useState('');
   const [address, setAddress] = useState('');
   const [socialAid, setSocialAid] = useState(false);
@@ -49,6 +49,8 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       local_id: localId ?? undefined,
       server_id: serverId,
       mobile_uuid: mobileUuid,
+      purok_id: assignment?.purok?.id ?? null,
+      purok_display_name: assignment?.purok?.display_name ?? null,
       household_no: householdNo,
       household_address: address,
       is_social_aid_beneficiary: socialAid,

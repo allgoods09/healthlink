@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'bhw_mobile_apk_url' => env('BHW_MOBILE_APK_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

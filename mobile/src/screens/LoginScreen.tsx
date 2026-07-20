@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,12 +17,15 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { theme } from '../theme';
+import { authBackgroundImage, BrandMark } from '../components/BrandMark';
 
 export function LoginScreen({ navigation }: any) {
   const { apiBaseUrl, signIn, statusMessage } = useAppContext();
   const [serverUrl, setServerUrl] = useState(apiBaseUrl);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showServerSettings, setShowServerSettings] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,170 +47,307 @@ export function LoginScreen({ navigation }: any) {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.flex}
+    <ImageBackground
+      source={authBackgroundImage}
+      style={styles.background}
+      imageStyle={styles.backgroundImage}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.hero}>
-          <Text style={styles.kicker}>{i18n.t('appTitle')}</Text>
-          <Text style={styles.title}>{i18n.t('loginTitle')}</Text>
-          <Text style={styles.subtitle}>{i18n.t('loginSubtitle')}</Text>
-        </View>
+      <StatusBar style="light" />
+      <View style={styles.overlay} />
 
-        <View style={styles.card}>
-          <Text style={styles.label}>{i18n.t('apiBaseUrl')}</Text>
-          <TextInput
-            autoCapitalize="none"
-            keyboardType="url"
-            placeholder="http://192.168.x.x:8000"
-            style={styles.input}
-            value={serverUrl}
-            onChangeText={setServerUrl}
-          />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.hero}>
+            <BrandMark logoSize={118} titleSize={34} subtitleSize={28} />
+          </View>
 
-          <Text style={styles.help}>
-            {i18n.t('changeServer')} Use your computer&apos;s LAN IP, not `localhost`.
-          </Text>
-
-          <Text style={styles.label}>{i18n.t('email')}</Text>
-          <TextInput
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <Text style={styles.label}>{i18n.t('password')}</Text>
-          <TextInput
-            secureTextEntry
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          {(error || statusMessage) && (
-            <View style={styles.alert}>
-              <Text style={styles.alertText}>{error ?? statusMessage}</Text>
+          <View style={styles.formSection}>
+            <View style={styles.inputShell}>
+              <Ionicons
+                name="person-outline"
+                size={28}
+                color={theme.colors.primary}
+                style={styles.leftIcon}
+              />
+              <TextInput
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholder={i18n.t('email')}
+                placeholderTextColor="rgba(13, 66, 129, 0.45)"
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+              />
             </View>
-          )}
 
-          <Pressable
-            onPress={handleSubmit}
-            style={[styles.primaryButton, submitting && styles.buttonDisabled]}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>{i18n.t('signIn')}</Text>
+            <View style={styles.inputShell}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={26}
+                color={theme.colors.primary}
+                style={styles.leftIcon}
+              />
+              <TextInput
+                secureTextEntry={!showPassword}
+                placeholder={i18n.t('password')}
+                placeholderTextColor="rgba(13, 66, 129, 0.45)"
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable
+                onPress={() => setShowPassword((current) => !current)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showPassword ? i18n.t('hidePassword') : i18n.t('showPassword')
+                }
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={28}
+                  color="rgba(13, 66, 129, 0.75)"
+                />
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={() =>
+                navigation.navigate('ForgotPassword', { apiBaseUrl: serverUrl })
+              }
+              style={styles.forgotButton}
+            >
+              <Text style={styles.forgotButtonText}>{i18n.t('forgotPassword')}</Text>
+            </Pressable>
+
+            {(error || statusMessage) && (
+              <View style={[styles.alert, error ? styles.alertDanger : styles.alertInfo]}>
+                <Text style={styles.alertText}>{error ?? statusMessage}</Text>
+              </View>
             )}
-          </Pressable>
 
-          <Pressable
-            onPress={() =>
-              navigation.navigate('ForgotPassword', { apiBaseUrl: serverUrl })
-            }
-            style={styles.secondaryButton}
-          >
-            <Text style={styles.secondaryButtonText}>{i18n.t('forgotPassword')}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Pressable
+              onPress={handleSubmit}
+              style={[styles.primaryButton, submitting && styles.buttonDisabled]}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>{i18n.t('signIn')}</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowServerSettings((current) => !current)}
+              style={styles.serverToggle}
+            >
+              <Text style={styles.serverToggleText}>
+                {showServerSettings
+                  ? i18n.t('hideServerSettings')
+                  : i18n.t('serverSettings')}
+              </Text>
+              <Ionicons
+                name={showServerSettings ? 'chevron-up-outline' : 'chevron-down-outline'}
+                size={18}
+                color="rgba(255, 255, 255, 0.86)"
+              />
+            </Pressable>
+
+            {showServerSettings ? (
+              <View style={styles.serverPanel}>
+                <Text style={styles.serverLabel}>{i18n.t('apiBaseUrl')}</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  placeholder="http://192.168.x.x:8000"
+                  placeholderTextColor="rgba(13, 66, 129, 0.45)"
+                  style={styles.serverInput}
+                  value={serverUrl}
+                  onChangeText={setServerUrl}
+                />
+                <Text style={styles.serverHelp}>
+                  {i18n.t('changeServer')} {i18n.t('serverUrlHelp')}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.notes}>
+            <Text style={styles.notePrimary}>{i18n.t('loginSubtitle')}</Text>
+            <Text style={styles.noteSecondary}>{i18n.t('loginSecondaryNote')}</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: theme.colors.background },
+  background: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
+  },
+  backgroundImage: {
+    resizeMode: 'cover',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(11, 84, 165, 0.58)',
+  },
+  flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
-    padding: theme.spacing.lg,
-    gap: theme.spacing.lg,
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: 56,
+    paddingBottom: 34,
   },
   hero: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
+    alignItems: 'center',
+    marginBottom: theme.spacing.xl,
   },
-  kicker: {
-    color: '#D9FFFA',
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 12,
+  formSection: {
+    gap: 14,
   },
-  title: {
-    color: '#fff',
-    fontSize: 30,
-    fontWeight: '700',
-    lineHeight: 36,
+  inputShell: {
+    minHeight: 74,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: 'rgba(21, 72, 138, 0.46)',
+    backgroundColor: 'rgba(240, 247, 255, 0.88)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    shadowColor: '#0A366A',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
-  subtitle: {
-    marginTop: 12,
-    color: '#D9FFFA',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  label: {
-    color: theme.colors.text,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  help: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 6,
+  leftIcon: {
+    marginRight: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    color: theme.colors.text,
+    flex: 1,
+    color: theme.colors.primaryDark,
+    fontSize: 16,
+    paddingVertical: 18,
+  },
+  eyeButton: {
+    paddingLeft: 10,
+  },
+  forgotButton: {
+    alignSelf: 'flex-end',
+    marginTop: -2,
+  },
+  forgotButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   alert: {
-    backgroundColor: theme.colors.dangerSoft,
-    borderRadius: theme.radius.md,
+    borderRadius: 16,
     padding: 14,
-    marginTop: 8,
+    borderWidth: 1,
   },
   alertText: {
-    color: theme.colors.danger,
+    color: '#FFFFFF',
     lineHeight: 20,
+    textAlign: 'center',
+  },
+  alertDanger: {
+    backgroundColor: 'rgba(157, 25, 25, 0.38)',
+    borderColor: 'rgba(255, 235, 235, 0.34)',
+  },
+  alertInfo: {
+    backgroundColor: 'rgba(8, 46, 89, 0.36)',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
   },
   primaryButton: {
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.md,
+    backgroundColor: '#0E5FB8',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 46, 98, 0.55)',
+    minHeight: 76,
     paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'center',
+    shadowColor: '#072B56',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: '700',
   },
-  secondaryButton: {
+  serverToggle: {
+    marginTop: 2,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'center',
+    gap: 6,
   },
-  secondaryButtonText: {
-    color: theme.colors.primary,
+  serverToggleText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
     fontWeight: '600',
+  },
+  serverPanel: {
+    marginTop: 2,
+    borderRadius: 18,
+    backgroundColor: 'rgba(240, 247, 255, 0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(19, 70, 137, 0.24)',
+    padding: 16,
+  },
+  serverLabel: {
+    color: theme.colors.primaryDark,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  serverInput: {
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(19, 70, 137, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 14,
+    color: theme.colors.primaryDark,
+  },
+  serverHelp: {
+    color: 'rgba(18, 38, 58, 0.78)',
+    marginTop: 10,
+    lineHeight: 20,
+    fontSize: 13,
+  },
+  notes: {
+    marginTop: theme.spacing.xl,
+    paddingHorizontal: 4,
+  },
+  notePrimary: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  noteSecondary: {
+    color: 'rgba(255, 255, 255, 0.94)',
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 24,
+    marginTop: 18,
   },
   buttonDisabled: {
     opacity: 0.7,

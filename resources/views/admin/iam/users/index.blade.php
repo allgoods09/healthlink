@@ -65,88 +65,92 @@
         @endforeach
     </div>
 
-    <div class="mb-6 rounded-lg bg-white shadow">
-        <div class="p-4">
-            <form method="GET" action="{{ route('admin.users.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-7">
-                <div>
-                    <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
-                    <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or email">
-                </div>
+    <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside class="rounded-lg bg-white shadow">
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Filters</h2>
+            </div>
+            <div class="p-5">
+                <form method="GET" action="{{ route('admin.users.index') }}" class="space-y-4">
+                    <div>
+                        <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
+                        <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or email">
+                    </div>
 
-                <div>
-                    <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
-                    <select name="role" id="role" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All roles</option>
-                        @foreach($roles as $key => $label)
-                            <option value="{{ $key }}" {{ request('role') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div>
+                        <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+                        <select name="role" id="role" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">All roles</option>
+                            @foreach($roles as $key => $label)
+                                <option value="{{ $key }}" {{ request('role') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="approval_status" class="block text-sm font-medium text-gray-700">Approval</label>
-                    <select name="approval_status" id="approval_status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All approvals</option>
-                        @foreach($approvalStatuses as $key => $label)
-                            <option value="{{ $key }}" {{ request('approval_status') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div>
+                        <label for="approval_status" class="block text-sm font-medium text-gray-700">Approval</label>
+                        <select name="approval_status" id="approval_status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">All approvals</option>
+                            @foreach($approvalStatuses as $key => $label)
+                                <option value="{{ $key }}" {{ request('approval_status') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="approval_queue" class="block text-sm font-medium text-gray-700">Approval Queue</label>
-                    <select name="approval_queue" id="approval_queue" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All queues</option>
-                        @foreach($approvalQueueOptions as $key => $label)
-                            <option value="{{ $key }}" {{ request('approval_queue') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div>
+                        <label for="approval_queue" class="block text-sm font-medium text-gray-700">Approval Queue</label>
+                        <select name="approval_queue" id="approval_queue" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">All queues</option>
+                            @foreach($approvalQueueOptions as $key => $label)
+                                <option value="{{ $key }}" {{ request('approval_queue') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                    <select name="status" id="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All statuses</option>
-                        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-                    </select>
-                </div>
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+                        <select name="status" id="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">All statuses</option>
+                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="barangay" class="block text-sm font-medium text-gray-700">Barangay</label>
-                    <select name="barangay" id="barangay" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All barangays</option>
-                        @foreach($barangays as $barangay)
-                            <option value="{{ $barangay->id }}" {{ (string) request('barangay') === (string) $barangay->id ? 'selected' : '' }}>
-                                {{ $barangay->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div>
+                        <label for="barangay" class="block text-sm font-medium text-gray-700">Barangay</label>
+                        <select name="barangay" id="barangay" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">All barangays</option>
+                            @foreach($barangays as $barangay)
+                                <option value="{{ $barangay->id }}" {{ (string) request('barangay') === (string) $barangay->id ? 'selected' : '' }}>
+                                    {{ $barangay->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                <div>
-                    <label for="lifecycle" class="block text-sm font-medium text-gray-700">Lifecycle</label>
-                    <select name="lifecycle" id="lifecycle" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">Current</option>
-                        <option value="all" {{ request('lifecycle') === 'all' ? 'selected' : '' }}>All</option>
-                        <option value="deleted" {{ request('lifecycle') === 'deleted' ? 'selected' : '' }}>Deleted Only</option>
-                    </select>
-                </div>
+                    <div>
+                        <label for="lifecycle" class="block text-sm font-medium text-gray-700">Lifecycle</label>
+                        <select name="lifecycle" id="lifecycle" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Current</option>
+                            <option value="all" {{ request('lifecycle') === 'all' ? 'selected' : '' }}>All</option>
+                            <option value="deleted" {{ request('lifecycle') === 'deleted' ? 'selected' : '' }}>Deleted Only</option>
+                        </select>
+                    </div>
 
-                <div class="md:col-span-7 flex items-center gap-2">
-                    <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                        Apply Filters
-                    </button>
-                    <a href="{{ route('admin.users.index') }}" class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
-                        Reset
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
+                    <div class="flex flex-wrap gap-2 pt-2">
+                        <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                            Apply Filters
+                        </button>
+                        <a href="{{ route('admin.users.index') }}" class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
+                            Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </aside>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-hidden rounded-lg bg-white shadow">
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -171,6 +175,11 @@
                                         <div class="text-sm font-semibold text-gray-900">{{ $user->name }}</div>
                                         <div class="text-sm text-gray-500">{{ $user->email }}</div>
                                         <div class="text-xs text-gray-400">Registered via {{ $user->registered_via_label }}</div>
+                                        <div class="mt-1">
+                                            <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium {{ $user->hasVerifiedEmail() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                                Email {{ $user->email_verification_status_label }}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
@@ -227,8 +236,8 @@
                                     <div class="text-xs text-rose-600">Deleted {{ $user->deleted_at->format('M d, Y') }}</div>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('admin.users.show', $user) }}" class="text-blue-600 hover:text-blue-900">View</a>
 
                                     @if($user->trashed())
@@ -238,6 +247,7 @@
                                             <button type="submit" class="text-green-600 hover:text-green-900">Restore</button>
                                         </form>
                                     @else
+                                        <a href="{{ route('admin.users.assignment', $user) }}" class="text-emerald-600 hover:text-emerald-900">Assign</a>
                                         <a href="{{ route('admin.users.edit', $user) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
 
                                         @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
@@ -279,10 +289,11 @@
                     @endforelse
                 </tbody>
             </table>
-        </div>
+            </div>
 
-        <div class="border-t border-gray-200 px-6 py-4">
-            {{ $users->links() }}
+            <div class="border-t border-gray-200 px-6 py-4">
+                {{ $users->links() }}
+            </div>
         </div>
     </div>
 @endsection

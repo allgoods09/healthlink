@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,6 +24,10 @@ class EnsureUserIsActive
         $user = Auth::user();
 
         if (!$user->is_active) {
+            if ($user->approval_status === User::APPROVAL_PENDING) {
+                return redirect()->route('registration.pending');
+            }
+
             Auth::logout();
             abort(403, 'Your account has been deactivated. Please contact your administrator.');
         }

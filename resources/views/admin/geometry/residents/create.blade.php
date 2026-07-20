@@ -24,7 +24,9 @@
                     '{{ route($routePrefix.'.residents.households-by-purok') }}',
                     '{{ old('barangay_id', $selectedBarangayId) }}',
                     '{{ old('purok_id', $selectedPurokId) }}',
-                    '{{ old('household_id', $selectedHouseholdId) }}'
+                    '{{ old('household_id', $selectedHouseholdId) }}',
+                    @js(($availablePuroks ?? collect())->values()),
+                    @js(($availableHouseholds ?? collect())->values())
                 )"
             >
                 @csrf
@@ -42,7 +44,7 @@
 
 @push('scripts')
     <script>
-        function residentForm(purokEndpoint, householdEndpoint, initialBarangay, initialPurok, initialHousehold) {
+        function residentForm(purokEndpoint, householdEndpoint, initialBarangay, initialPurok, initialHousehold, initialPuroks = [], initialHouseholds = []) {
             return {
                 purokEndpoint,
                 householdEndpoint,
@@ -53,14 +55,25 @@
                 householdSearchOpen: false,
                 filteredHouseholds: [],
                 highlightedHouseholdIndex: 0,
-                puroks: [],
-                households: [],
+                puroks: initialPuroks,
+                households: initialHouseholds,
                 init() {
+                    this.barangayId = this.barangayId ? String(this.barangayId) : '';
+                    this.purokId = this.purokId ? String(this.purokId) : '';
+                    this.householdId = this.householdId ? String(this.householdId) : '';
                     this.syncHouseholdSearch();
 
-                    if (this.barangayId) {
+                    if (this.barangayId && this.puroks.length === 0) {
                         this.loadPuroks();
+                    } else if (this.purokId && this.households.length === 0) {
+                        this.loadHouseholds();
                     }
+
+                    this.$nextTick(() => {
+                        if (this.$refs.purokSelect && this.purokId) {
+                            this.$refs.purokSelect.value = String(this.purokId);
+                        }
+                    });
                 },
                 householdLabel(household) {
                     return `#${household.household_no} - ${household.household_address}`;

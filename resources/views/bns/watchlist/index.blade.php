@@ -117,8 +117,8 @@
                                 <p>{{ $measurement->campaignPeriod?->name ?? 'No campaign' }}</p>
                                 <p class="mt-1 text-xs text-slate-400">Logged by {{ $measurement->measuredBy?->name ?? 'Unknown user' }}</p>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bns.opt-measurements.show', $measurement) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
                                     <a href="{{ route('bns.opt-measurements.create', ['resident_id' => $measurement->resident_id]) }}" class="text-indigo-600 hover:text-indigo-800">Follow-up</a>
                                 </div>

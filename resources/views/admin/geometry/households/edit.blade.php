@@ -24,7 +24,7 @@
             <form
                 method="POST"
                 action="{{ route($routePrefix.'.households.update', $household) }}"
-                x-data="householdForm('{{ route($routePrefix.'.puroks.get-by-barangay') }}', '{{ old('purok_id', $household->purok_id) }}', '{{ old('barangay_id', $selectedBarangayId) }}')"
+                x-data="householdForm('{{ route($routePrefix.'.puroks.get-by-barangay') }}', '{{ old('purok_id', $household->purok_id) }}', '{{ old('barangay_id', $selectedBarangayId) }}', @js(($availablePuroks ?? collect())->values()))"
             >
                 @csrf
                 @method('PUT')
@@ -42,14 +42,14 @@
 
 @push('scripts')
     <script>
-        function householdForm(endpoint, initialPurok, initialBarangay) {
+        function householdForm(endpoint, initialPurok, initialBarangay, initialPuroks = []) {
             return {
                 endpoint,
                 barangayId: initialBarangay || '',
                 purokId: initialPurok || '',
-                puroks: [],
+                puroks: initialPuroks,
                 init() {
-                    if (this.barangayId) {
+                    if (this.barangayId && this.puroks.length === 0) {
                         this.loadPuroks();
                     }
                 },

@@ -29,14 +29,14 @@
         </section>
 
         <section class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <form method="GET" action="{{ route('mho.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+            <form method="GET" action="{{ route('mho.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6" data-progressive-purok-filter>
                 <div class="xl:col-span-2">
                     <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                     <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Resident, code, household, or PhilSys" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
                 </div>
                 <div>
                     <label for="barangay_id" class="block text-sm font-medium text-slate-700">Barangay</label>
-                    <select id="barangay_id" name="barangay_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                    <select id="barangay_id" name="barangay_id" data-barangay-filter-select class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
                         <option value="">All barangays</option>
                         @foreach($barangays as $barangay)
                             <option value="{{ $barangay->id }}" @selected((string) request('barangay_id') === (string) $barangay->id)>{{ $barangay->name }}</option>
@@ -45,12 +45,12 @@
                 </div>
                 <div>
                     <label for="purok_id" class="block text-sm font-medium text-slate-700">Purok</label>
-                    <select id="purok_id" name="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All puroks</option>
-                        @foreach($puroks as $purok)
-                            <option value="{{ $purok->id }}" @selected((string) request('purok_id') === (string) $purok->id)>{{ $purok->barangay?->name }} · {{ $purok->display_name }}</option>
-                        @endforeach
-                    </select>
+                    <select id="purok_id" name="purok_id" data-purok-filter-select class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
+                    <option value="">All puroks</option>
+                    @foreach($puroks as $purok)
+                            <option value="{{ $purok->id }}" data-barangay-id="{{ $purok->barangay_id }}" @selected((string) request('purok_id') === (string) $purok->id)>{{ $purok->barangay?->name }} · {{ $purok->display_name }}</option>
+                    @endforeach
+                </select>
                 </div>
                 <div>
                     <label for="sex" class="block text-sm font-medium text-slate-700">Sex</label>
@@ -119,7 +119,7 @@
                                     <span class="text-slate-500">No OPT+ record yet</span>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <a href="{{ route('mho.residents.show', $resident) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                             </td>
                         </tr>

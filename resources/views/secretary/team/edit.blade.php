@@ -115,6 +115,13 @@
                     <p class="mt-1 text-slate-900">{{ $frontlineUser->approval_status_label }}</p>
                 </div>
                 <div>
+                    <p class="font-medium text-slate-500">Email Verification</p>
+                    <p class="mt-1 text-slate-900">{{ $frontlineUser->email_verification_status_label }}</p>
+                    @if($frontlineUser->hasVerifiedEmail())
+                        <p class="mt-1 text-xs text-slate-500">{{ $frontlineUser->email_verified_at?->format('F d, Y h:i A') }}</p>
+                    @endif
+                </div>
+                <div>
                     <p class="font-medium text-slate-500">Current Role</p>
                     <p class="mt-1 text-slate-900">{{ $frontlineUser->role_label }}</p>
                 </div>
@@ -128,6 +135,24 @@
                         <p class="mt-1 text-slate-900">{{ $frontlineUser->approval_notes }}</p>
                     </div>
                 @endif
+                @unless($frontlineUser->hasVerifiedEmail())
+                    <div class="flex flex-wrap items-center gap-3">
+                        <form action="{{ route('secretary.team.verification.resend', $frontlineUser) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                                Resend Verification Email
+                            </button>
+                        </form>
+
+                        <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST" onsubmit="return confirm('Mark this email as verified manually?')">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" class="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-200">
+                                Mark as Verified
+                            </button>
+                        </form>
+                    </div>
+                @endunless
                 <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
                     Keep BHW accounts tied to a specific purok before approval so future field and sync data stay isolated to the right area.
                 </div>

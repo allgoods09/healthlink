@@ -1,7 +1,12 @@
+@php
+    $availablePuroks = collect($availablePuroks ?? []);
+@endphp
+
 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
     <div>
         <label for="barangay_id" class="block text-sm font-medium text-gray-700">Barangay</label>
         <select
+            name="barangay_id"
             id="barangay_id"
             x-model="barangayId"
             @change="loadPuroks"
@@ -22,7 +27,7 @@
             id="purok_id"
             x-model="purokId"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('purok_id') border-red-500 @enderror"
-            :disabled="puroks.length === 0"
+            :disabled="!barangayId || puroks.length === 0"
             required
         >
             <option value="">Select purok</option>
@@ -32,6 +37,12 @@
         </select>
         @error('purok_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @else
+            @if($availablePuroks->isEmpty())
+                <p class="mt-1 text-xs text-gray-500">Select a barangay first to load its available puroks.</p>
+            @else
+                <p class="mt-1 text-xs text-gray-500">Choose the purok where this household belongs.</p>
+            @endif
         @enderror
     </div>
 

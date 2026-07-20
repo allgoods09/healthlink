@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +12,7 @@ use App\Models\Purok;
 use App\Models\Barangay;
 use App\Models\AuditLog;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmailContract
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
@@ -33,6 +34,7 @@ class User extends Authenticatable
         'requested_barangay_id',
         'requested_purok_id',
         'approval_notes',
+        'email_verified_at',
         'approved_at',
         'approved_by',
         'rejected_at',
@@ -446,12 +448,21 @@ class User extends Authenticatable
             'admin' => 'Admin',
             'self' => 'Self Registration',
             'bns' => 'BNS',
+            'seed' => 'Seed Data',
             'secretary' => 'Secretary',
             default => str((string) $this->registered_via)
                 ->replace(['_', '-'], ' ')
                 ->title()
                 ->toString(),
         };
+    }
+
+    /**
+     * Get the email verification status label.
+     */
+    public function getEmailVerificationStatusLabelAttribute(): string
+    {
+        return $this->hasVerifiedEmail() ? 'Verified' : 'Unverified';
     }
 
     // =============================================

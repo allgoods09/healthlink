@@ -67,8 +67,8 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $triageRecord->measured_at?->format('M d, Y h:i A') }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $triageRecord->triage_status_label }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex justify-end gap-3">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     <a href="{{ route('bhw.triage.show', $triageRecord) }}" class="text-tubigon hover:text-tubigon-hover">Open</a>
                                     @if(is_null($triageRecord->consumed_at))
                                         <a href="{{ route('bhw.triage.edit', $triageRecord) }}" class="text-indigo-600 hover:text-indigo-800">Edit</a>

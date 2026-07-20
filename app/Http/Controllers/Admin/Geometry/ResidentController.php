@@ -165,12 +165,27 @@ class ResidentController extends Controller
             'education_status' => 'N/A',
         ]));
 
+        $selectedHouseholdId = $request->input('household_id');
+        $selectedHousehold = $selectedHouseholdId
+            ? Household::with('purok.barangay')->find($selectedHouseholdId)
+            : null;
+        $selectedBarangayId = $request->input('barangay_id', $selectedHousehold?->purok?->barangay_id);
+        $selectedPurokId = $request->input('purok_id', $selectedHousehold?->purok_id);
+        $availablePuroks = $selectedBarangayId
+            ? Purok::with('barangay')->where('barangay_id', $selectedBarangayId)->active()->orderBy('purok_number')->get()
+            : collect();
+        $availableHouseholds = $selectedPurokId
+            ? Household::where('purok_id', $selectedPurokId)->active()->orderBy('household_no')->get(['id', 'household_no', 'household_address'])
+            : collect();
+
         return view('admin.geometry.residents.create', [
             'resident' => $resident,
             'barangays' => Barangay::active()->orderBy('name')->get(),
-            'selectedBarangayId' => $request->input('barangay_id'),
-            'selectedPurokId' => $request->input('purok_id'),
-            'selectedHouseholdId' => $request->input('household_id'),
+            'selectedBarangayId' => $selectedBarangayId,
+            'selectedPurokId' => $selectedPurokId,
+            'selectedHouseholdId' => $selectedHouseholdId,
+            'availablePuroks' => $availablePuroks,
+            'availableHouseholds' => $availableHouseholds,
         ]);
     }
 
@@ -215,13 +230,20 @@ class ResidentController extends Controller
         Gate::authorize('update', $resident);
 
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
+        $selectedBarangayId = $resident->household->purok->barangay_id;
+        $selectedPurokId = $resident->household->purok_id;
+        $selectedHouseholdId = $resident->household_id;
+        $availablePuroks = Purok::with('barangay')->where('barangay_id', $selectedBarangayId)->active()->orderBy('purok_number')->get();
+        $availableHouseholds = Household::where('purok_id', $selectedPurokId)->active()->orderBy('household_no')->get(['id', 'household_no', 'household_address']);
 
         return view('admin.geometry.residents.edit', [
             'resident' => $resident,
             'barangays' => Barangay::active()->orderBy('name')->get(),
-            'selectedBarangayId' => $resident->household->purok->barangay_id,
-            'selectedPurokId' => $resident->household->purok_id,
-            'selectedHouseholdId' => $resident->household_id,
+            'selectedBarangayId' => $selectedBarangayId,
+            'selectedPurokId' => $selectedPurokId,
+            'selectedHouseholdId' => $selectedHouseholdId,
+            'availablePuroks' => $availablePuroks,
+            'availableHouseholds' => $availableHouseholds,
         ]);
     }
 

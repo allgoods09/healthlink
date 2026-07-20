@@ -90,8 +90,8 @@
                                 </div>
                                 <div class="mt-1 text-xs text-gray-500">{{ $purok->trashed() ? 'Deleted' : 'Current' }}</div>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium">
-                                <div class="flex flex-wrap items-center justify-end gap-2">
+                            <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
+                                <div class="table-actions">
                                     @if(!$purok->trashed())
                                         <a href="{{ route($routePrefix.'.puroks.show', $purok) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                         <a href="{{ route($routePrefix.'.puroks.edit', $purok) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>

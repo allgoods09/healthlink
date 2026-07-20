@@ -5,6 +5,8 @@ namespace Tests\Feature\Auth;
 use App\Models\Barangay;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -20,6 +22,8 @@ class RegistrationTest extends TestCase
 
     public function test_new_bhw_users_can_register_pending_secretary_approval(): void
     {
+        Notification::fake();
+
         $barangay = Barangay::factory()->create();
 
         $response = $this->post('/register', [
@@ -32,8 +36,8 @@ class RegistrationTest extends TestCase
             'terms' => 'on',
         ]);
 
-        $response->assertRedirect(route('login', absolute: false));
-        $this->assertGuest();
+        $response->assertRedirect(route('verification.notice', absolute: false));
+        $this->assertAuthenticated();
 
         $this->assertDatabaseHas('users', [
             'email' => 'bhw@example.com',
@@ -45,10 +49,17 @@ class RegistrationTest extends TestCase
             'registered_via' => 'self',
             'is_active' => false,
         ]);
+
+        $user = User::query()->where('email', 'bhw@example.com')->firstOrFail();
+
+        $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
     }
 
     public function test_new_bns_users_can_register_pending_secretary_approval(): void
     {
+        Notification::fake();
+
         $barangay = Barangay::factory()->create();
 
         $response = $this->post('/register', [
@@ -61,8 +72,8 @@ class RegistrationTest extends TestCase
             'terms' => 'on',
         ]);
 
-        $response->assertRedirect(route('login', absolute: false));
-        $this->assertGuest();
+        $response->assertRedirect(route('verification.notice', absolute: false));
+        $this->assertAuthenticated();
 
         $this->assertDatabaseHas('users', [
             'email' => 'bns@example.com',
@@ -74,5 +85,10 @@ class RegistrationTest extends TestCase
             'registered_via' => 'self',
             'is_active' => false,
         ]);
+
+        $user = User::query()->where('email', 'bns@example.com')->firstOrFail();
+
+        $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
     }
 }

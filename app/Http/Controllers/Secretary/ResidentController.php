@@ -175,6 +175,25 @@ class ResidentController extends Controller
             'education_status' => 'N/A',
         ]));
 
+        $selectedHouseholdId = $request->input('household_id');
+        $selectedHousehold = $selectedHouseholdId
+            ? $this->secretaryHouseholdsQuery()->with('purok.barangay')->find($selectedHouseholdId)
+            : null;
+        $selectedBarangayId = $request->input('barangay_id', $selectedHousehold?->purok?->barangay_id ?? $this->assignedBarangayId());
+        $selectedPurokId = $request->input('purok_id', $selectedHousehold?->purok_id);
+        $availablePuroks = $this->secretaryPuroksQuery()
+            ->with('barangay')
+            ->active()
+            ->orderBy('purok_number')
+            ->get();
+        $availableHouseholds = $selectedPurokId
+            ? $this->secretaryHouseholdsQuery()
+                ->where('purok_id', $selectedPurokId)
+                ->active()
+                ->orderBy('household_no')
+                ->get(['id', 'household_no', 'household_address'])
+            : collect();
+
         return view('admin.geometry.residents.create', [
             'layout' => 'layouts.portal',
             'routePrefix' => 'secretary',
@@ -182,9 +201,11 @@ class ResidentController extends Controller
             'pageHeader' => 'Create Resident',
             'resident' => $resident,
             'barangays' => Barangay::query()->whereKey($this->assignedBarangayId())->get(),
-            'selectedBarangayId' => $request->input('barangay_id', $this->assignedBarangayId()),
-            'selectedPurokId' => $request->input('purok_id'),
-            'selectedHouseholdId' => $request->input('household_id'),
+            'selectedBarangayId' => $selectedBarangayId,
+            'selectedPurokId' => $selectedPurokId,
+            'selectedHouseholdId' => $selectedHouseholdId,
+            'availablePuroks' => $availablePuroks,
+            'availableHouseholds' => $availableHouseholds,
         ]);
     }
 
@@ -229,6 +250,19 @@ class ResidentController extends Controller
         $this->ensureResidentBelongsToBarangay($resident);
 
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
+        $selectedBarangayId = $resident->household->purok->barangay_id;
+        $selectedPurokId = $resident->household->purok_id;
+        $selectedHouseholdId = $resident->household_id;
+        $availablePuroks = $this->secretaryPuroksQuery()
+            ->with('barangay')
+            ->active()
+            ->orderBy('purok_number')
+            ->get();
+        $availableHouseholds = $this->secretaryHouseholdsQuery()
+            ->where('purok_id', $selectedPurokId)
+            ->active()
+            ->orderBy('household_no')
+            ->get(['id', 'household_no', 'household_address']);
 
         return view('admin.geometry.residents.edit', [
             'layout' => 'layouts.portal',
@@ -237,9 +271,11 @@ class ResidentController extends Controller
             'pageHeader' => 'Edit Resident',
             'resident' => $resident,
             'barangays' => Barangay::query()->whereKey($this->assignedBarangayId())->get(),
-            'selectedBarangayId' => $resident->household->purok->barangay_id,
-            'selectedPurokId' => $resident->household->purok_id,
-            'selectedHouseholdId' => $resident->household_id,
+            'selectedBarangayId' => $selectedBarangayId,
+            'selectedPurokId' => $selectedPurokId,
+            'selectedHouseholdId' => $selectedHouseholdId,
+            'availablePuroks' => $availablePuroks,
+            'availableHouseholds' => $availableHouseholds,
         ]);
     }
 
