@@ -12,9 +12,8 @@ import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { theme } from '../theme';
 
-export function ForgotPasswordScreen({ route, navigation }: any) {
-  const { apiBaseUrl, requestPasswordReset } = useAppContext();
-  const [serverUrl] = useState(route.params?.apiBaseUrl ?? apiBaseUrl);
+export function ForgotPasswordScreen({ navigation }: any) {
+  const { requestPasswordReset } = useAppContext();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,10 +25,7 @@ export function ForgotPasswordScreen({ route, navigation }: any) {
     setSuccess(null);
 
     try {
-      const message = await requestPasswordReset({
-        email,
-        apiBaseUrl: serverUrl,
-      });
+      const message = await requestPasswordReset(email);
       setSuccess(message);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Request failed.');

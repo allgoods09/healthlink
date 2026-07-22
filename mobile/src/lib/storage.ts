@@ -12,7 +12,6 @@ import {
 
 const TOKEN_KEY = 'healthlink_mobile_token';
 const DB_NAME = 'healthlink_bhw.db';
-const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -176,11 +175,6 @@ export async function initializeStorage() {
   await ensureColumn(db, 'households', 'purok_id', 'INTEGER');
   await ensureColumn(db, 'households', 'purok_display_name', 'TEXT');
   await repairInvalidMobileUuids(db);
-
-  const serverUrl = await getAppState('api_base_url');
-  if (!serverUrl) {
-    await setAppState('api_base_url', DEFAULT_SERVER_URL);
-  }
 }
 
 export async function getAppState(key: string) {

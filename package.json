@@ -4,14 +4,17 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "serve": "php -d upload_max_filesize=256M -d post_max_size=256M -d max_execution_time=0 artisan serve --host=0.0.0.0 --port=8000",
+        "ngrok-tunnel": "ngrok http 8000",
+        "dev:ngrok": "npm run build && concurrently \"npm run serve\" \"npm run ngrok-tunnel\""
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.2",
         "@tailwindcss/vite": "^4.0.0",
         "alpinejs": "^3.4.2",
         "autoprefixer": "^10.4.2",
-        "concurrently": "^9.0.1",
+        "concurrently": "^9.2.4",
         "laravel-vite-plugin": "^3.1",
         "postcss": "^8.4.31",
         "tailwindcss": "^3.1.0",

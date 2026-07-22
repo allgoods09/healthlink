@@ -19,6 +19,7 @@ import {
   mobileSync,
   mobileVerify,
 } from '../lib/api';
+import { MOBILE_API_BASE_URL } from '../lib/config';
 import {
   applyResolvedRecords,
   clearToken,
@@ -47,7 +48,6 @@ type AppContextValue = {
   user: MobileUser | null;
   assignment: MobileAssignment | null;
   language: SupportedLocale;
-  apiBaseUrl: string;
   appVersion: string;
   appVersionCode: number;
   lastSyncAt: string | null;
@@ -56,14 +56,13 @@ type AppContextValue = {
   initialSyncInProgress: boolean;
   pendingSyncCount: number;
   releaseCheck: MobileReleaseCheck | null;
-  signIn: (params: { email: string; password: string; apiBaseUrl: string }) => Promise<void>;
-  requestPasswordReset: (params: { email: string; apiBaseUrl: string }) => Promise<string>;
+  signIn: (params: { email: string; password: string }) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<string>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
   retryInitialSync: () => Promise<void>;
   refreshReleaseStatus: () => Promise<void>;
   setLanguagePreference: (locale: SupportedLocale) => Promise<void>;
-  setServerUrl: (baseUrl: string) => Promise<void>;
   bumpDataVersion: () => void;
 };
 
@@ -80,7 +79,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<MobileUser | null>(null);
   const [assignment, setAssignment] = useState<MobileAssignment | null>(null);
   const [language, setLanguageState] = useState<SupportedLocale>('en');
-  const [apiBaseUrl, setApiBaseUrlState] = useState('http://localhost:8000');
   const [isOnline, setIsOnline] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
@@ -170,7 +168,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [
         storedToken,
         storedLanguage,
-        storedApiBaseUrl,
         storedLastSyncAt,
         bootstrapped,
         storedSessionUser,
@@ -179,7 +176,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await Promise.all([
           loadToken(),
           getAppState('language'),
-          getAppState('api_base_url'),
           getAppState('last_sync_at'),
           hasBootstrapData(),
           getAppState('session_user'),
@@ -193,7 +189,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setLocale(nextLanguage);
       setLanguageState(nextLanguage);
-      setApiBaseUrlState(storedApiBaseUrl ?? 'http://localhost:8000');
       setLastSyncAt(storedLastSyncAt || null);
       setBootstrapCompleted(bootstrapped);
 
@@ -232,30 +227,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    void mobileVerify(apiBaseUrl, token).catch(async () => {
+    void mobileVerify(MOBILE_API_BASE_URL, token).catch(async () => {
       await signOut(true);
     });
-  }, [apiBaseUrl, isOnline, token]);
+  }, [isOnline, token]);
 
   useEffect(() => {
     if (!isReady || !isOnline) {
       return;
     }
 
-    void refreshReleaseStatusWithBaseUrl(apiBaseUrl);
-  }, [apiBaseUrl, isOnline, isReady]);
+    void refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
+  }, [isOnline, isReady]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && isReady && isOnline) {
-        void refreshReleaseStatusWithBaseUrl(apiBaseUrl);
+        void refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [apiBaseUrl, isOnline, isReady]);
+  }, [isOnline, isReady]);
 
   useEffect(() => {
     if (!isReady) {
@@ -268,13 +263,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function signIn({
     email,
     password,
-    apiBaseUrl: nextApiBaseUrl,
   }: {
     email: string;
     password: string;
-    apiBaseUrl: string;
   }) {
-    const response = await mobileLogin(nextApiBaseUrl, {
+    const response = await mobileLogin(MOBILE_API_BASE_URL, {
       email,
       password,
       device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
@@ -301,14 +294,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     await storeToken(response.token);
-    await setAppState('api_base_url', nextApiBaseUrl);
     await setAppState('session_user', JSON.stringify(response.user));
 
-    setApiBaseUrlState(nextApiBaseUrl);
     setUser(response.user);
     setStatusMessage(null);
     setInitialSyncInProgress(false);
-    await refreshReleaseStatusWithBaseUrl(nextApiBaseUrl);
+    await refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
 
     if (canReuseCachedData) {
       if (existingDatasetAssignment) {
@@ -332,19 +323,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBootstrapCompleted(false);
     setToken(response.token);
     await refreshPendingSyncCount();
-    await performInitialSync(nextApiBaseUrl, response.token);
+    await performInitialSync(MOBILE_API_BASE_URL, response.token);
   }
 
-  async function requestPasswordReset({
-    email,
-    apiBaseUrl: nextApiBaseUrl,
-  }: {
-    email: string;
-    apiBaseUrl: string;
-  }) {
-    const response = await mobileForgotPassword(nextApiBaseUrl, email);
-    await setAppState('api_base_url', nextApiBaseUrl);
-    setApiBaseUrlState(nextApiBaseUrl);
+  async function requestPasswordReset(email: string) {
+    const response = await mobileForgotPassword(MOBILE_API_BASE_URL, email);
 
     return response.message;
   }
@@ -352,7 +335,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function signOut(silent = false) {
     if (token && !silent) {
       try {
-        await mobileLogout(apiBaseUrl, token);
+        await mobileLogout(MOBILE_API_BASE_URL, token);
       } catch {
         // Keep local logout reliable even if the remote token is already gone.
       }
@@ -391,7 +374,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (pendingSummary.total > 0) {
         setStatusMessage(i18n.t('uploadingChanges'));
         const payload = await getPendingSyncPayload();
-        const syncResponse = await mobileSync(apiBaseUrl, token, {
+        const syncResponse = await mobileSync(MOBILE_API_BASE_URL, token, {
           ...payload,
           device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
           app_version: APP_VERSION,
@@ -420,7 +403,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setStatusMessage(i18n.t('downloadingLatest'));
-      const bootstrap = await mobileBootstrap(apiBaseUrl, token);
+      const bootstrap = await mobileBootstrap(MOBILE_API_BASE_URL, token);
       await hydrateBootstrapSession(bootstrap);
       setStatusMessage(i18n.t('syncComplete'));
     } catch (error) {
@@ -437,18 +420,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await performInitialSync(apiBaseUrl, token);
+    await performInitialSync(MOBILE_API_BASE_URL, token);
   }
 
   async function setLanguagePreference(locale: SupportedLocale) {
     setLocale(locale);
     setLanguageState(locale);
     await setAppState('language', locale);
-  }
-
-  async function setServerUrl(baseUrl: string) {
-    await setAppState('api_base_url', baseUrl);
-    setApiBaseUrlState(baseUrl);
   }
 
   const value = useMemo<AppContextValue>(
@@ -462,7 +440,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       assignment,
       language,
-      apiBaseUrl,
       appVersion: APP_VERSION,
       appVersionCode: APP_VERSION_CODE,
       lastSyncAt,
@@ -476,13 +453,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOut: () => signOut(false),
       syncNow,
       retryInitialSync,
-      refreshReleaseStatus: () => refreshReleaseStatusWithBaseUrl(apiBaseUrl),
+      refreshReleaseStatus: () => refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL),
       setLanguagePreference,
-      setServerUrl,
       bumpDataVersion: () => setDataVersion((current) => current + 1),
     }),
     [
-      apiBaseUrl,
       assignment,
       bootstrapCompleted,
       dataVersion,
