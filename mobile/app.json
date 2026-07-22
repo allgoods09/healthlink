@@ -2,7 +2,7 @@
     "expo": {
         "name": "HealthLink BHW",
         "slug": "healthlink-bhw",
-        "version": "1.0.14",
+        "version": "1.0.15",
         "scheme": "healthlinkbhw",
         "platforms": ["android"],
         "orientation": "portrait",
@@ -19,7 +19,7 @@
         },
         "android": {
             "package": "com.allgoods09.healthlink.bhw",
-            "versionCode": 14,
+            "versionCode": 15,
             "usesCleartextTraffic": true,
             "adaptiveIcon": {
                 "backgroundColor": "#E6F4FE",
