@@ -16,31 +16,30 @@ The web app, API, and Blade frontend all live in one Laravel app. The database i
 - `railway/init-app.sh`
 - `railway/run-worker.sh`
 - `railway/run-cron.sh`
+- `railway/app.railway.json`
+- `railway/worker.railway.json`
+- `railway/cron.railway.json`
 
 ## App service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm run build`
+- Custom config path: `/railway/app.railway.json`
 - Start command: leave blank so Railway can auto-detect Laravel and run `php-fpm` with Caddy
-- Pre-deploy command: `chmod +x ./railway/init-app.sh && sh ./railway/init-app.sh`
-- Healthcheck path: `/up`
 
 ## Worker service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm run build`
-- Start command: `chmod +x ./railway/run-worker.sh && sh ./railway/run-worker.sh`
+- Custom config path: `/railway/worker.railway.json`
 
 ## Optional cron service settings
 
 - Builder: `RAILPACK`
-- Build command: `npm run build`
-- Start command: `chmod +x ./railway/run-cron.sh && sh ./railway/run-cron.sh`
+- Custom config path: `/railway/cron.railway.json`
 - Cron schedule: optional
 
 ## Required app variables
 
-Set these on the app service and copy the same values to the worker and cron services unless noted otherwise.
+Set these on the app service and copy the same values to the worker and cron services unless noted otherwise. In Railway, enter these as raw values without wrapping quotes.
 
 ```env
 APP_NAME=HealthLink

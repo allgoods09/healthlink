@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 php artisan schedule:run --verbose --no-interaction
