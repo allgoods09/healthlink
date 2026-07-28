@@ -66,6 +66,7 @@ class SyncController extends Controller
             'households' => ['nullable', 'array'],
             'residents' => ['nullable', 'array'],
             'field_visits' => ['nullable', 'array'],
+            'risk_assessments' => ['nullable', 'array'],
             'device_name' => ['nullable', 'string'],
             'device_model' => ['nullable', 'string'],
             'app_version' => ['nullable', 'string'],
@@ -73,7 +74,8 @@ class SyncController extends Controller
 
         $totalRecords = count($request->input('households', []))
             + count($request->input('residents', []))
-            + count($request->input('field_visits', []));
+            + count($request->input('field_visits', []))
+            + count($request->input('risk_assessments', []));
 
         $maxBatchSize = max((int) Setting::getValue('sync_batch_size', 100), 1);
 
@@ -95,6 +97,7 @@ class SyncController extends Controller
             'households' => $request->input('households', []),
             'residents' => $request->input('residents', []),
             'field_visits' => $request->input('field_visits', []),
+            'risk_assessments' => $request->input('risk_assessments', []),
         ]);
         $duration = round((microtime(true) - $startTime) * 1000);
 

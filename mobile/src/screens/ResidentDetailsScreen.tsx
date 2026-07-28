@@ -1,25 +1,60 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
-import { formatFriendlyDate, formatPurokLabel } from '../lib/format';
-import { getResidentByLocalId } from '../lib/storage';
+import {
+  calculateAgeFromBirthDate,
+  daysSinceDate,
+  formatFriendlyDate,
+  formatPurokLabel,
+} from '../lib/format';
+import {
+  getLatestRiskAssessmentForResident,
+  getResidentByLocalId,
+  getRiskAssessmentsForResident,
+} from '../lib/storage';
 import { theme } from '../theme';
-import { ResidentRecord } from '../types';
+import { ResidentRecord, RiskAssessmentRecord } from '../types';
 
 export function ResidentDetailsScreen({ route, navigation }: any) {
-  const { assignment } = useAppContext();
+  const isFocused = useIsFocused();
+  const { assignment, dataVersion } = useAppContext();
   const [resident, setResident] = useState<ResidentRecord | null>(null);
+  const [latestRiskAssessment, setLatestRiskAssessment] =
+    useState<RiskAssessmentRecord | null>(null);
+  const [editableRiskDraft, setEditableRiskDraft] =
+    useState<RiskAssessmentRecord | null>(null);
 
   useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+
     async function loadResident() {
       const nextResident = await getResidentByLocalId(route.params?.localId);
       setResident(nextResident);
+
+      if (!nextResident?.server_id) {
+        setLatestRiskAssessment(null);
+        setEditableRiskDraft(null);
+        return;
+      }
+
+      const [latestAssessment, assessments] = await Promise.all([
+        getLatestRiskAssessmentForResident(nextResident.server_id),
+        getRiskAssessmentsForResident(nextResident.server_id),
+      ]);
+
+      setLatestRiskAssessment(latestAssessment);
+      setEditableRiskDraft(
+        assessments.find((assessment) => assessment.sync_status !== 'synced') ?? null
+      );
     }
 
     void loadResident();
-  }, [route.params?.localId]);
+  }, [dataVersion, isFocused, route.params?.localId]);
 
   if (!resident) {
     return (
@@ -38,6 +73,10 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
     resident.household_purok_id,
     i18n.t('purokNotAvailable')
   );
+  const residentAge = calculateAgeFromBirthDate(resident.birth_date);
+  const canCreateRiskAssessment =
+    Boolean(resident.server_id) && residentAge !== null && residentAge >= 20;
+  const latestAssessmentDays = daysSinceDate(latestRiskAssessment?.assessment_date);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -81,6 +120,69 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
           label={i18n.t('active')}
           value={resident.is_active ? i18n.t('active') : i18n.t('inactive')}
         />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>PhilPEN Risk Assessment</Text>
+        {canCreateRiskAssessment ? (
+          <>
+            <DetailRow
+              label="Latest Assessment"
+              value={
+                latestRiskAssessment?.assessment_date
+                  ? formatFriendlyDate(latestRiskAssessment.assessment_date) ??
+                    latestRiskAssessment.assessment_date
+                  : 'No assessment record'
+              }
+            />
+            <DetailRow
+              label="Screening Status"
+              value={
+                latestRiskAssessment?.assessment_date
+                  ? latestAssessmentDays !== null && latestAssessmentDays <= 30
+                    ? `Assessed ${latestAssessmentDays} day${latestAssessmentDays === 1 ? '' : 's'} ago`
+                    : `Due for follow-up${latestAssessmentDays !== null ? ` (${latestAssessmentDays} days ago)` : ''}`
+                  : 'Pending assessment'
+              }
+            />
+            <DetailRow
+              label="BMI / Waist"
+              value={
+                latestRiskAssessment
+                  ? `${latestRiskAssessment.body_mass_index ?? 'N/A'} BMI · ${latestRiskAssessment.waist_circumference_cm ?? 'N/A'} cm`
+                  : 'No screening values yet'
+              }
+            />
+            <DetailRow
+              label="Immediate Referral Flag"
+              value={
+                latestRiskAssessment?.requires_immediate_referral
+                  ? 'Yes - urgent referral noted'
+                  : 'No immediate red flag logged'
+              }
+            />
+
+            <Pressable
+              onPress={() =>
+                navigation.navigate('RiskAssessmentForm', {
+                  residentLocalId: resident.local_id,
+                  riskAssessmentLocalId: editableRiskDraft?.local_id,
+                })
+              }
+              style={[styles.primaryButton, styles.secondaryActionSpacing]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {editableRiskDraft ? 'Continue Unsynced Assessment' : 'New Risk Assessment'}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <View style={styles.readOnlyCard}>
+            <Text style={styles.readOnlyText}>
+              PhilPEN is only available for verified adult residents aged 20 years old and above.
+            </Text>
+          </View>
+        )}
       </View>
 
       {canEdit ? (
@@ -223,5 +325,8 @@ const styles = StyleSheet.create({
   readOnlyText: {
     color: theme.colors.textMuted,
     lineHeight: 21,
+  },
+  secondaryActionSpacing: {
+    marginTop: theme.spacing.md,
   },
 });

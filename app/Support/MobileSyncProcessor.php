@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\FieldVisit;
 use App\Models\Household;
+use App\Models\PhilpenRiskAssessment;
 use App\Models\Resident;
 use App\Models\SyncLog;
 use App\Models\User;
@@ -23,20 +24,24 @@ class MobileSyncProcessor
         $households = array_values($payload['households'] ?? []);
         $residents = array_values($payload['residents'] ?? []);
         $fieldVisits = array_values($payload['field_visits'] ?? []);
+        $riskAssessments = array_values($payload['risk_assessments'] ?? []);
         $recordsSynced = 0;
         $failures = [];
         $resolvedRecords = [
             'households' => [],
             'residents' => [],
             'field_visits' => [],
+            'risk_assessments' => [],
         ];
         $summary = [
             'households_received' => count($households),
             'residents_received' => count($residents),
             'field_visits_received' => count($fieldVisits),
+            'risk_assessments_received' => count($riskAssessments),
             'households_synced' => 0,
             'residents_synced' => 0,
             'field_visits_synced' => 0,
+            'risk_assessments_synced' => 0,
             'failure_count' => 0,
         ];
 
@@ -82,9 +87,23 @@ class MobileSyncProcessor
             $failures[] = $result['failure'];
         }
 
+        foreach ($riskAssessments as $index => $record) {
+            $result = $this->syncRiskAssessment($user, $record, $index);
+
+            if ($result['success']) {
+                $recordsSynced++;
+                $summary['risk_assessments_synced']++;
+                $resolvedRecords['risk_assessments'][] = $result['record'];
+
+                continue;
+            }
+
+            $failures[] = $result['failure'];
+        }
+
         $summary['failure_count'] = count($failures);
         $summary['failed_records'] = array_slice($failures, 0, 10);
-        $totalRecords = count($households) + count($residents) + count($fieldVisits);
+        $totalRecords = count($households) + count($residents) + count($fieldVisits) + count($riskAssessments);
         $status = $this->determineStatus($recordsSynced, $totalRecords, count($failures));
 
         return [
@@ -449,6 +468,177 @@ class MobileSyncProcessor
     }
 
     /**
+     * Sync a single PhilPEN risk assessment payload.
+     */
+    private function syncRiskAssessment(User $user, mixed $record, int $index): array
+    {
+        try {
+            $validated = $this->validateRiskAssessmentRecord($record);
+        } catch (ValidationException $exception) {
+            return $this->failure('risk_assessments', $index, $exception->validator->errors()->first());
+        }
+
+        $resident = $this->resolveResidentForBarangay(
+            $user,
+            $validated['resident_id'] ?? null
+        );
+
+        if (! $resident) {
+            return $this->failure('risk_assessments', $index, 'Resident not found in the assigned barangay.');
+        }
+
+        $assessment = $this->resolveRiskAssessmentForUser(
+            $user,
+            $validated['id'] ?? null,
+            $validated['mobile_uuid'] ?? null
+        );
+
+        $creating = ! $assessment;
+
+        if (! $assessment && empty($validated['mobile_uuid'])) {
+            return $this->failure('risk_assessments', $index, 'New risk assessments require a mobile UUID.');
+        }
+
+        if (! $assessment) {
+            $assessment = new PhilpenRiskAssessment([
+                'mobile_uuid' => $validated['mobile_uuid'],
+                'source' => 'mobile',
+            ]);
+        }
+
+        $assessmentDate = $validated['assessment_date'] ?? optional($assessment->assessment_date)?->toDateString();
+
+        if (! $assessmentDate) {
+            return $this->failure('risk_assessments', $index, "New risk assessments require the 'assessment_date' field.");
+        }
+
+        $redFlags = $validated['red_flags'] ?? ($assessment->red_flags ?? []);
+        $requiresImmediateReferral = $this->requiresImmediateReferral($redFlags);
+        $bodyMassIndex = $this->calculateBodyMassIndex(
+            $validated['weight_kg'] ?? $assessment->weight_kg,
+            $validated['height_cm'] ?? $assessment->height_cm
+        );
+        $ageYears = $resident->birth_date
+            ? (int) $resident->birth_date->diffInYears($assessmentDate)
+            : null;
+
+        $attributes = [];
+
+        foreach ([
+            'mobile_uuid',
+            'assessment_date',
+            'religion',
+            'contact_number',
+            'philhealth_number',
+            'civil_status',
+            'ethnicity',
+            'pwd_id_number',
+            'weight_kg',
+            'height_cm',
+            'waist_circumference_cm',
+            'systolic_bp',
+            'diastolic_bp',
+            'employment_status',
+            'ip_classification',
+            'red_flags',
+            'past_medical_history',
+            'family_history',
+            'tobacco_use',
+            'alcohol_consumption_status',
+            'alcohol_binge_flag',
+            'physical_activity_met',
+            'high_risk_diet_weekly',
+            'blood_sugar_notes',
+            'fbs_result',
+            'rbs_result',
+            'dm_symptoms',
+            'lipid_profile_date',
+            'total_cholesterol',
+            'hdl',
+            'ldl',
+            'vldl',
+            'triglycerides',
+            'urinalysis_protein',
+            'urinalysis_ketones',
+            'urinalysis_date',
+            'chronic_respiratory_symptoms',
+            'lifestyle_modification',
+            'anti_hypertensive_medications',
+            'oral_hypoglycemic_medications',
+            'follow_up_date',
+            'remarks',
+        ] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $attributes[$field] = $validated[$field];
+            }
+        }
+
+        $attributes['resident_id'] = $resident->id;
+        $attributes['household_id'] = $resident->household_id;
+        $attributes['barangay_id'] = $resident->household?->purok?->barangay_id;
+        $attributes['purok_id'] = $resident->household?->purok_id;
+        $attributes['recorded_by_user_id'] = $user->id;
+        $attributes['source'] = 'mobile';
+        $attributes['age_years'] = $ageYears;
+        $attributes['body_mass_index'] = $bodyMassIndex;
+        $attributes['requires_immediate_referral'] = $requiresImmediateReferral;
+        $attributes['identity_snapshot'] = $this->identitySnapshotFor($resident, $user, $assessmentDate, $validated);
+        $attributes['last_synced_at'] = now();
+
+        $comparisonAttributes = $attributes;
+        unset($comparisonAttributes['last_synced_at']);
+
+        if (! $creating) {
+            if ($this->riskAssessmentMatchesExisting($assessment, $comparisonAttributes)) {
+                return [
+                    'success' => true,
+                    'record' => [
+                        'id' => $assessment->id,
+                        'mobile_uuid' => $assessment->mobile_uuid,
+                        'resident_id' => $assessment->resident_id,
+                        'operation' => 'unchanged',
+                        'updated_at' => optional($assessment->updated_at)->toIso8601String(),
+                    ],
+                ];
+            }
+
+            return $this->failure(
+                'risk_assessments',
+                $index,
+                'PhilPEN assessments are historical records. Create a new assessment entry instead of editing an existing one.'
+            );
+        }
+
+        if ($ageYears === null || $ageYears < 20) {
+            return $this->failure(
+                'risk_assessments',
+                $index,
+                'PhilPEN assessments are only available for residents aged 20 years old and above on the assessment date.'
+            );
+        }
+
+        try {
+            DB::transaction(function () use ($assessment, $attributes): void {
+                $assessment->fill($attributes);
+                $assessment->save();
+            });
+        } catch (\Throwable $exception) {
+            return $this->failure('risk_assessments', $index, 'Risk assessment update failed: '.$exception->getMessage());
+        }
+
+        return [
+            'success' => true,
+            'record' => [
+                'id' => $assessment->id,
+                'mobile_uuid' => $assessment->mobile_uuid,
+                'resident_id' => $assessment->resident_id,
+                'operation' => $creating ? 'created' : 'updated',
+                'updated_at' => optional($assessment->updated_at)->toIso8601String(),
+            ],
+        ];
+    }
+
+    /**
      * Validate a mobile household record.
      */
     private function validateHouseholdRecord(mixed $record): array
@@ -510,6 +700,59 @@ class MobileSyncProcessor
             'photos.*.mime_type' => ['required_with:photos', 'string', 'max:100'],
             'photos.*.captured_at' => ['nullable', 'date'],
             'photos.*.data' => ['required_with:photos', 'string'],
+        ])->validate();
+    }
+
+    /**
+     * Validate a mobile PhilPEN risk assessment record.
+     */
+    private function validateRiskAssessmentRecord(mixed $record): array
+    {
+        return Validator::make(is_array($record) ? $record : [], [
+            'id' => ['nullable', 'integer'],
+            'mobile_uuid' => ['nullable', 'uuid', 'required_without:id'],
+            'resident_id' => ['required', 'integer'],
+            'assessment_date' => ['sometimes', 'date'],
+            'religion' => ['nullable', 'string', 'max:100'],
+            'contact_number' => ['nullable', 'string', 'max:30'],
+            'philhealth_number' => ['nullable', 'string', 'max:100'],
+            'civil_status' => ['nullable', 'string', 'max:50'],
+            'ethnicity' => ['nullable', 'string', 'max:100'],
+            'pwd_id_number' => ['nullable', 'string', 'max:100'],
+            'weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'height_cm' => ['nullable', 'numeric', 'min:0'],
+            'waist_circumference_cm' => ['nullable', 'numeric', 'min:0'],
+            'systolic_bp' => ['nullable', 'integer', 'min:0'],
+            'diastolic_bp' => ['nullable', 'integer', 'min:0'],
+            'employment_status' => ['nullable', 'string', 'max:50'],
+            'ip_classification' => ['nullable', 'in:ip,non_ip'],
+            'red_flags' => ['nullable', 'array'],
+            'past_medical_history' => ['nullable', 'array'],
+            'family_history' => ['nullable', 'array'],
+            'tobacco_use' => ['nullable', 'string', 'max:50'],
+            'alcohol_consumption_status' => ['nullable', 'string', 'max:50'],
+            'alcohol_binge_flag' => ['nullable', 'boolean'],
+            'physical_activity_met' => ['nullable', 'boolean'],
+            'high_risk_diet_weekly' => ['nullable', 'boolean'],
+            'blood_sugar_notes' => ['nullable', 'string', 'max:120'],
+            'fbs_result' => ['nullable', 'string', 'max:50'],
+            'rbs_result' => ['nullable', 'string', 'max:50'],
+            'dm_symptoms' => ['nullable', 'array'],
+            'lipid_profile_date' => ['nullable', 'date'],
+            'total_cholesterol' => ['nullable', 'string', 'max:50'],
+            'hdl' => ['nullable', 'string', 'max:50'],
+            'ldl' => ['nullable', 'string', 'max:50'],
+            'vldl' => ['nullable', 'string', 'max:50'],
+            'triglycerides' => ['nullable', 'string', 'max:50'],
+            'urinalysis_protein' => ['nullable', 'string', 'max:50'],
+            'urinalysis_ketones' => ['nullable', 'string', 'max:50'],
+            'urinalysis_date' => ['nullable', 'date'],
+            'chronic_respiratory_symptoms' => ['nullable', 'array'],
+            'lifestyle_modification' => ['nullable', 'boolean'],
+            'anti_hypertensive_medications' => ['nullable', 'string'],
+            'oral_hypoglycemic_medications' => ['nullable', 'string'],
+            'follow_up_date' => ['nullable', 'date'],
+            'remarks' => ['nullable', 'string'],
         ])->validate();
     }
 
@@ -585,6 +828,151 @@ class MobileSyncProcessor
         }
 
         return null;
+    }
+
+    /**
+     * Resolve a resident anywhere inside the assigned barangay.
+     */
+    private function resolveResidentForBarangay(User $user, ?int $id): ?Resident
+    {
+        if (! $id) {
+            return null;
+        }
+
+        return Resident::query()
+            ->whereKey($id)
+            ->whereHas('household.purok', function ($builder) use ($user): void {
+                $builder->where('barangay_id', $user->assigned_barangay_id);
+            })
+            ->with(['household.purok.barangay', 'socioEconomicProfile'])
+            ->first();
+    }
+
+    /**
+     * Resolve a PhilPEN assessment by server ID or mobile UUID within the assigned barangay.
+     */
+    private function resolveRiskAssessmentForUser(User $user, ?int $id, ?string $mobileUuid): ?PhilpenRiskAssessment
+    {
+        $query = PhilpenRiskAssessment::query()->where('barangay_id', $user->assigned_barangay_id);
+
+        if ($id) {
+            $assessment = (clone $query)->whereKey($id)->first();
+
+            if ($assessment) {
+                return $assessment;
+            }
+        }
+
+        if ($mobileUuid) {
+            return (clone $query)->where('mobile_uuid', $mobileUuid)->first();
+        }
+
+        return null;
+    }
+
+    private function riskAssessmentMatchesExisting(
+        PhilpenRiskAssessment $assessment,
+        array $attributes
+    ): bool {
+        foreach ($attributes as $field => $expectedValue) {
+            if (! $this->riskAssessmentValuesMatch(
+                $assessment->getAttribute($field),
+                $expectedValue
+            )) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function riskAssessmentValuesMatch(mixed $currentValue, mixed $expectedValue): bool
+    {
+        return $this->normalizeRiskAssessmentValue($currentValue)
+            === $this->normalizeRiskAssessmentValue($expectedValue);
+    }
+
+    private function normalizeRiskAssessmentValue(mixed $value): mixed
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        if (is_array($value)) {
+            ksort($value);
+
+            return array_map(
+                fn (mixed $item): mixed => $this->normalizeRiskAssessmentValue($item),
+                $value
+            );
+        }
+
+        if (is_bool($value) || $value === null) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return round((float) $value, 4);
+        }
+
+        return $value;
+    }
+
+    private function calculateBodyMassIndex(mixed $weightKg, mixed $heightCm): ?float
+    {
+        $weight = is_numeric($weightKg) ? (float) $weightKg : null;
+        $height = is_numeric($heightCm) ? (float) $heightCm : null;
+
+        if (! $weight || ! $height || $height <= 0) {
+            return null;
+        }
+
+        $heightMeters = $height / 100;
+
+        if ($heightMeters <= 0) {
+            return null;
+        }
+
+        return round($weight / ($heightMeters * $heightMeters), 2);
+    }
+
+    private function requiresImmediateReferral(array $redFlags): bool
+    {
+        foreach ([
+            'chest_pain',
+            'difficulty_breathing',
+            'slurred_speech',
+            'facial_asymmetry',
+        ] as $criticalKey) {
+            if (($redFlags[$criticalKey] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function identitySnapshotFor(Resident $resident, User $user, string $assessmentDate, array $validated): array
+    {
+        return [
+            'barangay' => $resident->household?->purok?->barangay?->name,
+            'purok' => $resident->household?->purok?->display_name,
+            'bhw_name' => $user->name,
+            'assessment_date' => $assessmentDate,
+            'resident_name' => $resident->formal_name,
+            'first_name' => $resident->first_name,
+            'middle_name' => $resident->middle_name,
+            'last_name' => $resident->last_name,
+            'age_years' => $resident->birth_date
+                ? (int) $resident->birth_date->diffInYears($assessmentDate)
+                : null,
+            'birth_date' => optional($resident->birth_date)->toDateString(),
+            'sex' => $resident->sex,
+            'contact_number' => $validated['contact_number'] ?? $resident->contact_number,
+            'civil_status' => $validated['civil_status'] ?? $resident->civil_status,
+            'religion' => $validated['religion'] ?? $resident->religion,
+            'ethnicity' => $validated['ethnicity'] ?? $resident->socioEconomicProfile?->ethnicity,
+        ];
     }
 
     /**

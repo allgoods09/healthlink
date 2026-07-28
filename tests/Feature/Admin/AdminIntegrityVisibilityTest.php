@@ -190,7 +190,10 @@ class AdminIntegrityVisibilityTest extends TestCase
 
         $response = $this->actingAs($admin)
             ->from(route('admin.archive.index'))
-            ->delete(route('admin.archive.purge', $purokArchive));
+            ->delete(route('admin.archive.purge', $purokArchive), [
+                'confirmation_phrase' => 'PURGE',
+                'action_reason' => 'Attempt parent purge with dependent child archive',
+            ]);
 
         $response->assertRedirect(route('admin.archive.index'));
         $response->assertSessionHas('error');

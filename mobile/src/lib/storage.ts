@@ -5,7 +5,9 @@ import {
   BootstrapPayload,
   FieldVisitRecord,
   HouseholdRecord,
+  RiskAssessmentRecord,
   ResidentRecord,
+  SyncStatus,
   SyncResponse,
   VisitPhoto,
 } from '../types';
@@ -19,6 +21,7 @@ type PendingChangeSummary = {
   households: number;
   residents: number;
   visits: number;
+  riskAssessments: number;
   total: number;
 };
 
@@ -108,6 +111,42 @@ function parsePhotos(raw: string | null | undefined): VisitPhoto[] {
   }
 }
 
+function parseJsonRecord(
+  raw: string | null | undefined
+): Record<string, boolean> {
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function parseJsonValue<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function toNullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const nextValue = Number(value);
+
+  return Number.isFinite(nextValue) ? nextValue : null;
+}
+
 export async function initializeStorage() {
   const db = await getDatabase();
 
@@ -167,6 +206,62 @@ export async function initializeStorage() {
       visited_at TEXT NOT NULL,
       notes TEXT,
       photos_json TEXT NOT NULL DEFAULT '[]',
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS risk_assessments (
+      local_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id INTEGER UNIQUE,
+      mobile_uuid TEXT UNIQUE,
+      resident_server_id INTEGER NOT NULL,
+      recorded_by_user_id INTEGER,
+      recorded_by_name TEXT,
+      assessment_date TEXT NOT NULL,
+      age_years INTEGER,
+      religion TEXT,
+      contact_number TEXT,
+      philhealth_number TEXT,
+      civil_status TEXT,
+      ethnicity TEXT,
+      pwd_id_number TEXT,
+      weight_kg REAL,
+      height_cm REAL,
+      body_mass_index REAL,
+      waist_circumference_cm REAL,
+      systolic_bp INTEGER,
+      diastolic_bp INTEGER,
+      employment_status TEXT,
+      ip_classification TEXT,
+      requires_immediate_referral INTEGER NOT NULL DEFAULT 0,
+      identity_snapshot_json TEXT,
+      red_flags_json TEXT NOT NULL DEFAULT '{}',
+      past_medical_history_json TEXT NOT NULL DEFAULT '{}',
+      family_history_json TEXT NOT NULL DEFAULT '{}',
+      tobacco_use TEXT,
+      alcohol_consumption_status TEXT,
+      alcohol_binge_flag INTEGER,
+      physical_activity_met INTEGER,
+      high_risk_diet_weekly INTEGER,
+      blood_sugar_notes TEXT,
+      fbs_result TEXT,
+      rbs_result TEXT,
+      dm_symptoms_json TEXT NOT NULL DEFAULT '{}',
+      lipid_profile_date TEXT,
+      total_cholesterol TEXT,
+      hdl TEXT,
+      ldl TEXT,
+      vldl TEXT,
+      triglycerides TEXT,
+      urinalysis_protein TEXT,
+      urinalysis_ketones TEXT,
+      urinalysis_date TEXT,
+      chronic_respiratory_symptoms_json TEXT NOT NULL DEFAULT '{}',
+      lifestyle_modification INTEGER,
+      anti_hypertensive_medications TEXT,
+      oral_hypoglycemic_medications TEXT,
+      follow_up_date TEXT,
+      remarks TEXT,
       sync_status TEXT NOT NULL DEFAULT 'synced',
       updated_at TEXT
     );
@@ -270,6 +365,28 @@ async function repairInvalidMobileUuids(db: SQLite.SQLiteDatabase) {
         [createUuid(), visit.local_id]
       );
     }
+
+    const invalidRiskAssessments = await db.getAllAsync<{
+      local_id: number;
+      mobile_uuid: string | null;
+    }>(
+      `SELECT local_id, mobile_uuid
+       FROM risk_assessments
+       WHERE mobile_uuid IS NOT NULL`
+    );
+
+    for (const assessment of invalidRiskAssessments) {
+      if (isValidUuid(assessment.mobile_uuid)) {
+        continue;
+      }
+
+      await db.runAsync(
+        `UPDATE risk_assessments
+         SET mobile_uuid = ?
+         WHERE local_id = ?`,
+        [createUuid(), assessment.local_id]
+      );
+    }
   });
 }
 
@@ -297,6 +414,7 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
   const db = await getDatabase();
 
   await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM risk_assessments');
     await db.runAsync('DELETE FROM field_visits');
     await db.runAsync('DELETE FROM residents');
     await db.runAsync('DELETE FROM households');
@@ -404,6 +522,118 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
         ]
       );
     }
+
+    for (const assessment of payload.risk_assessments) {
+      await db.runAsync(
+        `INSERT INTO risk_assessments (
+          server_id,
+          mobile_uuid,
+          resident_server_id,
+          recorded_by_user_id,
+          recorded_by_name,
+          assessment_date,
+          age_years,
+          religion,
+          contact_number,
+          philhealth_number,
+          civil_status,
+          ethnicity,
+          pwd_id_number,
+          weight_kg,
+          height_cm,
+          body_mass_index,
+          waist_circumference_cm,
+          systolic_bp,
+          diastolic_bp,
+          employment_status,
+          ip_classification,
+          requires_immediate_referral,
+          identity_snapshot_json,
+          red_flags_json,
+          past_medical_history_json,
+          family_history_json,
+          tobacco_use,
+          alcohol_consumption_status,
+          alcohol_binge_flag,
+          physical_activity_met,
+          high_risk_diet_weekly,
+          blood_sugar_notes,
+          fbs_result,
+          rbs_result,
+          dm_symptoms_json,
+          lipid_profile_date,
+          total_cholesterol,
+          hdl,
+          ldl,
+          vldl,
+          triglycerides,
+          urinalysis_protein,
+          urinalysis_ketones,
+          urinalysis_date,
+          chronic_respiratory_symptoms_json,
+          lifestyle_modification,
+          anti_hypertensive_medications,
+          oral_hypoglycemic_medications,
+          follow_up_date,
+          remarks,
+          sync_status,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        [
+          assessment.id,
+          assessment.mobile_uuid,
+          assessment.resident_id,
+          assessment.recorded_by_user_id,
+          assessment.recorded_by_name,
+          assessment.assessment_date,
+          assessment.age_years,
+          assessment.religion,
+          assessment.contact_number,
+          assessment.philhealth_number,
+          assessment.civil_status,
+          assessment.ethnicity,
+          assessment.pwd_id_number,
+          assessment.weight_kg,
+          assessment.height_cm,
+          assessment.body_mass_index,
+          assessment.waist_circumference_cm,
+          assessment.systolic_bp,
+          assessment.diastolic_bp,
+          assessment.employment_status,
+          assessment.ip_classification,
+          boolToInt(assessment.requires_immediate_referral),
+          JSON.stringify(assessment.identity_snapshot ?? null),
+          JSON.stringify(assessment.red_flags ?? {}),
+          JSON.stringify(assessment.past_medical_history ?? {}),
+          JSON.stringify(assessment.family_history ?? {}),
+          assessment.tobacco_use,
+          assessment.alcohol_consumption_status,
+          assessment.alcohol_binge_flag === null ? null : boolToInt(Boolean(assessment.alcohol_binge_flag)),
+          assessment.physical_activity_met === null ? null : boolToInt(Boolean(assessment.physical_activity_met)),
+          assessment.high_risk_diet_weekly === null ? null : boolToInt(Boolean(assessment.high_risk_diet_weekly)),
+          assessment.blood_sugar_notes,
+          assessment.fbs_result,
+          assessment.rbs_result,
+          JSON.stringify(assessment.dm_symptoms ?? {}),
+          assessment.lipid_profile_date,
+          assessment.total_cholesterol,
+          assessment.hdl,
+          assessment.ldl,
+          assessment.vldl,
+          assessment.triglycerides,
+          assessment.urinalysis_protein,
+          assessment.urinalysis_ketones,
+          assessment.urinalysis_date,
+          JSON.stringify(assessment.chronic_respiratory_symptoms ?? {}),
+          assessment.lifestyle_modification === null ? null : boolToInt(Boolean(assessment.lifestyle_modification)),
+          assessment.anti_hypertensive_medications,
+          assessment.oral_hypoglycemic_medications,
+          assessment.follow_up_date,
+          assessment.remarks,
+          assessment.updated_at,
+        ]
+      );
+    }
   });
 
   await setAppState('bootstrap_completed', '1');
@@ -416,6 +646,7 @@ export async function clearOperationalData() {
   const db = await getDatabase();
 
   await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM risk_assessments');
     await db.runAsync('DELETE FROM field_visits');
     await db.runAsync('DELETE FROM residents');
     await db.runAsync('DELETE FROM households');
@@ -471,11 +702,17 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
     `SELECT
       residents.*,
       households.household_no AS household_no,
-      households.purok_id AS household_purok_id
-      ,households.purok_display_name AS household_purok_display_name
+      households.purok_id AS household_purok_id,
+      households.purok_display_name AS household_purok_display_name,
+      latest_risk_assessments.latest_risk_assessment_date AS latest_risk_assessment_date
      FROM residents
      LEFT JOIN households ON households.server_id = residents.household_server_id
        OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = residents.household_mobile_uuid)
+     LEFT JOIN (
+       SELECT resident_server_id, MAX(assessment_date) AS latest_risk_assessment_date
+       FROM risk_assessments
+       GROUP BY resident_server_id
+     ) AS latest_risk_assessments ON latest_risk_assessments.resident_server_id = residents.server_id
      WHERE residents.first_name LIKE ? OR residents.last_name LIKE ? OR COALESCE(households.household_no, '') LIKE ?
      ORDER BY residents.last_name ASC, residents.first_name ASC`,
     [`%${search}%`, `%${search}%`, `%${search}%`]
@@ -484,6 +721,7 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
   return rows.map((row: any) => ({
     ...row,
     household_purok_id: row.household_purok_id ?? null,
+    household_purok_display_name: row.household_purok_display_name ?? null,
     is_active: intToBool(row.is_active),
   }));
 }
@@ -554,6 +792,105 @@ export async function getVisitByLocalId(localId: number) {
   return visits.find((visit) => visit.local_id === localId) ?? null;
 }
 
+export async function getRiskAssessmentsForResident(
+  residentServerId: number
+): Promise<RiskAssessmentRecord[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT *
+     FROM risk_assessments
+     WHERE resident_server_id = ?
+     ORDER BY assessment_date DESC, local_id DESC`,
+    [residentServerId]
+  );
+
+  return rows.map((row: any) => ({
+    ...row,
+    requires_immediate_referral: intToBool(row.requires_immediate_referral),
+    identity_snapshot: parseJsonValue(row.identity_snapshot_json, null),
+    red_flags: parseJsonRecord(row.red_flags_json),
+    past_medical_history: parseJsonRecord(row.past_medical_history_json),
+    family_history: parseJsonRecord(row.family_history_json),
+    alcohol_binge_flag:
+      row.alcohol_binge_flag === null || row.alcohol_binge_flag === undefined
+        ? null
+        : intToBool(row.alcohol_binge_flag),
+    physical_activity_met:
+      row.physical_activity_met === null || row.physical_activity_met === undefined
+        ? null
+        : intToBool(row.physical_activity_met),
+    high_risk_diet_weekly:
+      row.high_risk_diet_weekly === null || row.high_risk_diet_weekly === undefined
+        ? null
+        : intToBool(row.high_risk_diet_weekly),
+    dm_symptoms: parseJsonRecord(row.dm_symptoms_json),
+    chronic_respiratory_symptoms: parseJsonRecord(row.chronic_respiratory_symptoms_json),
+    lifestyle_modification:
+      row.lifestyle_modification === null || row.lifestyle_modification === undefined
+        ? null
+        : intToBool(row.lifestyle_modification),
+    weight_kg: toNullableNumber(row.weight_kg),
+    height_cm: toNullableNumber(row.height_cm),
+    body_mass_index: toNullableNumber(row.body_mass_index),
+    waist_circumference_cm: toNullableNumber(row.waist_circumference_cm),
+  }));
+}
+
+export async function getLatestRiskAssessmentForResident(
+  residentServerId: number
+): Promise<RiskAssessmentRecord | null> {
+  const assessments = await getRiskAssessmentsForResident(residentServerId);
+
+  return assessments[0] ?? null;
+}
+
+export async function getRiskAssessmentByLocalId(
+  localId: number
+): Promise<RiskAssessmentRecord | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<any>(
+    `SELECT *
+     FROM risk_assessments
+     WHERE local_id = ?`,
+    [localId]
+  );
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    requires_immediate_referral: intToBool(row.requires_immediate_referral),
+    identity_snapshot: parseJsonValue(row.identity_snapshot_json, null),
+    red_flags: parseJsonRecord(row.red_flags_json),
+    past_medical_history: parseJsonRecord(row.past_medical_history_json),
+    family_history: parseJsonRecord(row.family_history_json),
+    alcohol_binge_flag:
+      row.alcohol_binge_flag === null || row.alcohol_binge_flag === undefined
+        ? null
+        : intToBool(row.alcohol_binge_flag),
+    physical_activity_met:
+      row.physical_activity_met === null || row.physical_activity_met === undefined
+        ? null
+        : intToBool(row.physical_activity_met),
+    high_risk_diet_weekly:
+      row.high_risk_diet_weekly === null || row.high_risk_diet_weekly === undefined
+        ? null
+        : intToBool(row.high_risk_diet_weekly),
+    dm_symptoms: parseJsonRecord(row.dm_symptoms_json),
+    chronic_respiratory_symptoms: parseJsonRecord(row.chronic_respiratory_symptoms_json),
+    lifestyle_modification:
+      row.lifestyle_modification === null || row.lifestyle_modification === undefined
+        ? null
+        : intToBool(row.lifestyle_modification),
+    weight_kg: toNullableNumber(row.weight_kg),
+    height_cm: toNullableNumber(row.height_cm),
+    body_mass_index: toNullableNumber(row.body_mass_index),
+    waist_circumference_cm: toNullableNumber(row.waist_circumference_cm),
+  };
+}
+
 export async function saveHousehold(
   values: Omit<HouseholdRecord, 'sync_status'> & { local_id?: number }
 ) {
@@ -596,7 +933,7 @@ export async function saveHousehold(
       is_active,
       sync_status,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       values.server_id ?? null,
       mobileUuid,
@@ -760,6 +1097,188 @@ export async function saveVisit(
   );
 }
 
+export async function saveRiskAssessment(
+  values: Omit<RiskAssessmentRecord, 'sync_status' | 'requires_immediate_referral'> & {
+    local_id?: number;
+    requires_immediate_referral?: boolean;
+  }
+) {
+  const db = await getDatabase();
+  const existingLocalRecord = values.local_id
+    ? await db.getFirstAsync<{
+        local_id: number;
+        server_id: number | null;
+        mobile_uuid: string | null;
+        sync_status: SyncStatus;
+      }>(
+        `SELECT local_id, server_id, mobile_uuid, sync_status
+         FROM risk_assessments
+         WHERE local_id = ?`,
+        [values.local_id]
+      )
+    : null;
+  const shouldCreateNewRecord =
+    Boolean(existingLocalRecord?.server_id) ||
+    existingLocalRecord?.sync_status === 'synced';
+  const targetLocalId = shouldCreateNewRecord ? undefined : values.local_id;
+  const mobileUuid = shouldCreateNewRecord
+    ? createUuid()
+    : values.mobile_uuid ?? existingLocalRecord?.mobile_uuid ?? createUuid();
+  const syncStatus: SyncStatus = 'pending_create';
+  const requiresImmediateReferral =
+    values.requires_immediate_referral ??
+    Boolean(
+      values.red_flags.chest_pain ||
+        values.red_flags.difficulty_breathing ||
+        values.red_flags.slurred_speech ||
+        values.red_flags.facial_asymmetry
+    );
+
+  const params = [
+    shouldCreateNewRecord
+      ? null
+      : values.server_id ?? existingLocalRecord?.server_id ?? null,
+    mobileUuid,
+    values.resident_server_id,
+    values.recorded_by_user_id ?? null,
+    values.recorded_by_name ?? null,
+    values.assessment_date,
+    values.age_years ?? null,
+    values.religion ?? null,
+    values.contact_number ?? null,
+    values.philhealth_number ?? null,
+    values.civil_status ?? null,
+    values.ethnicity ?? null,
+    values.pwd_id_number ?? null,
+    values.weight_kg ?? null,
+    values.height_cm ?? null,
+    values.body_mass_index ?? null,
+    values.waist_circumference_cm ?? null,
+    values.systolic_bp ?? null,
+    values.diastolic_bp ?? null,
+    values.employment_status ?? null,
+    values.ip_classification ?? null,
+    boolToInt(requiresImmediateReferral),
+    JSON.stringify(values.identity_snapshot ?? null),
+    JSON.stringify(values.red_flags ?? {}),
+    JSON.stringify(values.past_medical_history ?? {}),
+    JSON.stringify(values.family_history ?? {}),
+    values.tobacco_use ?? null,
+    values.alcohol_consumption_status ?? null,
+    values.alcohol_binge_flag === null || values.alcohol_binge_flag === undefined
+      ? null
+      : boolToInt(Boolean(values.alcohol_binge_flag)),
+    values.physical_activity_met === null || values.physical_activity_met === undefined
+      ? null
+      : boolToInt(Boolean(values.physical_activity_met)),
+    values.high_risk_diet_weekly === null || values.high_risk_diet_weekly === undefined
+      ? null
+      : boolToInt(Boolean(values.high_risk_diet_weekly)),
+    values.blood_sugar_notes ?? null,
+    values.fbs_result ?? null,
+    values.rbs_result ?? null,
+    JSON.stringify(values.dm_symptoms ?? {}),
+    values.lipid_profile_date ?? null,
+    values.total_cholesterol ?? null,
+    values.hdl ?? null,
+    values.ldl ?? null,
+    values.vldl ?? null,
+    values.triglycerides ?? null,
+    values.urinalysis_protein ?? null,
+    values.urinalysis_ketones ?? null,
+    values.urinalysis_date ?? null,
+    JSON.stringify(values.chronic_respiratory_symptoms ?? {}),
+    values.lifestyle_modification === null || values.lifestyle_modification === undefined
+      ? null
+      : boolToInt(Boolean(values.lifestyle_modification)),
+    values.anti_hypertensive_medications ?? null,
+    values.oral_hypoglycemic_medications ?? null,
+    values.follow_up_date ?? null,
+    values.remarks ?? null,
+    syncStatus,
+    new Date().toISOString(),
+  ];
+
+  if (targetLocalId) {
+    await db.runAsync(
+      `UPDATE risk_assessments
+       SET server_id = ?, mobile_uuid = ?, resident_server_id = ?, recorded_by_user_id = ?, recorded_by_name = ?,
+           assessment_date = ?, age_years = ?, religion = ?, contact_number = ?, philhealth_number = ?,
+           civil_status = ?, ethnicity = ?, pwd_id_number = ?, weight_kg = ?, height_cm = ?, body_mass_index = ?,
+           waist_circumference_cm = ?, systolic_bp = ?, diastolic_bp = ?, employment_status = ?, ip_classification = ?,
+           requires_immediate_referral = ?, identity_snapshot_json = ?, red_flags_json = ?, past_medical_history_json = ?,
+           family_history_json = ?, tobacco_use = ?, alcohol_consumption_status = ?, alcohol_binge_flag = ?,
+           physical_activity_met = ?, high_risk_diet_weekly = ?, blood_sugar_notes = ?, fbs_result = ?, rbs_result = ?,
+           dm_symptoms_json = ?, lipid_profile_date = ?, total_cholesterol = ?, hdl = ?, ldl = ?, vldl = ?,
+           triglycerides = ?, urinalysis_protein = ?, urinalysis_ketones = ?, urinalysis_date = ?,
+           chronic_respiratory_symptoms_json = ?, lifestyle_modification = ?, anti_hypertensive_medications = ?,
+           oral_hypoglycemic_medications = ?, follow_up_date = ?, remarks = ?, sync_status = ?, updated_at = ?
+       WHERE local_id = ?`,
+      [...params, targetLocalId]
+    );
+
+    return;
+  }
+
+  await db.runAsync(
+    `INSERT INTO risk_assessments (
+      server_id,
+      mobile_uuid,
+      resident_server_id,
+      recorded_by_user_id,
+      recorded_by_name,
+      assessment_date,
+      age_years,
+      religion,
+      contact_number,
+      philhealth_number,
+      civil_status,
+      ethnicity,
+      pwd_id_number,
+      weight_kg,
+      height_cm,
+      body_mass_index,
+      waist_circumference_cm,
+      systolic_bp,
+      diastolic_bp,
+      employment_status,
+      ip_classification,
+      requires_immediate_referral,
+      identity_snapshot_json,
+      red_flags_json,
+      past_medical_history_json,
+      family_history_json,
+      tobacco_use,
+      alcohol_consumption_status,
+      alcohol_binge_flag,
+      physical_activity_met,
+      high_risk_diet_weekly,
+      blood_sugar_notes,
+      fbs_result,
+      rbs_result,
+      dm_symptoms_json,
+      lipid_profile_date,
+      total_cholesterol,
+      hdl,
+      ldl,
+      vldl,
+      triglycerides,
+      urinalysis_protein,
+      urinalysis_ketones,
+      urinalysis_date,
+      chronic_respiratory_symptoms_json,
+      lifestyle_modification,
+      anti_hypertensive_medications,
+      oral_hypoglycemic_medications,
+      follow_up_date,
+      remarks,
+      sync_status,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params
+  );
+}
+
 export async function hasBootstrapData() {
   return (await getAppState('bootstrap_completed')) === '1';
 }
@@ -775,6 +1294,9 @@ export async function getPendingSyncPayload() {
   );
   const visits = await db.getAllAsync<any>(
     `SELECT * FROM field_visits WHERE sync_status != 'synced' ORDER BY local_id ASC`
+  );
+  const riskAssessments = await db.getAllAsync<any>(
+    `SELECT * FROM risk_assessments WHERE sync_status != 'synced' ORDER BY local_id ASC`
   );
 
   return {
@@ -830,6 +1352,64 @@ export async function getPendingSyncPayload() {
           })),
       };
     }),
+    risk_assessments: riskAssessments.map((row: any) => ({
+      id: row.server_id ?? undefined,
+      mobile_uuid: row.mobile_uuid ?? undefined,
+      resident_id: row.resident_server_id,
+      assessment_date: row.assessment_date,
+      religion: row.religion ?? undefined,
+      contact_number: row.contact_number ?? undefined,
+      philhealth_number: row.philhealth_number ?? undefined,
+      civil_status: row.civil_status ?? undefined,
+      ethnicity: row.ethnicity ?? undefined,
+      pwd_id_number: row.pwd_id_number ?? undefined,
+      weight_kg: toNullableNumber(row.weight_kg) ?? undefined,
+      height_cm: toNullableNumber(row.height_cm) ?? undefined,
+      waist_circumference_cm: toNullableNumber(row.waist_circumference_cm) ?? undefined,
+      systolic_bp: row.systolic_bp ?? undefined,
+      diastolic_bp: row.diastolic_bp ?? undefined,
+      employment_status: row.employment_status ?? undefined,
+      ip_classification: row.ip_classification ?? undefined,
+      red_flags: parseJsonRecord(row.red_flags_json),
+      past_medical_history: parseJsonRecord(row.past_medical_history_json),
+      family_history: parseJsonRecord(row.family_history_json),
+      tobacco_use: row.tobacco_use ?? undefined,
+      alcohol_consumption_status: row.alcohol_consumption_status ?? undefined,
+      alcohol_binge_flag:
+        row.alcohol_binge_flag === null || row.alcohol_binge_flag === undefined
+          ? undefined
+          : intToBool(row.alcohol_binge_flag),
+      physical_activity_met:
+        row.physical_activity_met === null || row.physical_activity_met === undefined
+          ? undefined
+          : intToBool(row.physical_activity_met),
+      high_risk_diet_weekly:
+        row.high_risk_diet_weekly === null || row.high_risk_diet_weekly === undefined
+          ? undefined
+          : intToBool(row.high_risk_diet_weekly),
+      blood_sugar_notes: row.blood_sugar_notes ?? undefined,
+      fbs_result: row.fbs_result ?? undefined,
+      rbs_result: row.rbs_result ?? undefined,
+      dm_symptoms: parseJsonRecord(row.dm_symptoms_json),
+      lipid_profile_date: row.lipid_profile_date ?? undefined,
+      total_cholesterol: row.total_cholesterol ?? undefined,
+      hdl: row.hdl ?? undefined,
+      ldl: row.ldl ?? undefined,
+      vldl: row.vldl ?? undefined,
+      triglycerides: row.triglycerides ?? undefined,
+      urinalysis_protein: row.urinalysis_protein ?? undefined,
+      urinalysis_ketones: row.urinalysis_ketones ?? undefined,
+      urinalysis_date: row.urinalysis_date ?? undefined,
+      chronic_respiratory_symptoms: parseJsonRecord(row.chronic_respiratory_symptoms_json),
+      lifestyle_modification:
+        row.lifestyle_modification === null || row.lifestyle_modification === undefined
+          ? undefined
+          : intToBool(row.lifestyle_modification),
+      anti_hypertensive_medications: row.anti_hypertensive_medications ?? undefined,
+      oral_hypoglycemic_medications: row.oral_hypoglycemic_medications ?? undefined,
+      follow_up_date: row.follow_up_date ?? undefined,
+      remarks: row.remarks ?? undefined,
+    })),
   };
 }
 
@@ -895,6 +1475,21 @@ export async function applyResolvedRecords(resolved: SyncResponse['resolved_reco
         ]
       );
     }
+
+    for (const assessment of resolved.risk_assessments) {
+      if (!assessment.mobile_uuid) continue;
+
+      await db.runAsync(
+        `UPDATE risk_assessments
+         SET server_id = ?, sync_status = 'synced', updated_at = ?
+         WHERE mobile_uuid = ?`,
+        [
+          assessment.id,
+          assessment.updated_at ?? new Date().toISOString(),
+          assessment.mobile_uuid,
+        ]
+      );
+    }
   });
 }
 
@@ -914,15 +1509,20 @@ export async function getPendingChangeSummary(): Promise<PendingChangeSummary> {
   const visitRow = await db.getFirstAsync<{ total: number }>(
     `SELECT COUNT(*) AS total FROM field_visits WHERE sync_status != 'synced'`
   );
+  const riskAssessmentRow = await db.getFirstAsync<{ total: number }>(
+    `SELECT COUNT(*) AS total FROM risk_assessments WHERE sync_status != 'synced'`
+  );
 
   const households = householdRow?.total ?? 0;
   const residents = residentRow?.total ?? 0;
   const visits = visitRow?.total ?? 0;
+  const riskAssessments = riskAssessmentRow?.total ?? 0;
 
   return {
     households,
     residents,
     visits,
-    total: households + residents + visits,
+    riskAssessments,
+    total: households + residents + visits + riskAssessments,
   };
 }

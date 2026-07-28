@@ -104,6 +104,80 @@
         </section>
     </div>
 
+    <div class="mt-8 rounded-[24px] border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">PhilPEN Risk Assessments</h3>
+                <p class="text-sm text-slate-500">Adult screening history from the barangay layer, available to support municipal clinical review.</p>
+            </div>
+            <span class="text-sm font-medium text-slate-500">{{ number_format($resident->philpenRiskAssessments->count()) }} shown</span>
+        </div>
+
+        @if($latestPhilpenAssessment)
+            <div class="grid gap-4 border-b border-slate-200 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                    <p class="text-sm text-slate-500">Latest Assessment</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-900">{{ $latestPhilpenAssessment->assessment_date_label }}</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                    <p class="text-sm text-slate-500">BMI / Waist</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-900">{{ $latestPhilpenAssessment->body_mass_index ?: 'N/A' }} BMI · {{ $latestPhilpenAssessment->waist_circumference_cm ?: 'N/A' }} cm</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                    <p class="text-sm text-slate-500">Blood Pressure</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-900">
+                        @if($latestPhilpenAssessment->systolic_bp || $latestPhilpenAssessment->diastolic_bp)
+                            {{ $latestPhilpenAssessment->systolic_bp ?: 'N/A' }}/{{ $latestPhilpenAssessment->diastolic_bp ?: 'N/A' }}
+                        @else
+                            No BP value
+                        @endif
+                    </p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                    <p class="text-sm text-slate-500">Immediate Referral</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-900">{{ $latestPhilpenAssessment->requires_immediate_referral ? 'Yes' : 'No' }}</p>
+                </div>
+            </div>
+        @endif
+
+        <div class="divide-y divide-slate-200">
+            @forelse($resident->philpenRiskAssessments as $assessment)
+                <div class="px-6 py-4">
+                    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ $assessment->assessment_date_label }}</p>
+                            <p class="mt-1 text-sm text-slate-500">{{ $assessment->recordedBy?->name ?: 'Unknown BHW' }}</p>
+                            <p class="mt-2 text-sm text-slate-600">
+                                BMI {{ $assessment->body_mass_index ?: 'N/A' }}
+                                · Waist {{ $assessment->waist_circumference_cm ?: 'N/A' }} cm
+                                · FBS {{ $assessment->fbs_result ?: 'N/A' }}
+                                · RBS {{ $assessment->rbs_result ?: 'N/A' }}
+                            </p>
+                            <p class="mt-2 text-sm text-slate-600">
+                                Activity {{ $assessment->physical_activity_met === null ? 'N/A' : ($assessment->physical_activity_met ? 'Met' : 'Not met') }}
+                                · Diet {{ $assessment->high_risk_diet_weekly === null ? 'N/A' : ($assessment->high_risk_diet_weekly ? 'High risk weekly' : 'No weekly high risk intake') }}
+                            </p>
+                            @if($assessment->anti_hypertensive_medications || $assessment->oral_hypoglycemic_medications || $assessment->remarks)
+                                <p class="mt-2 text-sm text-slate-600">
+                                    {{ $assessment->anti_hypertensive_medications ? 'Anti-hypertensives: '.$assessment->anti_hypertensive_medications.'. ' : '' }}
+                                    {{ $assessment->oral_hypoglycemic_medications ? 'Oral agents / insulin: '.$assessment->oral_hypoglycemic_medications.'. ' : '' }}
+                                    {{ $assessment->remarks ? 'Remarks: '.$assessment->remarks : '' }}
+                                </p>
+                            @endif
+                        </div>
+                        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">
+                            {{ $assessment->requires_immediate_referral ? 'Urgent referral' : 'Routine screening' }}
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="px-6 py-10 text-center text-sm text-slate-500">
+                    No PhilPEN screening history exists for this resident yet.
+                </div>
+            @endforelse
+        </div>
+    </div>
+
     <div class="mt-8 grid gap-6 xl:grid-cols-2">
         <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">

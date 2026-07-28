@@ -49,10 +49,12 @@ class ResidentController extends Controller
             'household.purok.barangay',
             'socioEconomicProfile',
             'latestOptMeasurement.campaignPeriod',
+            'latestPhilpenRiskAssessment.recordedBy',
             'nutritionFlags' => fn ($query) => $query->with(['flaggedBy', 'closedBy', 'resolvedMeasurement'])->latest('flagged_at')->limit(8),
             'triageRecords' => fn ($query) => $query->with(['recordedBy.assignedPurok', 'consumedBy', 'clinicalEncounter'])->latest('measured_at')->limit(8),
             'clinicalEncounters' => fn ($query) => $query->with(['attendedBy', 'triageRecord.recordedBy'])->latest('encountered_at')->limit(8),
             'profileUpdateRequests' => fn ($query) => $query->with(['submittedBy', 'reviewedBy'])->latest()->limit(8),
+            'philpenRiskAssessments' => fn ($query) => $query->with('recordedBy')->latest('assessment_date')->latest('id')->limit(8),
         ]);
 
         return view('phn.residents.show', [
@@ -60,6 +62,7 @@ class ResidentController extends Controller
             'openNutritionFlagCount' => $resident->nutritionFlags->where('flag_status', 'open')->count(),
             'latestEncounter' => $resident->clinicalEncounters->first(),
             'latestTriage' => $resident->triageRecords->first(),
+            'latestPhilpenAssessment' => $resident->latestPhilpenRiskAssessment,
         ]);
     }
 

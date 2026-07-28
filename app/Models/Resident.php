@@ -204,6 +204,19 @@ class Resident extends Model
         return $this->hasMany(ClinicalEncounter::class);
     }
 
+    public function philpenRiskAssessments()
+    {
+        return $this->hasMany(PhilpenRiskAssessment::class);
+    }
+
+    public function latestPhilpenRiskAssessment()
+    {
+        return $this->hasOne(PhilpenRiskAssessment::class)->ofMany([
+            'assessment_date' => 'max',
+            'id' => 'max',
+        ]);
+    }
+
     // =============================================
     // SCOPES
     // =============================================

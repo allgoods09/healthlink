@@ -47,9 +47,8 @@ class AdminBackupRecoveryTest extends TestCase
         $this->assertSame('verified', $backup->fresh()->integrity_status);
 
         $restoreResponse = $this->actingAs($admin)->post(route('admin.backups.restore', $backup), [
-            'confirmation' => $backup->filename,
-            'restore_notes' => 'Recovery drill',
-            'restore_acknowledged' => '1',
+            'confirmation_phrase' => 'RESTORE',
+            'action_reason' => 'Recovery drill',
         ]);
 
         $restoreResponse->assertRedirect(route('admin.backups.show', $backup));
@@ -62,7 +61,7 @@ class AdminBackupRecoveryTest extends TestCase
         ]);
     }
 
-    public function test_backup_restore_requires_exact_filename_confirmation(): void
+    public function test_backup_restore_requires_exact_confirmation_phrase(): void
     {
         $this->app->instance(DatabaseBackupManager::class, new FakeDatabaseBackupManager());
 
@@ -81,13 +80,14 @@ class AdminBackupRecoveryTest extends TestCase
         $response = $this->actingAs($admin)
             ->from(route('admin.backups.show', $backup))
             ->post(route('admin.backups.restore', $backup), [
-                'confirmation' => 'wrong-file.sql',
-                'restore_notes' => 'No-op',
-                'restore_acknowledged' => '1',
+                'confirmation_phrase' => 'WRONG',
+                'action_reason' => 'No-op',
             ]);
 
         $response->assertRedirect(route('admin.backups.show', $backup));
-        $response->assertSessionHas('error', 'Confirmation filename did not match. Restore cancelled.');
+        $response->assertSessionHasErrors([
+            'confirmation_phrase' => 'Type RESTORE exactly to continue with database restoration.',
+        ]);
         $this->assertSame(0, $backup->fresh()->restore_count);
     }
 

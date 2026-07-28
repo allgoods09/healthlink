@@ -26,6 +26,7 @@ import { LoginScreen } from '../screens/LoginScreen';
 import { MoreScreen } from '../screens/MoreScreen';
 import { ResidentDetailsScreen } from '../screens/ResidentDetailsScreen';
 import { ResidentFormScreen } from '../screens/ResidentFormScreen';
+import { RiskAssessmentFormScreen } from '../screens/RiskAssessmentFormScreen';
 import { SyncScreen } from '../screens/SyncScreen';
 import { VisitFormScreen } from '../screens/VisitFormScreen';
 import { VisitsScreen } from '../screens/VisitsScreen';
@@ -192,6 +193,11 @@ export function AppNavigator() {
                 name="VisitForm"
                 component={VisitFormScreen}
                 options={{ title: i18n.t('createVisit') }}
+              />
+              <Stack.Screen
+                name="RiskAssessmentForm"
+                component={RiskAssessmentFormScreen}
+                options={{ title: 'PhilPEN Assessment' }}
               />
             </>
           )}

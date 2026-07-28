@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\FieldVisit;
 use App\Models\Household;
+use App\Models\PhilpenRiskAssessment;
 use App\Models\Resident;
 use App\Models\User;
 
@@ -43,6 +44,15 @@ class MobileBootstrapPayload
                 'recordedBy:id,name',
             ])
             ->latest('visited_at')
+            ->get();
+
+        $riskAssessments = PhilpenRiskAssessment::query()
+            ->when($barangayId, fn ($query) => $query->where('barangay_id', $barangayId))
+            ->with([
+                'recordedBy:id,name',
+            ])
+            ->orderByDesc('assessment_date')
+            ->orderByDesc('id')
             ->get();
 
         return [
@@ -118,6 +128,62 @@ class MobileBootstrapPayload
                         'captured_at' => $photo['captured_at'] ?? null,
                     ])->values()->all(),
                     'updated_at' => optional($visit->updated_at)->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+            'risk_assessments' => $riskAssessments
+                ->map(fn (PhilpenRiskAssessment $assessment) => [
+                    'id' => $assessment->id,
+                    'mobile_uuid' => $assessment->mobile_uuid,
+                    'resident_id' => $assessment->resident_id,
+                    'recorded_by_user_id' => $assessment->recorded_by_user_id,
+                    'recorded_by_name' => $assessment->recordedBy?->name,
+                    'assessment_date' => optional($assessment->assessment_date)->toDateString(),
+                    'age_years' => $assessment->age_years,
+                    'religion' => $assessment->religion,
+                    'contact_number' => $assessment->contact_number,
+                    'philhealth_number' => $assessment->philhealth_number,
+                    'civil_status' => $assessment->civil_status,
+                    'ethnicity' => $assessment->ethnicity,
+                    'pwd_id_number' => $assessment->pwd_id_number,
+                    'weight_kg' => $assessment->weight_kg,
+                    'height_cm' => $assessment->height_cm,
+                    'body_mass_index' => $assessment->body_mass_index,
+                    'waist_circumference_cm' => $assessment->waist_circumference_cm,
+                    'systolic_bp' => $assessment->systolic_bp,
+                    'diastolic_bp' => $assessment->diastolic_bp,
+                    'employment_status' => $assessment->employment_status,
+                    'ip_classification' => $assessment->ip_classification,
+                    'requires_immediate_referral' => $assessment->requires_immediate_referral,
+                    'identity_snapshot' => $assessment->identity_snapshot,
+                    'red_flags' => $assessment->red_flags,
+                    'past_medical_history' => $assessment->past_medical_history,
+                    'family_history' => $assessment->family_history,
+                    'tobacco_use' => $assessment->tobacco_use,
+                    'alcohol_consumption_status' => $assessment->alcohol_consumption_status,
+                    'alcohol_binge_flag' => $assessment->alcohol_binge_flag,
+                    'physical_activity_met' => $assessment->physical_activity_met,
+                    'high_risk_diet_weekly' => $assessment->high_risk_diet_weekly,
+                    'blood_sugar_notes' => $assessment->blood_sugar_notes,
+                    'fbs_result' => $assessment->fbs_result,
+                    'rbs_result' => $assessment->rbs_result,
+                    'dm_symptoms' => $assessment->dm_symptoms,
+                    'lipid_profile_date' => optional($assessment->lipid_profile_date)->toDateString(),
+                    'total_cholesterol' => $assessment->total_cholesterol,
+                    'hdl' => $assessment->hdl,
+                    'ldl' => $assessment->ldl,
+                    'vldl' => $assessment->vldl,
+                    'triglycerides' => $assessment->triglycerides,
+                    'urinalysis_protein' => $assessment->urinalysis_protein,
+                    'urinalysis_ketones' => $assessment->urinalysis_ketones,
+                    'urinalysis_date' => optional($assessment->urinalysis_date)->toDateString(),
+                    'chronic_respiratory_symptoms' => $assessment->chronic_respiratory_symptoms,
+                    'lifestyle_modification' => $assessment->lifestyle_modification,
+                    'anti_hypertensive_medications' => $assessment->anti_hypertensive_medications,
+                    'oral_hypoglycemic_medications' => $assessment->oral_hypoglycemic_medications,
+                    'follow_up_date' => optional($assessment->follow_up_date)->toDateString(),
+                    'remarks' => $assessment->remarks,
+                    'updated_at' => optional($assessment->updated_at)->toIso8601String(),
                 ])
                 ->values()
                 ->all(),

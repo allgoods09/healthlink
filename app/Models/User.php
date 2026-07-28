@@ -193,6 +193,11 @@ class User extends Authenticatable implements MustVerifyEmailContract
         return $this->hasMany(FieldVisit::class, 'recorded_by_user_id');
     }
 
+    public function philpenRiskAssessments()
+    {
+        return $this->hasMany(PhilpenRiskAssessment::class, 'recorded_by_user_id');
+    }
+
     /**
      * Get all barangay certificates issued by this user.
      */

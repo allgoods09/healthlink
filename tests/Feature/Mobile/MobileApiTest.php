@@ -5,6 +5,7 @@ namespace Tests\Feature\Mobile;
 use App\Models\Barangay;
 use App\Models\FieldVisit;
 use App\Models\Household;
+use App\Models\PhilpenRiskAssessment;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\User;
@@ -373,6 +374,133 @@ class MobileApiTest extends TestCase
         $this->assertSame($household->id, $resident->household_id);
         $this->assertSame($household->id, $visit->household_id);
         $this->assertCount(1, $visit->photos ?? []);
+    }
+
+    public function test_mobile_sync_keeps_existing_risk_assessments_immutable_but_accepts_idempotent_retries(): void
+    {
+        $barangay = Barangay::factory()->create();
+        $purok = Purok::factory()->create([
+            'barangay_id' => $barangay->id,
+            'purok_number' => 6,
+        ]);
+        $household = Household::create([
+            'purok_id' => $purok->id,
+            'household_no' => 'HH-601',
+            'household_address' => 'Purok 6, Tubigon',
+            'is_social_aid_beneficiary' => false,
+            'is_active' => true,
+        ]);
+        $resident = Resident::create([
+            'household_id' => $household->id,
+            'philsys_card_no' => 'PS-601',
+            'last_name' => 'Delos Reyes',
+            'first_name' => 'Ana',
+            'middle_name' => 'Mae',
+            'suffix' => null,
+            'birth_date' => '1988-03-12',
+            'birth_place' => 'Tubigon',
+            'sex' => 'Female',
+            'civil_status' => 'Married',
+            'citizenship' => 'Filipino',
+            'religion' => 'Catholic',
+            'contact_number' => '09175555555',
+            'email_address' => 'ana.delosreyes@example.com',
+            'relationship_to_head' => 'Head',
+            'is_active' => true,
+        ]);
+        $bhw = User::factory()->create([
+            'role' => 'bhw',
+            'assigned_barangay_id' => $barangay->id,
+            'assigned_purok_id' => $purok->id,
+            'approval_status' => User::APPROVAL_APPROVED,
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ]);
+        $assessmentUuid = (string) fake()->uuid();
+
+        $assessment = PhilpenRiskAssessment::create([
+            'mobile_uuid' => $assessmentUuid,
+            'resident_id' => $resident->id,
+            'household_id' => $household->id,
+            'barangay_id' => $barangay->id,
+            'purok_id' => $purok->id,
+            'recorded_by_user_id' => $bhw->id,
+            'source' => 'mobile',
+            'assessment_date' => '2026-07-01',
+            'age_years' => 38,
+            'religion' => 'Catholic',
+            'contact_number' => '09175555555',
+            'civil_status' => 'Married',
+            'requires_immediate_referral' => false,
+            'identity_snapshot' => [
+                'barangay' => $barangay->name,
+                'purok' => $purok->display_name,
+                'bhw_name' => $bhw->name,
+                'assessment_date' => '2026-07-01',
+                'resident_name' => $resident->formal_name,
+                'first_name' => $resident->first_name,
+                'middle_name' => $resident->middle_name,
+                'last_name' => $resident->last_name,
+                'age_years' => 38,
+                'birth_date' => $resident->birth_date->toDateString(),
+                'sex' => $resident->sex,
+                'contact_number' => '09175555555',
+                'civil_status' => 'Married',
+                'religion' => 'Catholic',
+                'ethnicity' => null,
+            ],
+            'red_flags' => [],
+            'past_medical_history' => [],
+            'family_history' => [],
+            'dm_symptoms' => [],
+            'chronic_respiratory_symptoms' => [],
+            'remarks' => null,
+            'last_synced_at' => now(),
+        ]);
+
+        Sanctum::actingAs($bhw, ['mobile']);
+
+        $modifiedPayload = [
+            'risk_assessments' => [
+                [
+                    'id' => $assessment->id,
+                    'mobile_uuid' => $assessmentUuid,
+                    'resident_id' => $resident->id,
+                    'assessment_date' => '2026-07-01',
+                    'religion' => 'Catholic',
+                    'contact_number' => '09175555555',
+                    'civil_status' => 'Married',
+                    'red_flags' => [],
+                    'past_medical_history' => [],
+                    'family_history' => [],
+                    'dm_symptoms' => [],
+                    'chronic_respiratory_symptoms' => [],
+                    'remarks' => 'Changed after sync',
+                ],
+            ],
+        ];
+
+        $modifiedResponse = $this->postJson('/api/mobile/sync', $modifiedPayload);
+
+        $modifiedResponse->assertOk()
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('records_synced', 0)
+            ->assertJsonPath(
+                'failed_records.0.message',
+                'PhilPEN assessments are historical records. Create a new assessment entry instead of editing an existing one.'
+            );
+
+        $this->assertNull($assessment->fresh()->remarks);
+
+        $retryPayload = $modifiedPayload;
+        $retryPayload['risk_assessments'][0]['remarks'] = null;
+
+        $retryResponse = $this->postJson('/api/mobile/sync', $retryPayload);
+
+        $retryResponse->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('records_synced', 1)
+            ->assertJsonPath('resolved_records.risk_assessments.0.operation', 'unchanged');
     }
 
     public function test_mobile_forgot_password_sends_a_reset_link(): void

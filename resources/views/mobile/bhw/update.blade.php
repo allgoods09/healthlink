@@ -5,6 +5,7 @@
     eyebrow="BHW Mobile Release"
     hero-title="Offline-first field work for Tubigon BHW teams"
     hero-description="The HealthLink BHW mobile app supports offline resident lookup, assigned-purok field drafting, visit logging, and manual sync once the device is back online."
+    content-width="max-w-6xl"
 >
     <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

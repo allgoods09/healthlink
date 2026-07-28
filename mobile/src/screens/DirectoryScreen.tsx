@@ -13,17 +13,24 @@ import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
-import { formatFriendlyDate, formatPurokLabel } from '../lib/format';
+import {
+  calculateAgeFromBirthDate,
+  daysSinceDate,
+  formatFriendlyDate,
+  formatPurokLabel,
+} from '../lib/format';
 import { getHouseholds, getResidents } from '../lib/storage';
 import { theme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
 
 type DirectoryMode = 'residents' | 'households';
+type ResidentScreeningFilter = 'due30' | 'allAdults' | 'assessed' | 'allResidents';
 
 export function DirectoryScreen({ navigation }: any) {
   const isFocused = useIsFocused();
   const { assignment, dataVersion } = useAppContext();
   const [mode, setMode] = useState<DirectoryMode>('residents');
+  const [residentFilter, setResidentFilter] = useState<ResidentScreeningFilter>('due30');
   const [search, setSearch] = useState('');
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [residents, setResidents] = useState<ResidentRecord[]>([]);
@@ -48,9 +55,30 @@ export function DirectoryScreen({ navigation }: any) {
     void loadDirectory();
   }, [dataVersion, isFocused, search]);
 
+  const filteredResidents = useMemo(() => {
+    return residents.filter((resident) => {
+      const age = calculateAgeFromBirthDate(resident.birth_date);
+      const isAdult = age !== null && age >= 20;
+      const daysSinceAssessment = daysSinceDate(resident.latest_risk_assessment_date);
+      const hasAssessment = Boolean(resident.latest_risk_assessment_date);
+
+      switch (residentFilter) {
+        case 'due30':
+          return isAdult && (!hasAssessment || daysSinceAssessment === null || daysSinceAssessment > 30);
+        case 'allAdults':
+          return isAdult;
+        case 'assessed':
+          return isAdult && hasAssessment;
+        case 'allResidents':
+        default:
+          return true;
+      }
+    });
+  }, [residentFilter, residents]);
+
   const currentData = useMemo(
-    () => (mode === 'residents' ? residents : households),
-    [households, mode, residents]
+    () => (mode === 'residents' ? filteredResidents : households),
+    [filteredResidents, households, mode]
   );
 
   function renderResidentCard(item: ResidentRecord) {
@@ -60,6 +88,30 @@ export function DirectoryScreen({ navigation }: any) {
       item.household_purok_id,
       i18n.t('purokNotAvailable')
     );
+    const residentAge = calculateAgeFromBirthDate(item.birth_date);
+    const isAdult = residentAge !== null && residentAge >= 20;
+    const latestAssessmentDays = daysSinceDate(item.latest_risk_assessment_date);
+    const hasAssessment = Boolean(item.latest_risk_assessment_date);
+
+    let riskBadgeLabel = 'Under 20';
+    let riskBadgeStyle = styles.riskBadgeNeutral;
+    let riskBadgeTextStyle = styles.riskBadgeNeutralText;
+
+    if (isAdult && !hasAssessment) {
+      riskBadgeLabel = 'Pending Assessment';
+      riskBadgeStyle = styles.riskBadgeDanger;
+      riskBadgeTextStyle = styles.riskBadgeDangerText;
+    } else if (isAdult && latestAssessmentDays !== null && latestAssessmentDays <= 30) {
+      riskBadgeLabel = `Assessed ${latestAssessmentDays} day${latestAssessmentDays === 1 ? '' : 's'} ago`;
+      riskBadgeStyle = styles.riskBadgeSuccess;
+      riskBadgeTextStyle = styles.riskBadgeSuccessText;
+    } else if (isAdult && hasAssessment) {
+      riskBadgeLabel = latestAssessmentDays !== null
+        ? `Assessed ${latestAssessmentDays} days ago`
+        : 'Assessment Recorded';
+      riskBadgeStyle = styles.riskBadgeWarning;
+      riskBadgeTextStyle = styles.riskBadgeWarningText;
+    }
 
     return (
       <View style={styles.dataCard}>
@@ -78,8 +130,20 @@ export function DirectoryScreen({ navigation }: any) {
           {purokLabel}
         </Text>
         <Text style={styles.dataMeta}>
-          {item.sex} · {formatFriendlyDate(item.birth_date) ?? item.birth_date}
+          {item.sex} · {residentAge !== null ? `Age ${residentAge}` : 'Age unavailable'} · {formatFriendlyDate(item.birth_date) ?? item.birth_date}
         </Text>
+        <View style={styles.badgeRow}>
+          <View style={[styles.riskBadge, riskBadgeStyle]}>
+            <Text style={[styles.riskBadgeText, riskBadgeTextStyle]}>{riskBadgeLabel}</Text>
+          </View>
+          {isAdult && item.latest_risk_assessment_date ? (
+            <View style={styles.dateBadge}>
+              <Text style={styles.dateBadgeText}>
+                {formatFriendlyDate(item.latest_risk_assessment_date) ?? item.latest_risk_assessment_date}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.inlineActionsRow}>
           <Pressable
             onPress={() => navigation.navigate('ResidentDetails', { localId: item.local_id })}
@@ -211,6 +275,34 @@ export function DirectoryScreen({ navigation }: any) {
             </View>
 
             {mode === 'residents' ? (
+              <View style={styles.filterWrap}>
+                <Text style={styles.filterLabel}>PhilPEN Screening View</Text>
+                <View style={styles.filterRow}>
+                  <FilterChip
+                    label="Pending 30 Days"
+                    active={residentFilter === 'due30'}
+                    onPress={() => setResidentFilter('due30')}
+                  />
+                  <FilterChip
+                    label="All Adults"
+                    active={residentFilter === 'allAdults'}
+                    onPress={() => setResidentFilter('allAdults')}
+                  />
+                  <FilterChip
+                    label="Assessed"
+                    active={residentFilter === 'assessed'}
+                    onPress={() => setResidentFilter('assessed')}
+                  />
+                  <FilterChip
+                    label="All Residents"
+                    active={residentFilter === 'allResidents'}
+                    onPress={() => setResidentFilter('allResidents')}
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {mode === 'residents' ? (
               <MenuCard
                 title={i18n.t('newResidentDraft')}
                 subtitle={i18n.t('newResidentDraftBody')}
@@ -239,6 +331,27 @@ export function DirectoryScreen({ navigation }: any) {
         }
       />
     </View>
+  );
+}
+
+function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.filterChip, active && styles.filterChipActive]}
+    >
+      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -308,6 +421,40 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: '#FFFFFF',
   },
+  filterWrap: {
+    marginBottom: theme.spacing.md,
+  },
+  filterLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  filterChipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  filterChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
   dataCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
@@ -341,6 +488,56 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     lineHeight: 20,
     marginTop: 6,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginTop: 10,
+  },
+  riskBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  riskBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  riskBadgeSuccess: {
+    backgroundColor: '#DCFCE7',
+  },
+  riskBadgeSuccessText: {
+    color: '#166534',
+  },
+  riskBadgeWarning: {
+    backgroundColor: '#FEF3C7',
+  },
+  riskBadgeWarningText: {
+    color: '#92400E',
+  },
+  riskBadgeDanger: {
+    backgroundColor: '#FEE2E2',
+  },
+  riskBadgeDangerText: {
+    color: '#B91C1C',
+  },
+  riskBadgeNeutral: {
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  riskBadgeNeutralText: {
+    color: theme.colors.textMuted,
+  },
+  dateBadge: {
+    borderRadius: 999,
+    backgroundColor: theme.colors.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dateBadgeText: {
+    color: theme.colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '700',
   },
   scopePill: {
     borderRadius: 999,

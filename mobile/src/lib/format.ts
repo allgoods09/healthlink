@@ -4,6 +4,67 @@ function pad(value: number) {
   return String(value).padStart(2, '0');
 }
 
+function parseDateOnly(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function parseDateValue(value: string) {
+  return parseDateOnly(value) ?? (() => {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  })();
+}
+
+function startOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+export function calculateAgeOnDate(
+  birthDate: string | null | undefined,
+  referenceDate: Date
+) {
+  if (!birthDate) {
+    return null;
+  }
+
+  const date = parseDateValue(birthDate);
+
+  if (!date) {
+    return null;
+  }
+
+  let age = referenceDate.getFullYear() - date.getFullYear();
+  const monthDiff = referenceDate.getMonth() - date.getMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && referenceDate.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+}
+
 export function formatFriendlyDateTime(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -51,22 +112,9 @@ export function formatFriendlyDate(value: string | null | undefined) {
     return null;
   }
 
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = parseDateOnly(value);
 
-  if (match) {
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    const date = new Date(year, month - 1, day);
-
-    if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month - 1 ||
-      date.getDate() !== day
-    ) {
-      return null;
-    }
-
+  if (date) {
     return new Intl.DateTimeFormat('en-US', {
       month: 'long',
       day: 'numeric',
@@ -74,9 +122,9 @@ export function formatFriendlyDate(value: string | null | undefined) {
     }).format(date);
   }
 
-  const parsed = new Date(value);
+  const parsed = parseDateValue(value);
 
-  if (Number.isNaN(parsed.getTime())) {
+  if (!parsed) {
     return null;
   }
 
@@ -167,4 +215,27 @@ export function formatPurokLabel(
 
 export function humanizeLastSync(value: string | null | undefined) {
   return formatFriendlyDateTime(value) ?? DATE_INPUT_PLACEHOLDER;
+}
+
+export function calculateAgeFromBirthDate(value: string | null | undefined) {
+  return calculateAgeOnDate(value, new Date());
+}
+
+export function daysSinceDate(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = parseDateValue(value);
+
+  if (!date) {
+    return null;
+  }
+
+  const now = startOfLocalDay(new Date());
+  const comparisonDate = startOfLocalDay(date);
+  const diffMs = now.getTime() - comparisonDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return diffDays >= 0 ? diffDays : null;
 }

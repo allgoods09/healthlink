@@ -654,19 +654,27 @@ class SystemMetricsController extends Controller
         $storagePath = storage_path();
         $totalSpace = @disk_total_space($storagePath);
         $freeSpace = @disk_free_space($storagePath);
+        $storageWritable = is_writable($storagePath);
 
         if (is_numeric($totalSpace) && is_numeric($freeSpace) && $totalSpace > 0) {
             $percentageUsed = (($totalSpace - $freeSpace) / $totalSpace) * 100;
+            $details = 'Storage usage is currently '.number_format($percentageUsed, 2).'% of the available disk.';
+
+            if ($percentageUsed >= 80) {
+                $details .= ' High usage warning: plan cleanup or additional capacity soon.';
+            }
 
             return [
-                'healthy' => $percentageUsed < 80,
-                'details' => 'Storage usage is currently '.number_format($percentageUsed, 2).'% of the available disk.',
+                'healthy' => $storageWritable,
+                'details' => $storageWritable
+                    ? $details
+                    : 'Storage directory is not writable.',
             ];
         }
 
         return [
-            'healthy' => is_writable($storagePath),
-            'details' => is_writable($storagePath)
+            'healthy' => $storageWritable,
+            'details' => $storageWritable
                 ? 'Disk statistics are unavailable, but the storage directory is writable.'
                 : 'Storage directory is not writable.',
         ];

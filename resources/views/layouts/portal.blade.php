@@ -244,7 +244,7 @@
         </aside>
 
         <div :class="isDesktop && sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'">
-            <nav class="border-b border-slate-200 bg-white/95 backdrop-blur">
+            <nav class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
                 <div class="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
                     <div class="flex items-center gap-4">
                         <button @click="toggleSidebar()" class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-tubigon" aria-label="Toggle sidebar">

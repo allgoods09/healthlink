@@ -1,19 +1,25 @@
 {
-  "cli": {
-    "version": "21.0.2",
-    "appVersionSource": "local"
-  },
-  "build": {
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
+    "cli": {
+        "version": "21.0.2",
+        "appVersionSource": "local"
     },
-    "production": {
-      "android": {
-        "buildType": "apk"
-      }
+    "build": {
+        "preview": {
+            "distribution": "internal",
+            "android": {
+                "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_API_BASE_URL": "https://healthlink.up.railway.app"
+            }
+        },
+        "production": {
+            "android": {
+                "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_API_BASE_URL": "https://healthlink.up.railway.app"
+            }
+        }
     }
-  }
 }

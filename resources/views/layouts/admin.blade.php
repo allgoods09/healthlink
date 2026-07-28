@@ -153,7 +153,7 @@
         </aside>
 
         <div :class="isDesktop && sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'">
-            <nav class="bg-white border-b border-gray-200 shadow-sm">
+            <nav class="sticky top-0 z-30 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur">
                 <div class="px-4 mx-auto sm:px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
                         <div class="flex items-center">
