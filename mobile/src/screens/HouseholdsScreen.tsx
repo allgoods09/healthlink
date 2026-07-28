@@ -23,7 +23,6 @@ export function HouseholdsScreen({ navigation }: any) {
     dataVersion,
     isOnline,
     isSyncing,
-    statusMessage,
     syncNow,
   } = useAppContext();
   const [search, setSearch] = useState('');
@@ -82,11 +81,6 @@ export function HouseholdsScreen({ navigation }: any) {
                 <Text style={styles.secondaryButtonText}>{i18n.t('syncNow')}</Text>
               </Pressable>
             </View>
-          }
-          ListFooterComponent={
-            statusMessage ? (
-              <Text style={styles.statusText}>{statusMessage}</Text>
-            ) : null
           }
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -248,9 +242,5 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
-  },
-  statusText: {
-    color: theme.colors.textMuted,
-    textAlign: 'center',
   },
 });

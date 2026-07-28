@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\MobileAppRelease;
 use App\Models\Setting;
 use App\Support\MobileReleaseManager;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -62,7 +63,7 @@ class MobileReleaseController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         Gate::authorize('create', Setting::class);
 
@@ -79,6 +80,7 @@ class MobileReleaseController extends Controller
 
         if ($request->boolean('publish_now')) {
             $this->publishRelease($release);
+            $roleNotificationService->notifyMobileReleasePublished($release->fresh(), Auth::user());
 
             return redirect()
                 ->route('admin.mobile-releases.show', $release)
@@ -129,7 +131,11 @@ class MobileReleaseController extends Controller
         ]);
     }
 
-    public function update(Request $request, MobileAppRelease $mobileRelease): RedirectResponse
+    public function update(
+        Request $request,
+        MobileAppRelease $mobileRelease,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         Gate::authorize('update', Setting::class);
 
@@ -151,6 +157,7 @@ class MobileReleaseController extends Controller
 
         if ($request->boolean('publish_now')) {
             $this->publishRelease($mobileRelease);
+            $roleNotificationService->notifyMobileReleasePublished($mobileRelease->fresh(), Auth::user());
 
             return redirect()
                 ->route('admin.mobile-releases.show', $mobileRelease)
@@ -174,11 +181,16 @@ class MobileReleaseController extends Controller
             ->with('success', "Mobile release {$mobileRelease->version_name} was updated.");
     }
 
-    public function publish(Request $request, MobileAppRelease $mobileRelease): RedirectResponse
+    public function publish(
+        Request $request,
+        MobileAppRelease $mobileRelease,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         Gate::authorize('update', Setting::class);
 
         $this->publishRelease($mobileRelease);
+        $roleNotificationService->notifyMobileReleasePublished($mobileRelease->fresh(), Auth::user());
 
         return back()->with(
             'success',

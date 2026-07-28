@@ -12,6 +12,7 @@ use App\Models\ClinicalEncounter;
 use App\Models\Resident;
 use App\Models\TriageRecord;
 use App\Support\ExportAudit;
+use App\Support\RoleNotificationService;
 use App\Support\TabularExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -140,7 +141,7 @@ class ClinicalEncounterController extends Controller
         ]);
     }
 
-    public function store(StoreClinicalEncounterRequest $request): RedirectResponse
+    public function store(StoreClinicalEncounterRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $resident = $this->phnResidentsQuery()
             ->with('household.purok.barangay')
@@ -155,6 +156,10 @@ class ClinicalEncounterController extends Controller
         );
 
         AuditLog::logMutation('created', Auth::user(), $clinicalEncounter);
+
+        if ($clinicalEncounter->is_escalated_to_mho) {
+            $roleNotificationService->notifyEncounterEscalated($clinicalEncounter);
+        }
 
         return redirect()
             ->route('phn.encounters.show', $clinicalEncounter)
@@ -206,18 +211,27 @@ class ClinicalEncounterController extends Controller
         ]);
     }
 
-    public function update(UpdateClinicalEncounterRequest $request, ClinicalEncounter $clinicalEncounter): RedirectResponse
+    public function update(
+        UpdateClinicalEncounterRequest $request,
+        ClinicalEncounter $clinicalEncounter,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         $this->ensureClinicalEncounterExists($clinicalEncounter);
 
         $clinicalEncounter->loadMissing('resident.household.purok', 'triageRecord');
         $oldValues = $clinicalEncounter->toArray();
+        $wasEscalated = (bool) $clinicalEncounter->is_escalated_to_mho;
 
         $clinicalEncounter->update(
             $this->encounterPayload($request, $clinicalEncounter->resident, $clinicalEncounter->triageRecord, $clinicalEncounter)
         );
 
         AuditLog::logMutation('updated', Auth::user(), $clinicalEncounter, $oldValues, $clinicalEncounter->fresh()->toArray());
+
+        if (! $wasEscalated && $clinicalEncounter->fresh()->is_escalated_to_mho) {
+            $roleNotificationService->notifyEncounterEscalated($clinicalEncounter->fresh());
+        }
 
         return redirect()
             ->route('phn.encounters.show', $clinicalEncounter)

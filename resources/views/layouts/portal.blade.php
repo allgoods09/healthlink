@@ -15,6 +15,7 @@
     @stack('styles')
 </head>
 <body x-data="sidebarLayout('portal-{{ $user?->role ?? 'default' }}')" class="font-sans antialiased bg-slate-50">
+<x-flash-toasts />
 @php
     $user = Auth::user();
 
@@ -259,6 +260,11 @@
                     </div>
 
                     <div class="flex items-center gap-3">
+                        <x-notification-dropdown
+                            :notifications="$layoutRecentNotifications ?? collect()"
+                            :unread-count="$layoutUnreadNotificationCount ?? 0"
+                            theme="portal"
+                        />
                         <a href="{{ route('profile.edit') }}" class="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-tubigon/20 hover:text-tubigon sm:inline-flex">
                             Profile
                         </a>
@@ -284,32 +290,6 @@
                         @yield('actions')
                     </div>
                 </div>
-
-                @if(session('success'))
-                    <div x-data="{ show: true }" x-show="show" class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700 shadow-sm">
-                        <div class="flex items-start justify-between gap-3">
-                            <span class="block sm:inline">{{ session('success') }}</span>
-                            <button @click="show = false" class="text-emerald-700 transition hover:text-emerald-900">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                @endif
-
-                @if(session('error'))
-                    <div x-data="{ show: true }" x-show="show" class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 shadow-sm">
-                        <div class="flex items-start justify-between gap-3">
-                            <span class="block sm:inline">{{ session('error') }}</span>
-                            <button @click="show = false" class="text-rose-700 transition hover:text-rose-900">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                @endif
 
                 @yield('content')
             </main>

@@ -23,6 +23,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-950 font-sans text-slate-900 antialiased">
+        <x-flash-toasts />
         <div
             class="relative min-h-screen overflow-hidden bg-slate-950 bg-cover bg-center bg-no-repeat"
             style="background-image: url('{{ asset('images/healthlink_bg.jpg') }}');"

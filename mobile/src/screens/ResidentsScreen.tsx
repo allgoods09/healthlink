@@ -17,7 +17,7 @@ import { ResidentRecord } from '../types';
 
 export function ResidentsScreen({ navigation }: any) {
   const isFocused = useIsFocused();
-  const { bootstrapCompleted, dataVersion, statusMessage, syncNow } = useAppContext();
+  const { bootstrapCompleted, dataVersion, syncNow } = useAppContext();
   const [search, setSearch] = useState('');
   const [records, setRecords] = useState<ResidentRecord[]>([]);
 
@@ -56,9 +56,6 @@ export function ResidentsScreen({ navigation }: any) {
             >
               <Text style={styles.secondaryButtonText}>{i18n.t('createResident')}</Text>
             </Pressable>
-          }
-          ListFooterComponent={
-            statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null
           }
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -186,9 +183,5 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
-  },
-  statusText: {
-    color: theme.colors.textMuted,
-    textAlign: 'center',
   },
 });

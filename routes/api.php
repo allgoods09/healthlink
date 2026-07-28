@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Mobile\AuthController;
+use App\Http\Controllers\Api\Mobile\NotificationController;
 use App\Http\Controllers\Api\Mobile\ReleaseController;
 use App\Http\Controllers\Api\Mobile\SyncController;
 use Illuminate\Http\Request;
@@ -38,6 +39,9 @@ Route::prefix('mobile')
                 Route::get('/seed', [SyncController::class, 'seed'])->name('seed');
                 Route::post('/sync', [SyncController::class, 'sync'])->name('sync');
                 Route::get('/verify', [SyncController::class, 'verify'])->name('verify');
+                Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+                Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+                Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'read'])->name('notifications.read');
                 Route::post('/report-failure', [SyncController::class, 'reportFailure'])->name('report-failure');
             });
     });

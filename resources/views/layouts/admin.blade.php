@@ -15,6 +15,7 @@
     @stack('styles')
 </head>
 <body x-data="sidebarLayout('admin')" class="font-sans antialiased bg-gray-100">
+    <x-flash-toasts />
     @php
         $isOverrideWorkspace = request()->routeIs([
             'admin.users.*',
@@ -169,12 +170,11 @@
                                 @yield('header')
                             </span>
 
-                            <button class="text-gray-500 hover:text-gray-700 relative">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                                </svg>
-                                <span class="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full"></span>
-                            </button>
+                            <x-notification-dropdown
+                                :notifications="$layoutRecentNotifications ?? collect()"
+                                :unread-count="$layoutUnreadNotificationCount ?? 0"
+                                theme="admin"
+                            />
 
                             <div class="relative" x-data="{ open: false }">
                                 <button @click="open = !open" class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-tubigon">
@@ -218,36 +218,6 @@
                         @yield('actions')
                     </div>
                 </div>
-
-                @if(session('success'))
-                    <div x-data="{ show: true }" x-show="show" 
-                         x-transition:enter="transition ease-out duration-300"
-                         x-transition:enter-start="opacity-0 transform translate-y-2"
-                         x-transition:enter-end="opacity-100 transform translate-y-0"
-                         class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative" role="alert">
-                        <button @click="show = false" class="absolute top-0 right-0 px-4 py-3">
-                            <svg class="w-4 h-4 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                        <span class="block sm:inline">{{ session('success') }}</span>
-                    </div>
-                @endif
-
-                @if(session('error'))
-                    <div x-data="{ show: true }" x-show="show" 
-                         x-transition:enter="transition ease-out duration-300"
-                         x-transition:enter-start="opacity-0 transform translate-y-2"
-                         x-transition:enter-end="opacity-100 transform translate-y-0"
-                         class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
-                        <button @click="show = false" class="absolute top-0 right-0 px-4 py-3">
-                            <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                        <span class="block sm:inline">{{ session('error') }}</span>
-                    </div>
-                @endif
 
                 @if($isOverrideWorkspace)
                     <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900">

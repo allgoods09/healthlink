@@ -13,22 +13,21 @@ import { i18n } from '../i18n';
 import { theme } from '../theme';
 
 export function ForgotPasswordScreen({ navigation }: any) {
-  const { requestPasswordReset } = useAppContext();
+  const { requestPasswordReset, showToast } = useAppContext();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   async function handleSubmit() {
     setSubmitting(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const message = await requestPasswordReset(email);
-      setSuccess(message);
+      showToast(message, 'success');
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Request failed.');
+      showToast(
+        nextError instanceof Error ? nextError.message : 'Request failed.',
+        'error'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -48,18 +47,6 @@ export function ForgotPasswordScreen({ navigation }: any) {
           onChangeText={setEmail}
           style={styles.input}
         />
-
-        {error && (
-          <View style={[styles.message, styles.errorMessage]}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {success && (
-          <View style={[styles.message, styles.successMessage]}>
-            <Text style={styles.successText}>{success}</Text>
-          </View>
-        )}
 
         <Pressable
           onPress={handleSubmit}
@@ -119,23 +106,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.text,
-  },
-  message: {
-    borderRadius: theme.radius.md,
-    padding: 14,
-    marginTop: 16,
-  },
-  errorMessage: {
-    backgroundColor: theme.colors.dangerSoft,
-  },
-  successMessage: {
-    backgroundColor: theme.colors.successSoft,
-  },
-  errorText: {
-    color: theme.colors.danger,
-  },
-  successText: {
-    color: theme.colors.success,
   },
   primaryButton: {
     marginTop: 18,

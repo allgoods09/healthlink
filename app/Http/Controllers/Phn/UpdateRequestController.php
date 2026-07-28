@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Household;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -71,7 +72,7 @@ class UpdateRequestController extends Controller
         ]);
     }
 
-    public function storeResident(StoreResidentUpdateRequest $request): RedirectResponse
+    public function storeResident(StoreResidentUpdateRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $resident = $this->phnResidentsQuery()
             ->with('household.purok')
@@ -89,6 +90,7 @@ class UpdateRequestController extends Controller
         ]);
 
         AuditLog::logMutation('created', Auth::user(), $updateRequest);
+        $roleNotificationService->notifyProfileUpdateSubmitted($updateRequest);
 
         return redirect()
             ->route('phn.update-requests.show', $updateRequest)
@@ -121,7 +123,7 @@ class UpdateRequestController extends Controller
         ]);
     }
 
-    public function storeHousehold(StoreHouseholdUpdateRequest $request): RedirectResponse
+    public function storeHousehold(StoreHouseholdUpdateRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $household = $this->phnHouseholdsQuery()
             ->with('purok', 'headResident')
@@ -139,6 +141,7 @@ class UpdateRequestController extends Controller
         ]);
 
         AuditLog::logMutation('created', Auth::user(), $updateRequest);
+        $roleNotificationService->notifyProfileUpdateSubmitted($updateRequest);
 
         return redirect()
             ->route('phn.update-requests.show', $updateRequest)

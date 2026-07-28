@@ -20,7 +20,7 @@ import { FieldVisitRecord } from '../types';
 
 export function VisitsScreen({ navigation }: any) {
   const isFocused = useIsFocused();
-  const { bootstrapCompleted, dataVersion, statusMessage, syncNow } = useAppContext();
+  const { bootstrapCompleted, dataVersion, syncNow } = useAppContext();
   const [search, setSearch] = useState('');
   const [records, setRecords] = useState<FieldVisitRecord[]>([]);
 
@@ -70,9 +70,6 @@ export function VisitsScreen({ navigation }: any) {
               </View>
             ) : null}
           </View>
-        }
-        ListFooterComponent={
-          statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null
         }
         ListEmptyComponent={
           bootstrapCompleted ? (
@@ -208,11 +205,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
-  },
-  statusText: {
-    color: theme.colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: theme.spacing.md,
   },
   emptyHistoryCard: {
     backgroundColor: theme.colors.surface,

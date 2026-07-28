@@ -9,6 +9,7 @@ use App\Http\Requests\Bhw\UpdateTriageRecordRequest;
 use App\Models\AuditLog;
 use App\Models\Resident;
 use App\Models\TriageRecord;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -74,7 +75,7 @@ class TriageController extends Controller
         ]);
     }
 
-    public function store(StoreTriageRecordRequest $request): RedirectResponse
+    public function store(StoreTriageRecordRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $resident = $this->bhwResidentsQuery()
             ->with('household.purok')
@@ -98,6 +99,7 @@ class TriageController extends Controller
         ]);
 
         AuditLog::logMutation('created', Auth::user(), $triageRecord);
+        $roleNotificationService->notifyTriageSubmitted($triageRecord);
 
         return redirect()
             ->route('bhw.triage.show', $triageRecord)

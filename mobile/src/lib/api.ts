@@ -1,4 +1,9 @@
-import { BootstrapPayload, MobileReleaseCheck, SyncResponse } from '../types';
+import {
+  BootstrapPayload,
+  MobileNotificationResponse,
+  MobileReleaseCheck,
+  SyncResponse,
+} from '../types';
 
 type LoginPayload = {
   email: string;
@@ -112,6 +117,51 @@ export async function mobileLogout(baseUrl: string, token: string) {
   return request<{ success: boolean }>(
     baseUrl,
     '/api/mobile/auth/logout',
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+    token
+  );
+}
+
+export async function mobileNotifications(baseUrl: string, token: string) {
+  return request<MobileNotificationResponse>(
+    baseUrl,
+    '/api/mobile/notifications',
+    {},
+    token
+  );
+}
+
+export async function mobileReadNotification(
+  baseUrl: string,
+  token: string,
+  notificationId: string
+) {
+  return request<{
+    success: boolean;
+    notification: MobileNotificationResponse['notifications'][number];
+    unread_count: number;
+  }>(
+    baseUrl,
+    `/api/mobile/notifications/${notificationId}/read`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+    token
+  );
+}
+
+export async function mobileReadAllNotifications(baseUrl: string, token: string) {
+  return request<{
+    success: boolean;
+    unread_count: number;
+    checked_at: string;
+  }>(
+    baseUrl,
+    '/api/mobile/notifications/read-all',
     {
       method: 'POST',
       body: JSON.stringify({}),

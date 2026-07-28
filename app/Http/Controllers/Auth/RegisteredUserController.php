@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Barangay;
 use App\Models\User;
+use App\Support\RoleNotificationService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +35,7 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -59,6 +60,7 @@ class RegisteredUserController extends Controller
         ]);
 
         event(new Registered($user));
+        $roleNotificationService->notifySelfRegistrationPending($user);
 
         Auth::login($user);
 

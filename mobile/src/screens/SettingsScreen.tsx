@@ -23,7 +23,6 @@ export function SettingsScreen() {
     pendingSyncCount,
     setLanguagePreference,
     signOut,
-    statusMessage,
     syncNow,
     user,
   } = useAppContext();
@@ -80,12 +79,6 @@ export function SettingsScreen() {
           </Pressable>
         </View>
       </View>
-
-      {statusMessage ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionText}>{statusMessage}</Text>
-        </View>
-      ) : null}
 
       <Pressable onPress={syncNow} style={styles.primaryButton}>
         <Text style={styles.primaryButtonText}>

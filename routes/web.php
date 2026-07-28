@@ -48,6 +48,7 @@ use App\Http\Controllers\Phn\ResidentController as PhnResidentController;
 use App\Http\Controllers\Phn\TriageQueueController as PhnTriageQueueController;
 use App\Http\Controllers\Phn\UpdateRequestController as PhnUpdateRequestController;
 use App\Http\Controllers\Mobile\BhwReleaseController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Secretary\ActivityFeedController as SecretaryActivityFeedController;
 use App\Http\Controllers\Secretary\CertificateController as SecretaryCertificateController;
@@ -120,6 +121,15 @@ Route::middleware(['auth', 'no-cache'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::prefix('notifications')
+        ->name('notifications.')
+        ->controller(NotificationController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/read-all', 'markAllRead')->name('read-all');
+            Route::post('/{notificationId}/open', 'open')->name('open');
+        });
 });
 
 // =============================================

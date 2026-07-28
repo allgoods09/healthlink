@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\IAM;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,7 @@ class UserApprovalController extends Controller
     /**
      * Approve a pending self-registration.
      */
-    public function approve(User $user): RedirectResponse
+    public function approve(User $user, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         Gate::authorize('update', $user);
 
@@ -46,6 +47,7 @@ class UserApprovalController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
+        $roleNotificationService->notifyRegistrationReviewed($user, true, Auth::user());
 
         return back()->with('success', "Registration for {$user->name} has been approved.");
     }
@@ -53,7 +55,7 @@ class UserApprovalController extends Controller
     /**
      * Reject a pending self-registration.
      */
-    public function reject(Request $request, User $user): RedirectResponse
+    public function reject(Request $request, User $user, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         Gate::authorize('update', $user);
 
@@ -78,6 +80,7 @@ class UserApprovalController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
+        $roleNotificationService->notifyRegistrationReviewed($user, false, Auth::user());
 
         return back()->with('success', "Registration for {$user->name} has been rejected.");
     }

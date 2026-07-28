@@ -20,7 +20,7 @@ import { theme } from "../theme";
 import { authBackgroundImage, BrandMark } from "../components/BrandMark";
 
 export function LoginScreen({ navigation }: any) {
-    const { signIn, statusMessage } = useAppContext();
+    const { showToast, signIn, statusMessage } = useAppContext();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -37,15 +37,25 @@ export function LoginScreen({ navigation }: any) {
                 password,
             });
         } catch (nextError) {
-            setError(
+            const message =
                 nextError instanceof Error
                     ? nextError.message
-                    : "Sign in failed.",
-            );
+                    : "Sign in failed.";
+
+            setError(message);
+            showToast(message, "error");
         } finally {
             setSubmitting(false);
         }
     }
+
+    React.useEffect(() => {
+        if (!statusMessage || error) {
+            return;
+        }
+
+        showToast(statusMessage, "warning");
+    }, [error, showToast, statusMessage]);
 
     return (
         <ImageBackground
@@ -138,21 +148,6 @@ export function LoginScreen({ navigation }: any) {
                                 {i18n.t("forgotPassword")}
                             </Text>
                         </Pressable>
-
-                        {(error || statusMessage) && (
-                            <View
-                                style={[
-                                    styles.alert,
-                                    error
-                                        ? styles.alertDanger
-                                        : styles.alertInfo,
-                                ]}
-                            >
-                                <Text style={styles.alertText}>
-                                    {error ?? statusMessage}
-                                </Text>
-                            </View>
-                        )}
 
                         <Pressable
                             onPress={handleSubmit}
@@ -249,24 +244,6 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "500",
         textDecorationLine: "underline",
-    },
-    alert: {
-        borderRadius: 16,
-        padding: 14,
-        borderWidth: 1,
-    },
-    alertText: {
-        color: "#FFFFFF",
-        lineHeight: 20,
-        textAlign: "center",
-    },
-    alertDanger: {
-        backgroundColor: "rgba(157, 25, 25, 0.38)",
-        borderColor: "rgba(255, 235, 235, 0.34)",
-    },
-    alertInfo: {
-        backgroundColor: "rgba(8, 46, 89, 0.36)",
-        borderColor: "rgba(255, 255, 255, 0.28)",
     },
     primaryButton: {
         backgroundColor: "#0E5FB8",

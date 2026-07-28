@@ -16,6 +16,9 @@ import {
   mobileForgotPassword,
   mobileLogin,
   mobileLogout,
+  mobileNotifications,
+  mobileReadAllNotifications,
+  mobileReadNotification,
   mobileSync,
   mobileVerify,
 } from '../lib/api';
@@ -36,7 +39,14 @@ import {
   setAppState,
   storeToken,
 } from '../lib/storage';
-import { MobileAssignment, MobileReleaseCheck, MobileUser } from '../types';
+import {
+  MobileAssignment,
+  MobileNotification,
+  MobileReleaseCheck,
+  MobileToast,
+  MobileToastLevel,
+  MobileUser,
+} from '../types';
 
 type AppContextValue = {
   isReady: boolean;
@@ -52,6 +62,9 @@ type AppContextValue = {
   appVersionCode: number;
   lastSyncAt: string | null;
   statusMessage: string | null;
+  toast: MobileToast | null;
+  notifications: MobileNotification[];
+  unreadNotificationCount: number;
   dataVersion: number;
   initialSyncInProgress: boolean;
   pendingSyncCount: number;
@@ -62,6 +75,11 @@ type AppContextValue = {
   syncNow: () => Promise<void>;
   retryInitialSync: () => Promise<void>;
   refreshReleaseStatus: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  showToast: (message: string | null | undefined, level?: MobileToastLevel) => void;
+  clearToast: () => void;
   setLanguagePreference: (locale: SupportedLocale) => Promise<void>;
   bumpDataVersion: () => void;
 };
@@ -84,6 +102,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<MobileToast | null>(null);
+  const [notifications, setNotifications] = useState<MobileNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [dataVersion, setDataVersion] = useState(0);
   const [initialSyncInProgress, setInitialSyncInProgress] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -94,6 +115,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendingSyncCount(summary.total);
 
     return summary;
+  }
+
+  function showToast(
+    message: string | null | undefined,
+    level: MobileToastLevel = 'info'
+  ) {
+    if (!message || !message.trim()) {
+      return;
+    }
+
+    setToast({
+      id: Date.now(),
+      message,
+      level,
+    });
+  }
+
+  function clearToast() {
+    setToast(null);
   }
 
   async function hydrateBootstrapSession(bootstrap: Awaited<ReturnType<typeof mobileBootstrap>>) {
@@ -124,6 +164,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refreshNotificationsWithToken(nextToken: string | null) {
+    if (!nextToken || !isOnline) {
+      return;
+    }
+
+    try {
+      const response = await mobileNotifications(MOBILE_API_BASE_URL, nextToken);
+      setNotifications(response.notifications);
+      setUnreadNotificationCount(response.unread_count);
+    } catch {
+      // Keep notifications non-blocking when the endpoint is temporarily unavailable.
+    }
+  }
+
   async function performInitialSync(
     nextApiBaseUrl: string,
     nextToken: string,
@@ -134,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!isOnline) {
       setInitialSyncInProgress(false);
       setStatusMessage(i18n.t('initialSyncOffline'));
+      showToast(i18n.t('initialSyncOffline'), 'warning');
       return;
     }
 
@@ -145,7 +200,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await hydrateBootstrapSession(bootstrap);
     } catch (error) {
       setBootstrapCompleted(false);
-      setStatusMessage(error instanceof Error ? error.message : fallbackMessage);
+      const message = error instanceof Error ? error.message : fallbackMessage;
+      setStatusMessage(message);
+      showToast(message, 'error');
     } finally {
       setInitialSyncInProgress(false);
     }
@@ -233,24 +290,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isOnline, token]);
 
   useEffect(() => {
-    if (!isReady || !isOnline) {
+    if (!isReady || !isOnline || !token) {
       return;
     }
 
     void refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
-  }, [isOnline, isReady]);
+    void refreshNotificationsWithToken(token);
+  }, [isOnline, isReady, token]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && isReady && isOnline) {
         void refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
+        void refreshNotificationsWithToken(token);
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [isOnline, isReady]);
+  }, [isOnline, isReady, token]);
 
   useEffect(() => {
     if (!isReady) {
@@ -300,6 +359,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStatusMessage(null);
     setInitialSyncInProgress(false);
     await refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
+    await refreshNotificationsWithToken(response.token);
 
     if (canReuseCachedData) {
       if (existingDatasetAssignment) {
@@ -351,6 +411,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInitialSyncInProgress(false);
     setLastSyncAt(null);
     setStatusMessage(null);
+    setNotifications([]);
+    setUnreadNotificationCount(0);
+    setReleaseCheck(null);
+    clearToast();
     await refreshPendingSyncCount();
   }
 
@@ -359,10 +423,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const activeToken = token;
+
     if (releaseCheck?.update.available && releaseCheck.update.required) {
-      setStatusMessage(
-        releaseCheck.update.message ?? i18n.t('syncBlockedUpdateRequired')
-      );
+      const message =
+        releaseCheck.update.message ?? i18n.t('syncBlockedUpdateRequired');
+      setStatusMessage(message);
+      showToast(message, 'warning');
       return;
     }
 
@@ -374,7 +441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (pendingSummary.total > 0) {
         setStatusMessage(i18n.t('uploadingChanges'));
         const payload = await getPendingSyncPayload();
-        const syncResponse = await mobileSync(MOBILE_API_BASE_URL, token, {
+        const syncResponse = await mobileSync(MOBILE_API_BASE_URL, activeToken, {
           ...payload,
           device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
           app_version: APP_VERSION,
@@ -386,10 +453,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remainingSummary = await refreshPendingSyncCount();
 
         if (syncResponse.status !== 'success' || remainingSummary.total > 0) {
-          setStatusMessage(
+          const message =
             syncResponse.failed_records[0]?.message ??
-              i18n.t('syncUploadIncomplete')
-          );
+            i18n.t('syncUploadIncomplete');
+          setStatusMessage(message);
+          showToast(message, 'warning');
           setDataVersion((current) => current + 1);
 
           return;
@@ -399,17 +467,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const downloadGuard = await refreshPendingSyncCount();
       if (downloadGuard.total > 0) {
         setStatusMessage(i18n.t('syncDownloadSkipped'));
+        showToast(i18n.t('syncDownloadSkipped'), 'warning');
         return;
       }
 
       setStatusMessage(i18n.t('downloadingLatest'));
-      const bootstrap = await mobileBootstrap(MOBILE_API_BASE_URL, token);
+      const bootstrap = await mobileBootstrap(MOBILE_API_BASE_URL, activeToken);
       await hydrateBootstrapSession(bootstrap);
       setStatusMessage(i18n.t('syncComplete'));
+      showToast(i18n.t('syncComplete'), 'success');
+      await refreshNotificationsWithToken(activeToken);
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error ? error.message : i18n.t('syncFailed')
-      );
+      const message =
+        error instanceof Error ? error.message : i18n.t('syncFailed');
+      setStatusMessage(message);
+      showToast(message, 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -429,6 +501,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await setAppState('language', locale);
   }
 
+  async function markNotificationRead(notificationId: string) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await mobileReadNotification(
+        MOBILE_API_BASE_URL,
+        token,
+        notificationId
+      );
+
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === notificationId
+            ? response.notification
+            : notification
+        )
+      );
+      setUnreadNotificationCount(response.unread_count);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : i18n.t('notificationReadFailed'),
+        'error'
+      );
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    if (!token) {
+      return;
+    }
+
+    try {
+      await mobileReadAllNotifications(MOBILE_API_BASE_URL, token);
+      setNotifications((current) =>
+        current.map((notification) => ({
+          ...notification,
+          read_at: notification.read_at ?? new Date().toISOString(),
+        }))
+      );
+      setUnreadNotificationCount(0);
+      showToast(i18n.t('notificationsMarkedRead'), 'success');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : i18n.t('notificationReadFailed'),
+        'error'
+      );
+    }
+  }
+
   const value = useMemo<AppContextValue>(
     () => ({
       isReady,
@@ -444,6 +567,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       appVersionCode: APP_VERSION_CODE,
       lastSyncAt,
       statusMessage,
+      toast,
+      notifications,
+      unreadNotificationCount,
       dataVersion,
       initialSyncInProgress,
       pendingSyncCount,
@@ -454,6 +580,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       syncNow,
       retryInitialSync,
       refreshReleaseStatus: () => refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL),
+      refreshNotifications: () => refreshNotificationsWithToken(token),
+      markNotificationRead,
+      markAllNotificationsRead,
+      showToast,
+      clearToast,
       setLanguagePreference,
       bumpDataVersion: () => setDataVersion((current) => current + 1),
     }),
@@ -468,9 +599,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       initialSyncInProgress,
       language,
       lastSyncAt,
+      notifications,
       pendingSyncCount,
       statusMessage,
+      toast,
       token,
+      unreadNotificationCount,
       user,
     ]
   );

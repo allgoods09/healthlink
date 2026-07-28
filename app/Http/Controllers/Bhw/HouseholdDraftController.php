@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Household;
 use App\Models\HouseholdDraft;
 use App\Models\ResidentDraft;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -54,7 +55,7 @@ class HouseholdDraftController extends Controller
         ]);
     }
 
-    public function store(StoreHouseholdDraftRequest $request): RedirectResponse
+    public function store(StoreHouseholdDraftRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $draft = DB::transaction(function () use ($request): HouseholdDraft {
             $draft = HouseholdDraft::query()->create([
@@ -99,6 +100,8 @@ class HouseholdDraftController extends Controller
 
             return $draft;
         });
+
+        $roleNotificationService->notifyFieldDraftSubmitted($draft);
 
         return redirect()
             ->route('bhw.drafts.show', $draft)

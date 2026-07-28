@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\HouseholdDraft;
 use App\Models\Purok;
 use App\Support\ExportAudit;
+use App\Support\RoleNotificationService;
 use App\Support\SecretaryPipelineProcessor;
 use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
@@ -119,7 +120,8 @@ class FieldDraftController extends Controller
     public function approve(
         ApproveHouseholdDraftRequest $request,
         HouseholdDraft $householdDraft,
-        SecretaryPipelineProcessor $processor
+        SecretaryPipelineProcessor $processor,
+        RoleNotificationService $roleNotificationService
     ): RedirectResponse {
         $this->ensureHouseholdDraftBelongsToBarangay($householdDraft);
 
@@ -128,13 +130,18 @@ class FieldDraftController extends Controller
         }
 
         $household = $processor->approveHouseholdDraft($householdDraft, $request->validated(), Auth::user());
+        $roleNotificationService->notifyFieldDraftReviewed($householdDraft->fresh(['submittedBy', 'approvedHousehold']), true, Auth::user());
 
         return redirect()
             ->route('secretary.households.show', $household)
             ->with('success', "Field draft {$householdDraft->draft_reference_code} has been approved into Household #{$household->household_no}.");
     }
 
-    public function reject(ReviewDecisionRequest $request, HouseholdDraft $householdDraft): RedirectResponse
+    public function reject(
+        ReviewDecisionRequest $request,
+        HouseholdDraft $householdDraft,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         $this->ensureHouseholdDraftBelongsToBarangay($householdDraft);
 
@@ -152,6 +159,7 @@ class FieldDraftController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $householdDraft, $oldValues, $householdDraft->fresh()->toArray());
+        $roleNotificationService->notifyFieldDraftReviewed($householdDraft->fresh('submittedBy'), false, Auth::user());
 
         return back()->with('success', "Field draft {$householdDraft->draft_reference_code} has been rejected.");
     }

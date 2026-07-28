@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Purok;
 use App\Models\User;
 use App\Support\ExportAudit;
+use App\Support\RoleNotificationService;
 use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -221,7 +222,7 @@ class FrontlineUserController extends Controller
             ->with('success', "Assignment for {$user->name} has been updated.");
     }
 
-    public function approve(User $user): RedirectResponse
+    public function approve(User $user, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         Gate::authorize('update', $user);
         $this->ensureFrontlineUserBelongsToBarangay($user);
@@ -251,11 +252,12 @@ class FrontlineUserController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
+        $roleNotificationService->notifyRegistrationReviewed($user, true, Auth::user());
 
         return back()->with('success', "Registration for {$user->name} has been approved.");
     }
 
-    public function reject(Request $request, User $user): RedirectResponse
+    public function reject(Request $request, User $user, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         Gate::authorize('update', $user);
         $this->ensureFrontlineUserBelongsToBarangay($user);
@@ -281,6 +283,7 @@ class FrontlineUserController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
+        $roleNotificationService->notifyRegistrationReviewed($user, false, Auth::user());
 
         return back()->with('success', "Registration for {$user->name} has been rejected.");
     }

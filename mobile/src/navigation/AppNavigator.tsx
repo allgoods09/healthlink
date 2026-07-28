@@ -16,6 +16,7 @@ import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { theme } from '../theme';
 import { BrandSplash } from '../components/BrandSplash';
+import { ToastHost } from '../components/ToastHost';
 import { DirectoryScreen } from '../screens/DirectoryScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { HouseholdFormScreen } from '../screens/HouseholdFormScreen';
@@ -24,6 +25,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { InitialSyncScreen } from '../screens/InitialSyncScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { MoreScreen } from '../screens/MoreScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { ResidentDetailsScreen } from '../screens/ResidentDetailsScreen';
 import { ResidentFormScreen } from '../screens/ResidentFormScreen';
 import { RiskAssessmentFormScreen } from '../screens/RiskAssessmentFormScreen';
@@ -35,6 +37,8 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
+  const { unreadNotificationCount } = useAppContext();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -70,7 +74,19 @@ function MainTabs() {
       <Tab.Screen name="DirectoryTab" component={DirectoryScreen} options={{ title: i18n.t('directory') }} />
       <Tab.Screen name="VisitsTab" component={VisitsScreen} options={{ title: i18n.t('visits') }} />
       <Tab.Screen name="SyncTab" component={SyncScreen} options={{ title: i18n.t('sync') }} />
-      <Tab.Screen name="MoreTab" component={MoreScreen} options={{ title: i18n.t('more') }} />
+      <Tab.Screen
+        name="MoreTab"
+        component={MoreScreen}
+        options={{
+          title: i18n.t('more'),
+          tabBarBadge:
+            unreadNotificationCount > 0
+              ? unreadNotificationCount > 99
+                ? '99+'
+                : unreadNotificationCount
+              : undefined,
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -91,9 +107,11 @@ export function AppNavigator() {
   const {
     appVersion,
     bootstrapCompleted,
+    clearToast,
     isReady,
     isAuthenticated,
     releaseCheck,
+    toast,
   } = useAppContext();
   const [dismissedUpdateVersionCode, setDismissedUpdateVersionCode] = React.useState<number | null>(null);
 
@@ -199,10 +217,17 @@ export function AppNavigator() {
                 component={RiskAssessmentFormScreen}
                 options={{ title: 'PhilPEN Assessment' }}
               />
+              <Stack.Screen
+                name="Notifications"
+                component={NotificationsScreen}
+                options={{ headerShown: false }}
+              />
             </>
           )}
         </Stack.Navigator>
       </NavigationContainer>
+
+      <ToastHost toast={toast} onDismiss={clearToast} />
 
       <Modal
         transparent

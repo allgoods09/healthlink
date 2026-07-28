@@ -16,6 +16,11 @@ use Illuminate\Validation\ValidationException;
 
 class MobileSyncProcessor
 {
+    public function __construct(
+        private readonly RoleNotificationService $roleNotificationService
+    ) {
+    }
+
     /**
      * Process a mobile sync payload and return a structured result.
      */
@@ -190,6 +195,10 @@ class MobileSyncProcessor
             return $this->failure('households', $index, 'Household update failed: '.$exception->getMessage());
         }
 
+        if ($creating) {
+            $this->roleNotificationService->notifyHouseholdAddedForSecretary($household->fresh('purok.barangay'), $user, 'mobile');
+        }
+
         return [
             'success' => true,
             'record' => [
@@ -333,6 +342,10 @@ class MobileSyncProcessor
             });
         } catch (\Throwable $exception) {
             return $this->failure('residents', $index, 'Resident update failed: '.$exception->getMessage());
+        }
+
+        if ($creating) {
+            $this->roleNotificationService->notifyResidentAddedForSecretary($resident->fresh('household.purok.barangay'), $user, 'mobile');
         }
 
         return [
@@ -625,6 +638,11 @@ class MobileSyncProcessor
         } catch (\Throwable $exception) {
             return $this->failure('risk_assessments', $index, 'Risk assessment update failed: '.$exception->getMessage());
         }
+
+        $this->roleNotificationService->notifyImmediateReferralRiskAssessment(
+            $assessment->fresh('resident.household.purok.barangay'),
+            $user
+        );
 
         return [
             'success' => true,

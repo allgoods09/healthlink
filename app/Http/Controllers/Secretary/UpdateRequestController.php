@@ -11,6 +11,7 @@ use App\Models\Household;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
 use App\Support\ExportAudit;
+use App\Support\RoleNotificationService;
 use App\Support\SecretaryPipelineProcessor;
 use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
@@ -138,7 +139,8 @@ class UpdateRequestController extends Controller
     public function approve(
         ApplyProfileUpdateRequestRequest $request,
         ProfileUpdateRequest $profileUpdateRequest,
-        SecretaryPipelineProcessor $processor
+        SecretaryPipelineProcessor $processor,
+        RoleNotificationService $roleNotificationService
     ): RedirectResponse {
         $this->ensureProfileUpdateRequestBelongsToBarangay($profileUpdateRequest);
 
@@ -147,13 +149,18 @@ class UpdateRequestController extends Controller
         }
 
         $subject = $processor->applyProfileUpdateRequest($profileUpdateRequest, $request->validated(), Auth::user());
+        $roleNotificationService->notifyProfileUpdateReviewed($profileUpdateRequest->fresh('submittedBy'), true, Auth::user());
 
         return redirect()
             ->to($this->approvedSubjectRoute($profileUpdateRequest, $subject))
             ->with('success', "{$profileUpdateRequest->subject_label} correction request has been approved and applied.");
     }
 
-    public function reject(ReviewDecisionRequest $request, ProfileUpdateRequest $profileUpdateRequest): RedirectResponse
+    public function reject(
+        ReviewDecisionRequest $request,
+        ProfileUpdateRequest $profileUpdateRequest,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         $this->ensureProfileUpdateRequestBelongsToBarangay($profileUpdateRequest);
 
@@ -171,6 +178,7 @@ class UpdateRequestController extends Controller
         ])->save();
 
         AuditLog::logMutation('updated', Auth::user(), $profileUpdateRequest, $oldValues, $profileUpdateRequest->fresh()->toArray());
+        $roleNotificationService->notifyProfileUpdateReviewed($profileUpdateRequest->fresh('submittedBy'), false, Auth::user());
 
         return back()->with('success', "{$profileUpdateRequest->subject_label} correction request has been rejected.");
     }

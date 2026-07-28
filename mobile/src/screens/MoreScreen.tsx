@@ -15,7 +15,7 @@ import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
 import { theme } from '../theme';
 
-export function MoreScreen() {
+export function MoreScreen({ navigation }: any) {
   const {
     appVersion,
     assignment,
@@ -23,11 +23,13 @@ export function MoreScreen() {
     isOnline,
     language,
     lastSyncAt,
+    notifications,
     pendingSyncCount,
     refreshReleaseStatus,
     releaseCheck,
     setLanguagePreference,
     signOut,
+    unreadNotificationCount,
     user,
   } = useAppContext();
   const [showLogoutWarning, setShowLogoutWarning] = React.useState(false);
@@ -43,7 +45,11 @@ export function MoreScreen() {
 
   return (
     <View style={styles.screen}>
-      <TopHeader title={i18n.t('more')} />
+      <TopHeader
+        title={i18n.t('more')}
+        actionIcon="notifications-outline"
+        onActionPress={() => navigation.navigate('Notifications')}
+      />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.profileCard}>
@@ -76,6 +82,18 @@ export function MoreScreen() {
           }
           icon="person-circle-outline"
           badge={String(pendingSyncCount)}
+        />
+
+        <MenuCard
+          title={i18n.t('notifications')}
+          subtitle={
+            notifications[0]?.title
+              ? notifications[0].title
+              : i18n.t('noNotificationsBody')
+          }
+          icon="notifications-outline"
+          badge={String(unreadNotificationCount)}
+          onPress={() => navigation.navigate('Notifications')}
         />
 
         <MenuCard

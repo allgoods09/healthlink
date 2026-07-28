@@ -9,6 +9,7 @@ use App\Http\Requests\Mho\UpdateClinicalReviewRequest;
 use App\Models\AuditLog;
 use App\Models\ClinicalEncounter;
 use App\Models\MhoClinicalReview;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +46,11 @@ class ClinicalReviewController extends Controller
         ]);
     }
 
-    public function store(StoreClinicalReviewRequest $request, ClinicalEncounter $clinicalEncounter): RedirectResponse
+    public function store(
+        StoreClinicalReviewRequest $request,
+        ClinicalEncounter $clinicalEncounter,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         $this->ensureClinicalEncounterExists($clinicalEncounter);
 
@@ -62,6 +67,8 @@ class ClinicalReviewController extends Controller
             AuditLog::logMutation('created', Auth::user(), $review);
             AuditLog::logMutation('updated', Auth::user(), $clinicalEncounter, $oldEncounterValues, $clinicalEncounter->fresh()->toArray());
         });
+
+        $roleNotificationService->notifyMhoReviewCompleted($clinicalEncounter->fresh(['resident', 'attendedBy']), Auth::user());
 
         return redirect()
             ->route('mho.escalations.show', $clinicalEncounter)
@@ -92,7 +99,11 @@ class ClinicalReviewController extends Controller
         ]);
     }
 
-    public function update(UpdateClinicalReviewRequest $request, ClinicalEncounter $clinicalEncounter): RedirectResponse
+    public function update(
+        UpdateClinicalReviewRequest $request,
+        ClinicalEncounter $clinicalEncounter,
+        RoleNotificationService $roleNotificationService
+    ): RedirectResponse
     {
         $this->ensureClinicalEncounterExists($clinicalEncounter);
 
@@ -112,6 +123,8 @@ class ClinicalReviewController extends Controller
             AuditLog::logMutation('updated', Auth::user(), $mhoReview, $oldReviewValues, $mhoReview->fresh()->toArray());
             AuditLog::logMutation('updated', Auth::user(), $clinicalEncounter, $oldEncounterValues, $clinicalEncounter->fresh()->toArray());
         });
+
+        $roleNotificationService->notifyMhoReviewCompleted($clinicalEncounter->fresh(['resident', 'attendedBy']), Auth::user());
 
         return redirect()
             ->route('mho.escalations.show', $clinicalEncounter)

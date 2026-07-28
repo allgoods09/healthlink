@@ -1,4 +1,25 @@
 export type SyncStatus = 'synced' | 'pending_create' | 'pending_update';
+export type MobileToastLevel = 'info' | 'success' | 'warning' | 'error';
+
+export type MobileToast = {
+  id: number;
+  message: string;
+  level: MobileToastLevel;
+};
+
+export type MobileNotification = {
+  id: string;
+  title: string;
+  body: string;
+  level: MobileToastLevel;
+  category: string;
+  icon: string;
+  action_url?: string | null;
+  action_label?: string | null;
+  sender_name?: string | null;
+  created_at?: string | null;
+  read_at?: string | null;
+};
 
 export type MobileUser = {
   id: number;
@@ -341,4 +362,10 @@ export type SyncResponse = {
   summary: Record<string, number>;
   duration_ms: number;
   synced_at: string;
+};
+
+export type MobileNotificationResponse = {
+  notifications: MobileNotification[];
+  unread_count: number;
+  checked_at: string;
 };

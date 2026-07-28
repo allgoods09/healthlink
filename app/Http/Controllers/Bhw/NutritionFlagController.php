@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Bhw\StoreNutritionAssessmentFlagRequest;
 use App\Models\AuditLog;
 use App\Models\ChildNutritionAssessmentFlag;
+use App\Support\RoleNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -54,7 +55,7 @@ class NutritionFlagController extends Controller
         ]);
     }
 
-    public function store(StoreNutritionAssessmentFlagRequest $request): RedirectResponse
+    public function store(StoreNutritionAssessmentFlagRequest $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $resident = $this->bhwEligibleChildrenQuery()
             ->with('household.purok')
@@ -71,6 +72,7 @@ class NutritionFlagController extends Controller
         ]);
 
         AuditLog::logMutation('created', Auth::user(), $flag);
+        $roleNotificationService->notifyNutritionFlagSubmitted($flag);
 
         return redirect()
             ->route('bhw.nutrition-flags.index')
