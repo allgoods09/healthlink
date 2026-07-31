@@ -10,7 +10,9 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
+import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
   calculateAgeOnDate,
@@ -133,6 +135,8 @@ const ALCOHOL_OPTIONS: ChoiceOption[] = [
 
 export function RiskAssessmentFormScreen({ route, navigation }: any) {
   const { user, assignment, bumpDataVersion } = useAppContext();
+  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
+    useKeyboardAwareScroll();
   const [resident, setResident] = useState<ResidentRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [step, setStep] = useState<WizardStep>('overview');
@@ -441,14 +445,25 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
   const currentStep = STEP_LABELS[stepIndex];
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.hero}>
-        <Text style={styles.heroEyebrow}>PhilPEN Risk Assessment</Text>
-        <Text style={styles.heroTitle}>{resident.last_name}, {resident.first_name}</Text>
-        <Text style={styles.heroSubline}>
-          {resident.sex} · Age {assessmentAge ?? residentAge ?? 'N/A'} · {formatPurokLabel(resident.household_purok_display_name, resident.household_purok_id)}
-        </Text>
-      </View>
+    <KeyboardShiftView style={styles.screen}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: theme.spacing.xl + keyboardInset },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.heroEyebrow}>PhilPEN Risk Assessment</Text>
+          <Text style={styles.heroTitle}>{resident.last_name}, {resident.first_name}</Text>
+          <Text style={styles.heroSubline}>
+            {resident.sex} · Age {assessmentAge ?? residentAge ?? 'N/A'} · {formatPurokLabel(resident.household_purok_display_name, resident.household_purok_id)}
+          </Text>
+        </View>
 
       {recentAssessmentDate ? (
         <View style={styles.noticeCard}>
@@ -509,23 +524,23 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
               </Text>
             </Pressable>
 
-            <TextInputField label="PhilHealth Number" value={philhealthNumber} onChangeText={setPhilhealthNumber} />
-            <TextInputField label="Religion" value={religion} onChangeText={setReligion} />
-            <TextInputField label="Civil Status" value={civilStatus} onChangeText={setCivilStatus} />
-            <TextInputField label="Ethnicity" value={ethnicity} onChangeText={setEthnicity} />
-            <TextInputField label="PWD ID Number (if applicable)" value={pwdIdNumber} onChangeText={setPwdIdNumber} />
+            <TextInputField label="PhilHealth Number" value={philhealthNumber} onChangeText={setPhilhealthNumber} onFocus={handleInputFocus} />
+            <TextInputField label="Religion" value={religion} onChangeText={setReligion} onFocus={handleInputFocus} />
+            <TextInputField label="Civil Status" value={civilStatus} onChangeText={setCivilStatus} onFocus={handleInputFocus} />
+            <TextInputField label="Ethnicity" value={ethnicity} onChangeText={setEthnicity} onFocus={handleInputFocus} />
+            <TextInputField label="PWD ID Number (if applicable)" value={pwdIdNumber} onChangeText={setPwdIdNumber} onFocus={handleInputFocus} />
 
             <View style={styles.doubleRow}>
-              <NumericField label="Weight (kg)" value={weightKg} onChangeText={setWeightKg} />
-              <NumericField label="Height (cm)" value={heightCm} onChangeText={setHeightCm} />
+              <NumericField label="Weight (kg)" value={weightKg} onChangeText={setWeightKg} onFocus={handleInputFocus} />
+              <NumericField label="Height (cm)" value={heightCm} onChangeText={setHeightCm} onFocus={handleInputFocus} />
             </View>
             <View style={styles.doubleRow}>
-              <NumericField label="Waist Circumference" value={waistCircumferenceCm} onChangeText={setWaistCircumferenceCm} />
+              <NumericField label="Waist Circumference" value={waistCircumferenceCm} onChangeText={setWaistCircumferenceCm} onFocus={handleInputFocus} />
               <ReadOnlyRow label="BMI" value={bmi ? `${bmi}` : 'Waiting for weight and height'} compact />
             </View>
             <View style={styles.doubleRow}>
-              <NumericField label="Systolic BP" value={systolicBp} onChangeText={setSystolicBp} />
-              <NumericField label="Diastolic BP" value={diastolicBp} onChangeText={setDiastolicBp} />
+              <NumericField label="Systolic BP" value={systolicBp} onChangeText={setSystolicBp} onFocus={handleInputFocus} />
+              <NumericField label="Diastolic BP" value={diastolicBp} onChangeText={setDiastolicBp} onFocus={handleInputFocus} />
             </View>
 
             <ChoiceGroup
@@ -631,10 +646,11 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
               label="Blood Sugar (write N/A if not applicable)"
               value={bloodSugarNotes}
               onChangeText={setBloodSugarNotes}
+              onFocus={handleInputFocus}
             />
             <View style={styles.doubleRow}>
-              <TextInputField label="FBS Result" value={fbsResult} onChangeText={setFbsResult} />
-              <TextInputField label="RBS Result" value={rbsResult} onChangeText={setRbsResult} />
+              <TextInputField label="FBS Result" value={fbsResult} onChangeText={setFbsResult} onFocus={handleInputFocus} />
+              <TextInputField label="RBS Result" value={rbsResult} onChangeText={setRbsResult} onFocus={handleInputFocus} />
             </View>
             <Text style={styles.helperLabel}>Check if DM clinical symptoms are present</Text>
             {DM_SYMPTOM_FIELDS.map((field) => (
@@ -656,14 +672,14 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
               <Text style={styles.dateButtonText}>{formatOptionalDate(lipidProfileDate)}</Text>
             </Pressable>
             <View style={styles.doubleRow}>
-              <TextInputField label="Total Cholesterol" value={totalCholesterol} onChangeText={setTotalCholesterol} />
-              <TextInputField label="HDL" value={hdl} onChangeText={setHdl} />
+              <TextInputField label="Total Cholesterol" value={totalCholesterol} onChangeText={setTotalCholesterol} onFocus={handleInputFocus} />
+              <TextInputField label="HDL" value={hdl} onChangeText={setHdl} onFocus={handleInputFocus} />
             </View>
             <View style={styles.doubleRow}>
-              <TextInputField label="LDL" value={ldl} onChangeText={setLdl} />
-              <TextInputField label="VLDL" value={vldl} onChangeText={setVldl} />
+              <TextInputField label="LDL" value={ldl} onChangeText={setLdl} onFocus={handleInputFocus} />
+              <TextInputField label="VLDL" value={vldl} onChangeText={setVldl} onFocus={handleInputFocus} />
             </View>
-            <TextInputField label="Triglyceride" value={triglycerides} onChangeText={setTriglycerides} />
+            <TextInputField label="Triglyceride" value={triglycerides} onChangeText={setTriglycerides} onFocus={handleInputFocus} />
 
             <Text style={styles.subsectionTitle}>Urinalysis / Urine Dipstick Test</Text>
             <FieldLabel label="Urinalysis Date Taken" />
@@ -674,8 +690,8 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
               <Text style={styles.dateButtonText}>{formatOptionalDate(urinalysisDate)}</Text>
             </Pressable>
             <View style={styles.doubleRow}>
-              <TextInputField label="Protein" value={urinalysisProtein} onChangeText={setUrinalysisProtein} />
-              <TextInputField label="Ketones" value={urinalysisKetones} onChangeText={setUrinalysisKetones} />
+              <TextInputField label="Protein" value={urinalysisProtein} onChangeText={setUrinalysisProtein} onFocus={handleInputFocus} />
+              <TextInputField label="Ketones" value={urinalysisKetones} onChangeText={setUrinalysisKetones} onFocus={handleInputFocus} />
             </View>
 
             <Text style={styles.subsectionTitle}>Chronic Respiratory Diseases (Asthma and COPD)</Text>
@@ -708,12 +724,14 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
               label="A. Anti-hypertensives (existing patient medications only)"
               value={antiHypertensiveMedications}
               onChangeText={setAntiHypertensiveMedications}
+              onFocus={handleInputFocus}
               multiline
             />
             <TextInputField
               label="B. Oral Hypoglycemic Agents / Insulin (existing patient medications only)"
               value={oralHypoglycemicMedications}
               onChangeText={setOralHypoglycemicMedications}
+              onFocus={handleInputFocus}
               multiline
             />
             <FieldLabel label="Date of follow-up" />
@@ -723,7 +741,7 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
             >
               <Text style={styles.dateButtonText}>{formatOptionalDate(followUpDate)}</Text>
             </Pressable>
-            <TextInputField label="Remarks" value={remarks} onChangeText={setRemarks} multiline />
+            <TextInputField label="Remarks" value={remarks} onChangeText={setRemarks} onFocus={handleInputFocus} multiline />
 
             <View style={styles.warningBox}>
               <Text style={styles.warningTitle}>Reminder</Text>
@@ -735,37 +753,38 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
         ) : null}
       </View>
 
-      <View style={styles.actionRow}>
-        <Pressable
-          onPress={() => {
-            if (stepIndex === 0) {
-              navigation.goBack();
-              return;
-            }
-
-            setStep(STEP_LABELS[stepIndex - 1].key);
-          }}
-          style={[styles.actionButton, styles.secondaryButton]}
-        >
-          <Text style={styles.secondaryButtonText}>
-            {stepIndex === 0 ? i18n.t('cancel') : 'Back'}
-          </Text>
-        </Pressable>
-
-        {stepIndex < STEP_LABELS.length - 1 ? (
+        <View style={styles.actionRow}>
           <Pressable
-            onPress={() => setStep(STEP_LABELS[stepIndex + 1].key)}
-            style={[styles.actionButton, styles.primaryButton]}
+            onPress={() => {
+              if (stepIndex === 0) {
+                navigation.goBack();
+                return;
+              }
+
+              setStep(STEP_LABELS[stepIndex - 1].key);
+            }}
+            style={[styles.actionButton, styles.secondaryButton]}
           >
-            <Text style={styles.primaryButtonText}>Next</Text>
+            <Text style={styles.secondaryButtonText}>
+              {stepIndex === 0 ? i18n.t('cancel') : 'Back'}
+            </Text>
           </Pressable>
-        ) : (
-          <Pressable onPress={() => void handleSave()} style={[styles.actionButton, styles.primaryButton]}>
-            <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
-          </Pressable>
-        )}
-      </View>
-    </ScrollView>
+
+          {stepIndex < STEP_LABELS.length - 1 ? (
+            <Pressable
+              onPress={() => setStep(STEP_LABELS[stepIndex + 1].key)}
+              style={[styles.actionButton, styles.primaryButton]}
+            >
+              <Text style={styles.primaryButtonText}>Next</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => void handleSave()} style={[styles.actionButton, styles.primaryButton]}>
+              <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
+            </Pressable>
+          )}
+        </View>
+      </ScrollView>
+    </KeyboardShiftView>
   );
 }
 
@@ -777,11 +796,13 @@ function TextInputField({
   label,
   value,
   onChangeText,
+  onFocus,
   multiline = false,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   multiline?: boolean;
 }) {
   return (
@@ -790,6 +811,7 @@ function TextInputField({
       <TextInput
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         multiline={multiline}
         style={[styles.input, multiline && styles.textArea]}
       />
@@ -801,10 +823,12 @@ function NumericField({
   label,
   value,
   onChangeText,
+  onFocus,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
 }) {
   return (
     <View style={styles.flexField}>
@@ -812,6 +836,7 @@ function NumericField({
       <TextInput
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         keyboardType="numeric"
         style={styles.input}
       />

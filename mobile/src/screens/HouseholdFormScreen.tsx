@@ -9,13 +9,17 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
+import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
 import { theme } from '../theme';
 
 export function HouseholdFormScreen({ route, navigation }: any) {
   const { assignment, bumpDataVersion } = useAppContext();
+  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
+    useKeyboardAwareScroll();
   const [householdNo, setHouseholdNo] = useState('');
   const [address, setAddress] = useState('');
   const [socialAid, setSocialAid] = useState(false);
@@ -61,34 +65,52 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.label}>{i18n.t('householdNo')}</Text>
-        <TextInput value={householdNo} onChangeText={setHouseholdNo} style={styles.input} />
+    <KeyboardShiftView style={styles.screen}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: theme.spacing.xl + keyboardInset },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.card}>
+          <Text style={styles.label}>{i18n.t('householdNo')}</Text>
+          <TextInput
+            value={householdNo}
+            onChangeText={setHouseholdNo}
+            onFocus={handleInputFocus}
+            style={styles.input}
+          />
 
-        <Text style={styles.label}>{i18n.t('householdAddress')}</Text>
-        <TextInput
-          value={address}
-          onChangeText={setAddress}
-          style={[styles.input, styles.multiline]}
-          multiline
-        />
+          <Text style={styles.label}>{i18n.t('householdAddress')}</Text>
+          <TextInput
+            value={address}
+            onChangeText={setAddress}
+            onFocus={handleInputFocus}
+            style={[styles.input, styles.multiline]}
+            multiline
+          />
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>{i18n.t('socialAid')}</Text>
-          <Switch value={socialAid} onValueChange={setSocialAid} />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{i18n.t('socialAid')}</Text>
+            <Switch value={socialAid} onValueChange={setSocialAid} />
+          </View>
+
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
+            <Switch value={active} onValueChange={setActive} />
+          </View>
         </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
-          <Switch value={active} onValueChange={setActive} />
-        </View>
-      </View>
-
-      <Pressable onPress={handleSave} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable onPress={handleSave} style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardShiftView>
   );
 }
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DocumentController as AdminDocumentController;
 use App\Http\Controllers\Admin\Geometry\BarangayRegistryController;
 use App\Http\Controllers\Admin\Geometry\HouseholdController;
 use App\Http\Controllers\Admin\Geometry\PurokGridController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\Secretary\ActivityFeedController as SecretaryActivityFe
 use App\Http\Controllers\Secretary\CertificateController as SecretaryCertificateController;
 use App\Http\Controllers\Secretary\DashboardController as SecretaryDashboardController;
 use App\Http\Controllers\Secretary\DemographicReportController as SecretaryDemographicReportController;
+use App\Http\Controllers\Secretary\DocumentController as SecretaryDocumentController;
 use App\Http\Controllers\Secretary\FieldDraftController as SecretaryFieldDraftController;
 use App\Http\Controllers\Secretary\FrontlineUserController as SecretaryFrontlineUserController;
 use App\Http\Controllers\Secretary\HouseholdController as SecretaryHouseholdController;
@@ -332,6 +334,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::post('/', 'store')->name('store');
                 Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{household}/pdf', 'pdf')->name('pdf');
+                Route::get('/{household}/print', 'printView')->name('print');
                 Route::get('/{household}', 'show')->name('show');
                 Route::get('/{household}/edit', 'edit')->name('edit');
                 Route::put('/{household}', 'update')->name('update');
@@ -443,6 +446,15 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
             ->group(function () {
                 Route::get('/demographics', 'index')->name('demographics');
                 Route::get('/demographics/export/{format}', 'export')->name('demographics.export');
+            });
+
+        Route::prefix('documents')
+            ->name('documents.')
+            ->controller(SecretaryDocumentController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/export', 'export')->name('export');
+                Route::put('/officials', 'updateOfficials')->name('officials.update');
             });
 
         Route::get('/puroks/get-by-barangay', [SecretaryPurokController::class, 'getByBarangay'])->name('puroks.get-by-barangay');
@@ -662,6 +674,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
             Route::post('/', 'store')->name('store');
             Route::get('/export/{format}', 'export')->name('export');
             Route::get('/{household}/pdf', 'pdf')->name('pdf');
+            Route::get('/{household}/print', 'printView')->name('print');
             Route::get('/{household}', 'show')->name('show');
             Route::get('/{household}/edit', 'edit')->name('edit');
             Route::put('/{household}', 'update')->name('update');
@@ -706,6 +719,15 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
          ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/{report}/{format}', 'export')->name('export');
+         });
+
+    Route::prefix('documents')
+         ->name('documents.')
+         ->controller(AdminDocumentController::class)
+         ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/export', 'export')->name('export');
+            Route::put('/officials', 'updateOfficials')->name('officials.update');
          });
 
     // =============================================

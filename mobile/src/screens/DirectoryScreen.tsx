@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
 import { useAppContext } from '../context/AppContext';
@@ -227,7 +228,7 @@ export function DirectoryScreen({ navigation }: any) {
   }
 
   return (
-    <View style={styles.screen}>
+    <KeyboardShiftView style={styles.screen}>
       <TopHeader
         title={i18n.t('directory')}
         onActionPress={() => navigation.navigate('SyncTab')}
@@ -237,6 +238,7 @@ export function DirectoryScreen({ navigation }: any) {
         data={currentData}
         key={mode}
         keyExtractor={(item: any) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
@@ -330,7 +332,7 @@ export function DirectoryScreen({ navigation }: any) {
             : renderHouseholdCard(item as HouseholdRecord)
         }
       />
-    </View>
+    </KeyboardShiftView>
   );
 }
 

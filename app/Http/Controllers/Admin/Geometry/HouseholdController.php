@@ -7,9 +7,12 @@ use App\Http\Requests\Admin\Geometry\HouseholdStoreRequest;
 use App\Http\Requests\Admin\Geometry\HouseholdUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\Barangay;
+use App\Models\BarangayOfficial;
 use App\Models\Household;
 use App\Models\Purok;
+use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
+use App\Support\RbiTemplatePdfGenerator;
 use App\Support\TabularExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -93,41 +96,57 @@ class HouseholdController extends Controller
     /**
      * Download a single household profile as PDF.
      */
-    public function pdf(Household $household): Response
+    public function pdf(
+        Household $household,
+        RbiTemplatePdfGenerator $generator,
+        BarangayOfficialsRegistry $officialsRegistry
+    ): Response
     {
         Gate::authorize('view', $household);
 
-        $household->load(['purok.barangay', 'headResident'])->loadCount('residents');
-
-        $columns = [
-            'Household No.' => 'household_no',
-            'Address' => 'household_address',
-            'Barangay' => fn (Household $item) => $item->purok?->barangay?->name ?: 'N/A',
-            'Purok' => fn (Household $item) => $item->purok?->display_name ?: 'N/A',
-            'Head of Household' => fn (Household $item) => $item->headResident?->formal_name ?: 'Unassigned',
-            'Residents' => 'residents_count',
-            'Social Aid' => fn (Household $item) => $item->is_social_aid_beneficiary ? 'Yes' : 'No',
-            'Water Source' => fn (Household $item) => $item->water_source ?: 'N/A',
-            'Sanitary Toilet' => fn (Household $item) => $item->sanitary_toilet_type ?: 'N/A',
-            'Garbage Disposal' => fn (Household $item) => $item->garbage_disposal_method_label ?: 'N/A',
-            'Backyard Garden' => fn (Household $item) => $item->has_backyard_garden ? 'Yes' : 'No',
-            'Housing Material' => fn (Household $item) => $item->housing_material_type_label ?: 'N/A',
-            'Status' => fn (Household $item) => $item->is_active ? 'Active' : 'Inactive',
-        ];
+        $household->load(['purok.barangay', 'headResident', 'residents.socioEconomicProfile'])->loadCount('residents');
+        $barangay = $household->purok->barangay;
+        $officials = $officialsRegistry->keyed($barangay);
 
         ExportAudit::log('household profile', 'pdf', [
             'model_type' => Household::class,
             'record_count' => 1,
             'record_ids' => [$household->id],
+            'document_type' => 'RBI Form A',
+            'barangay_id' => $barangay->id,
+            'barangay_name' => $barangay->name,
         ]);
 
-        return TabularExport::pdf(
-            'household-profile-'.$household->id.'.pdf',
-            'Household Profile',
-            $columns,
-            collect([$household]),
-            ['Exported At' => now()->format('Y-m-d H:i:s')]
-        );
+        $content = $generator->generateHouseholds([$household], [
+            'officials' => [
+                'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
+            ],
+        ]);
+
+        return $this->pdfResponse($content, 'household-rbi-form-'.$household->id.'.pdf');
+    }
+
+    public function printView(
+        Household $household,
+        RbiTemplatePdfGenerator $generator,
+        BarangayOfficialsRegistry $officialsRegistry
+    ): Response
+    {
+        Gate::authorize('view', $household);
+
+        $household->load(['purok.barangay', 'headResident', 'residents.socioEconomicProfile'])->loadCount('residents');
+        $barangay = $household->purok->barangay;
+        $officials = $officialsRegistry->keyed($barangay);
+
+        $content = $generator->generateHouseholds([$household], [
+            'officials' => [
+                'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
+            ],
+        ]);
+
+        return $this->pdfResponse($content, 'household-rbi-form-'.$household->id.'.pdf', true);
     }
 
     /**
@@ -335,5 +354,13 @@ class HouseholdController extends Controller
         }
 
         return $query;
+    }
+
+    private function pdfResponse(string $content, string $filename, bool $inline = false): Response
+    {
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$filename.'"',
+        ]);
     }
 }

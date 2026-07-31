@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Geometry\BarangayStoreRequest;
 use App\Http\Requests\Admin\Geometry\BarangayUpdateRequest;
 use App\Models\Barangay;
+use App\Models\BarangayOfficial;
+use App\Models\AuditLog;
 use App\Support\ExportAudit;
 use App\Support\TabularExport;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class BarangayRegistryController extends Controller
 {
@@ -84,7 +87,9 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('create', Barangay::class);
 
-        return view('admin.geometry.barangays.create');
+        $officialDefinitions = BarangayOfficial::ROLE_DEFINITIONS;
+
+        return view('admin.geometry.barangays.create', compact('officialDefinitions'));
     }
 
     /**
@@ -95,6 +100,8 @@ class BarangayRegistryController extends Controller
         Gate::authorize('create', Barangay::class);
 
         $data = $request->validated();
+        $officialNames = $data['official_names'] ?? [];
+        unset($data['official_names']);
 
         // Set defaults if not provided
         $data['municipality'] = $data['municipality'] ?? 'Tubigon';
@@ -102,10 +109,15 @@ class BarangayRegistryController extends Controller
         $data['region'] = $data['region'] ?? 'VII';
         $data['is_active'] = $data['is_active'] ?? true;
 
-        $barangay = Barangay::create($data);
+        $barangay = DB::transaction(function () use ($data, $officialNames) {
+            $barangay = Barangay::create($data);
+            $this->syncOfficials($barangay, $officialNames);
+
+            return $barangay;
+        });
 
         // Log the creation
-        \App\Models\AuditLog::logMutation('created', Auth::user(), $barangay);
+        AuditLog::logMutation('created', Auth::user(), $barangay);
 
         return redirect()
             ->route('admin.barangays.index')
@@ -133,7 +145,14 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('update', $barangay);
 
-        return view('admin.geometry.barangays.edit', compact('barangay'));
+        $barangay->load('officials');
+        $officialDefinitions = BarangayOfficial::ROLE_DEFINITIONS;
+        $officialNames = $barangay->officials
+            ->pluck('official_name', 'role_key')
+            ->map(fn (?string $name) => $name ?? '')
+            ->all();
+
+        return view('admin.geometry.barangays.edit', compact('barangay', 'officialDefinitions', 'officialNames'));
     }
 
     /**
@@ -145,11 +164,16 @@ class BarangayRegistryController extends Controller
 
         $oldValues = $barangay->toArray();
         $data = $request->validated();
+        $officialNames = $data['official_names'] ?? [];
+        unset($data['official_names']);
 
-        $barangay->update($data);
+        DB::transaction(function () use ($barangay, $data, $officialNames): void {
+            $barangay->update($data);
+            $this->syncOfficials($barangay, $officialNames);
+        });
 
         // Log the update
-        \App\Models\AuditLog::logMutation('updated', Auth::user(), $barangay, $oldValues, $barangay->toArray());
+        AuditLog::logMutation('updated', Auth::user(), $barangay, $oldValues, $barangay->fresh()->toArray());
 
         return redirect()
             ->route('admin.barangays.index')
@@ -259,5 +283,46 @@ class BarangayRegistryController extends Controller
         }
 
         return $query;
+    }
+
+    private function syncOfficials(Barangay $barangay, array $officialNames): void
+    {
+        $barangay->loadMissing('officials');
+
+        foreach (BarangayOfficial::ROLE_DEFINITIONS as $roleKey => $definition) {
+            $official = $barangay->officials->firstWhere('role_key', $roleKey)
+                ?? $barangay->officials()->firstOrCreate(
+                    ['role_key' => $roleKey],
+                    [
+                        'official_title' => $definition['title'],
+                        'display_order' => $definition['order'],
+                        'is_active' => true,
+                    ]
+                );
+
+            $newName = trim((string) ($officialNames[$roleKey] ?? ''));
+            $oldValues = $official->toArray();
+
+            $official->fill([
+                'official_title' => $definition['title'],
+                'display_order' => $definition['order'],
+                'official_name' => $newName !== '' ? $newName : null,
+                'is_active' => true,
+            ]);
+
+            if (! $official->wasRecentlyCreated && ! $official->isDirty()) {
+                continue;
+            }
+
+            $official->save();
+
+            AuditLog::logMutation(
+                $official->wasRecentlyCreated ? 'created' : 'updated',
+                Auth::user(),
+                $official,
+                $official->wasRecentlyCreated ? null : $oldValues,
+                $official->fresh()->toArray()
+            );
+        }
     }
 }

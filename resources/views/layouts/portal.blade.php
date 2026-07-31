@@ -88,6 +88,7 @@
                 'label' => 'Reports',
                 'items' => [
                     ['label' => 'Demographics', 'href' => route('secretary.reports.demographics'), 'active' => request()->routeIs('secretary.reports.demographics*'), 'icon' => 'metrics'],
+                    ['label' => 'Documents', 'href' => route('secretary.documents.index'), 'active' => request()->routeIs('secretary.documents.*'), 'icon' => 'devices'],
                     ['label' => 'Activity Feed', 'href' => route('secretary.activity.index'), 'active' => request()->routeIs('secretary.activity.*'), 'icon' => 'sync'],
                 ],
             ],

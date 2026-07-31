@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
 import { useAppContext } from '../context/AppContext';
@@ -31,7 +32,7 @@ export function VisitsScreen({ navigation }: any) {
   }, [dataVersion, isFocused, search]);
 
   return (
-    <View style={styles.screen}>
+    <KeyboardShiftView style={styles.screen}>
       <TopHeader
         title={i18n.t('visits')}
         onActionPress={() => navigation.navigate('SyncTab')}
@@ -40,6 +41,7 @@ export function VisitsScreen({ navigation }: any) {
       <FlatList
         data={records}
         keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
@@ -100,7 +102,7 @@ export function VisitsScreen({ navigation }: any) {
           </View>
         )}
       />
-    </View>
+    </KeyboardShiftView>
   );
 }
 

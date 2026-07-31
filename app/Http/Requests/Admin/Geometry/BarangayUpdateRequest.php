@@ -39,6 +39,24 @@ class BarangayUpdateRequest extends FormRequest
             'province' => ['string', 'max:100'],
             'region' => ['string', 'max:50'],
             'is_active' => ['boolean'],
+            'official_names' => ['array'],
+            'official_names.punong_barangay' => ['required', 'string', 'max:255'],
+            'official_names.barangay_secretary' => ['nullable', 'string', 'max:255'],
+            'official_names.barangay_treasurer' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_1' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_2' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_3' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_4' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_5' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_6' => ['nullable', 'string', 'max:255'],
+            'official_names.kagawad_7' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'official_names.punong_barangay.required' => 'The Punong Barangay name is required.',
         ];
     }
 }

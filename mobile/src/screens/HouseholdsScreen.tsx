@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { getHouseholds } from '../lib/storage';
@@ -35,7 +36,7 @@ export function HouseholdsScreen({ navigation }: any) {
   }, [dataVersion, isFocused, search]);
 
   return (
-    <View style={styles.screen}>
+    <KeyboardShiftView style={styles.screen}>
       <View style={styles.headerCard}>
         <Text style={styles.headerTitle}>{assignment?.purok?.display_name ?? i18n.t('households')}</Text>
         <Text style={styles.headerSubtitle}>
@@ -68,6 +69,7 @@ export function HouseholdsScreen({ navigation }: any) {
         <FlatList
           data={records}
           keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.list}
           ListHeaderComponent={
             <View style={styles.toolbar}>
@@ -115,7 +117,7 @@ export function HouseholdsScreen({ navigation }: any) {
           )}
         />
       )}
-    </View>
+    </KeyboardShiftView>
   );
 }
 

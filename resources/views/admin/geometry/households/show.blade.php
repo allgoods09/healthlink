@@ -11,11 +11,13 @@
     <div class="flex flex-wrap items-center gap-2">
         @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.households.pdf'))
             <a href="{{ route($routePrefix.'.households.pdf', $household) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
-                Download PDF
+                Download RBI PDF
             </a>
-            <button type="button" onclick="window.print()" class="inline-flex items-center rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                Print Profile
-            </button>
+        @endif
+        @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.households.print'))
+            <a href="{{ route($routePrefix.'.households.print', $household) }}" target="_blank" rel="noopener" class="inline-flex items-center rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+                Open Print View
+            </a>
         @endif
         <a href="{{ route($routePrefix.'.residents.create', ['household_id' => $household->id, 'purok_id' => $household->purok_id, 'barangay_id' => $household->purok->barangay_id]) }}" class="inline-flex items-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
             Add Resident

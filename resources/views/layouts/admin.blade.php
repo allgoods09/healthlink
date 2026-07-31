@@ -89,6 +89,10 @@
                         <x-sidebar-link :href="route('admin.reports.index')" :active="request()->routeIs('admin.reports.*')" icon="metrics">
                             Reports Hub
                         </x-sidebar-link>
+
+                        <x-sidebar-link :href="route('admin.documents.index')" :active="request()->routeIs('admin.documents.*')" icon="devices">
+                            Documents
+                        </x-sidebar-link>
                     </div>
 
                     <div class="pt-4 mt-4 border-t border-gray-200/80">

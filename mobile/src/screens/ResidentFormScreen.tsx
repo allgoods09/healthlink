@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
+import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
   birthDateInputFromServer,
@@ -31,6 +33,8 @@ import { HouseholdRecord } from '../types';
 
 export function ResidentFormScreen({ route, navigation }: any) {
   const { assignment, bumpDataVersion } = useAppContext();
+  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
+    useKeyboardAwareScroll();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [chooserVisible, setChooserVisible] = useState(false);
   const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRecord | null>(null);
@@ -168,32 +172,48 @@ export function ResidentFormScreen({ route, navigation }: any) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
-        <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerLabel}>
-            {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
+    <KeyboardShiftView style={styles.screen}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: theme.spacing.xl + keyboardInset },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.card}>
+          <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
+          <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
+            <Text style={styles.pickerLabel}>
+              {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
+            </Text>
+          </Pressable>
+          <Text style={styles.helperText}>
+            {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
           </Text>
-        </Pressable>
-        <Text style={styles.helperText}>
-          {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
-        </Text>
 
         <Text style={styles.label}>{i18n.t('firstName')}</Text>
-        <TextInput value={firstName} onChangeText={(value) => {
+        <TextInput value={firstName} onFocus={handleInputFocus} onChangeText={(value) => {
           setFirstName(value);
           if (formError) setFormError(null);
         }} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('lastName')}</Text>
-        <TextInput value={lastName} onChangeText={(value) => {
+        <TextInput value={lastName} onFocus={handleInputFocus} onChangeText={(value) => {
           setLastName(value);
           if (formError) setFormError(null);
         }} style={styles.input} />
 
         <Text style={styles.label}>{i18n.t('middleName')}</Text>
-        <TextInput value={middleName} onChangeText={setMiddleName} style={styles.input} />
+        <TextInput
+          value={middleName}
+          onChangeText={setMiddleName}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('birthDate')}</Text>
         <View style={styles.dateRow}>
@@ -203,6 +223,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
               setBirthDate(formatBirthDateInput(value));
               if (formError) setFormError(null);
             }}
+            onFocus={handleInputFocus}
             style={[styles.input, styles.dateInput]}
             placeholder={i18n.t('birthDatePlaceholder')}
             maxLength={10}
@@ -214,7 +235,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
         <Text style={styles.helperText}>{i18n.t('birthDateHelper')}</Text>
 
         <Text style={styles.label}>{i18n.t('birthPlace')}</Text>
-        <TextInput value={birthPlace} onChangeText={(value) => {
+        <TextInput value={birthPlace} onFocus={handleInputFocus} onChangeText={(value) => {
           setBirthPlace(value);
           if (formError) setFormError(null);
         }} style={styles.input} />
@@ -235,24 +256,50 @@ export function ResidentFormScreen({ route, navigation }: any) {
         </View>
 
         <Text style={styles.label}>{i18n.t('civilStatus')}</Text>
-        <TextInput value={civilStatus} onChangeText={setCivilStatus} style={styles.input} />
+        <TextInput
+          value={civilStatus}
+          onChangeText={setCivilStatus}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('citizenship')}</Text>
-        <TextInput value={citizenship} onChangeText={setCitizenship} style={styles.input} />
+        <TextInput
+          value={citizenship}
+          onChangeText={setCitizenship}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('religion')}</Text>
-        <TextInput value={religion} onChangeText={setReligion} style={styles.input} />
+        <TextInput
+          value={religion}
+          onChangeText={setReligion}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('contactNumber')}</Text>
-        <TextInput value={contactNumber} onChangeText={setContactNumber} style={styles.input} />
+        <TextInput
+          value={contactNumber}
+          onChangeText={setContactNumber}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('emailAddress')}</Text>
-        <TextInput value={emailAddress} onChangeText={setEmailAddress} style={styles.input} />
+        <TextInput
+          value={emailAddress}
+          onChangeText={setEmailAddress}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
 
         <Text style={styles.label}>{i18n.t('relationshipToHead')}</Text>
         <TextInput
           value={relationshipToHead}
           onChangeText={setRelationshipToHead}
+          onFocus={handleInputFocus}
           style={styles.input}
         />
 
@@ -261,49 +308,51 @@ export function ResidentFormScreen({ route, navigation }: any) {
           <Switch value={active} onValueChange={setActive} />
         </View>
 
-        {formError ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{formError}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <Pressable onPress={handleSave} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
-      </Pressable>
-
-      <Modal visible={chooserVisible} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <FlatList
-              data={households}
-              keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
-              ListHeaderComponent={
-                <Text style={styles.modalTitle}>
-                  {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => {
-                    setSelectedHousehold(item);
-                    setChooserVisible(false);
-                    setFormError(null);
-                  }}
-                  style={styles.modalItem}
-                >
-                  <Text style={styles.modalItemTitle}>{item.household_no}</Text>
-                  <Text style={styles.modalItemText}>{item.household_address}</Text>
-                </Pressable>
-              )}
-            />
-            <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
-            </Pressable>
-          </View>
+          {formError ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{formError}</Text>
+            </View>
+          ) : null}
         </View>
-      </Modal>
-    </ScrollView>
+
+        <Pressable onPress={handleSave} style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
+        </Pressable>
+
+        <Modal visible={chooserVisible} transparent animationType="slide">
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <FlatList
+                data={households}
+                keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+                keyboardShouldPersistTaps="handled"
+                ListHeaderComponent={
+                  <Text style={styles.modalTitle}>
+                    {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
+                  </Text>
+                }
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => {
+                      setSelectedHousehold(item);
+                      setChooserVisible(false);
+                      setFormError(null);
+                    }}
+                    style={styles.modalItem}
+                  >
+                    <Text style={styles.modalItemTitle}>{item.household_no}</Text>
+                    <Text style={styles.modalItemText}>{item.household_address}</Text>
+                  </Pressable>
+                )}
+              />
+              <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </KeyboardShiftView>
   );
 }
 

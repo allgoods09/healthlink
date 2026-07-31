@@ -11,12 +11,12 @@
     <div class="flex flex-wrap items-center gap-2">
         @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.residents.pdf'))
             <a href="{{ route($routePrefix.'.residents.pdf', $resident) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
-                Download PDF
+                Download RBI PDF
             </a>
         @endif
         @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.residents.print'))
             <a href="{{ route($routePrefix.'.residents.print', $resident) }}" target="_blank" rel="noopener" class="inline-flex items-center rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                Print Form
+                Open Print View
             </a>
         @endif
         <a href="{{ route($routePrefix.'.residents.edit', $resident) }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">

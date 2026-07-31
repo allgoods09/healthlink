@@ -10,6 +10,25 @@ class Barangay extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::created(function (Barangay $barangay): void {
+            foreach (BarangayOfficial::defaults() as $definition) {
+                BarangayOfficial::query()->firstOrCreate(
+                    [
+                        'barangay_id' => $barangay->id,
+                        'role_key' => $definition['role_key'],
+                    ],
+                    [
+                        'official_title' => $definition['official_title'],
+                        'display_order' => $definition['display_order'],
+                        'is_active' => true,
+                    ]
+                );
+            }
+        });
+    }
+
     /**
      * The attributes that are mass assignable.
      *
@@ -54,6 +73,14 @@ class Barangay extends Model
     public function assignedUsers()
     {
         return $this->hasMany(User::class, 'assigned_barangay_id');
+    }
+
+    /**
+     * Get the officials configured for this barangay.
+     */
+    public function officials()
+    {
+        return $this->hasMany(BarangayOfficial::class)->orderBy('display_order');
     }
 
     // =============================================

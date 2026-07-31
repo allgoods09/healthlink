@@ -16,7 +16,9 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
+import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
   formatFriendlyDate,
@@ -34,6 +36,8 @@ import { HouseholdRecord, VisitPhoto } from '../types';
 export function VisitFormScreen({ route, navigation }: any) {
   const cameraRef = useRef<CameraView | null>(null);
   const { assignment, bumpDataVersion } = useAppContext();
+  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
+    useKeyboardAwareScroll();
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = ImagePicker.useMediaLibraryPermissions();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
@@ -237,14 +241,25 @@ export function VisitFormScreen({ route, navigation }: any) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
-        <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerLabel}>
-            {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
-          </Text>
-        </Pressable>
+    <KeyboardShiftView style={styles.screen}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: theme.spacing.xl + keyboardInset },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.card}>
+          <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
+          <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
+            <Text style={styles.pickerLabel}>
+              {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
+            </Text>
+          </Pressable>
 
         <Text style={styles.label}>{i18n.t('visitedAt')}</Text>
         <View style={styles.dateRow}>
@@ -279,6 +294,7 @@ export function VisitFormScreen({ route, navigation }: any) {
         <TextInput
           value={notes}
           onChangeText={setNotes}
+          onFocus={handleInputFocus}
           style={[styles.input, styles.multiline]}
           multiline
         />
@@ -296,73 +312,75 @@ export function VisitFormScreen({ route, navigation }: any) {
           </Pressable>
         </View>
 
-        <View style={styles.photoGrid}>
-          {photos.map((photo, index) => (
-            <View key={`${photo.file_name}-${index}`} style={styles.photoCard}>
-              <Pressable
-                onPress={() => removePhoto(index)}
-                style={styles.removePhotoButton}
-                hitSlop={10}
-              >
-                <Ionicons name="close" size={14} color="#fff" />
-              </Pressable>
-              {photo.uri ? (
-                <Image source={{ uri: photo.uri }} style={styles.photo} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoPlaceholderText}>{i18n.t('syncedPhotoLabel')}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <Pressable onPress={handleSave} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
-      </Pressable>
-
-      <Modal visible={chooserVisible} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <FlatList
-              data={households}
-              keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
-              ListHeaderComponent={<Text style={styles.modalTitle}>{i18n.t('chooseHousehold')}</Text>}
-              renderItem={({ item }) => (
+          <View style={styles.photoGrid}>
+            {photos.map((photo, index) => (
+              <View key={`${photo.file_name}-${index}`} style={styles.photoCard}>
                 <Pressable
-                  onPress={() => {
-                    setSelectedHousehold(item);
-                    setChooserVisible(false);
-                  }}
-                  style={styles.modalItem}
+                  onPress={() => removePhoto(index)}
+                  style={styles.removePhotoButton}
+                  hitSlop={10}
                 >
-                  <Text style={styles.modalItemTitle}>{item.household_no}</Text>
-                  <Text style={styles.modalItemText}>{item.household_address}</Text>
+                  <Ionicons name="close" size={14} color="#fff" />
                 </Pressable>
-              )}
-            />
-            <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
-            </Pressable>
+                {photo.uri ? (
+                  <Image source={{ uri: photo.uri }} style={styles.photo} />
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    <Text style={styles.photoPlaceholderText}>{i18n.t('syncedPhotoLabel')}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
           </View>
         </View>
-      </Modal>
 
-      <Modal visible={cameraVisible} animationType="slide">
-        <View style={styles.cameraScreen}>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-          <View style={styles.cameraBar}>
-            <Pressable onPress={() => setCameraVisible(false)} style={styles.cameraButton}>
-              <Text style={styles.cameraButtonText}>{i18n.t('cancel')}</Text>
-            </Pressable>
-            <Pressable onPress={capturePhoto} style={styles.cameraButtonPrimary}>
-              <Text style={styles.cameraButtonPrimaryText}>{i18n.t('takePhoto')}</Text>
-            </Pressable>
+        <Pressable onPress={handleSave} style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
+        </Pressable>
+
+        <Modal visible={chooserVisible} transparent animationType="slide">
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <FlatList
+                data={households}
+                keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+                keyboardShouldPersistTaps="handled"
+                ListHeaderComponent={<Text style={styles.modalTitle}>{i18n.t('chooseHousehold')}</Text>}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => {
+                      setSelectedHousehold(item);
+                      setChooserVisible(false);
+                    }}
+                    style={styles.modalItem}
+                  >
+                    <Text style={styles.modalItemTitle}>{item.household_no}</Text>
+                    <Text style={styles.modalItemText}>{item.household_address}</Text>
+                  </Pressable>
+                )}
+              />
+              <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+
+        <Modal visible={cameraVisible} animationType="slide">
+          <View style={styles.cameraScreen}>
+            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+            <View style={styles.cameraBar}>
+              <Pressable onPress={() => setCameraVisible(false)} style={styles.cameraButton}>
+                <Text style={styles.cameraButtonText}>{i18n.t('cancel')}</Text>
+              </Pressable>
+              <Pressable onPress={capturePhoto} style={styles.cameraButtonPrimary}>
+                <Text style={styles.cameraButtonPrimaryText}>{i18n.t('takePhoto')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </KeyboardShiftView>
   );
 }
 

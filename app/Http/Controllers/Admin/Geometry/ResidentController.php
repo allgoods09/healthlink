@@ -8,13 +8,15 @@ use App\Http\Requests\Admin\Geometry\ResidentStoreRequest;
 use App\Http\Requests\Admin\Geometry\ResidentUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\Barangay;
+use App\Models\BarangayOfficial;
 use App\Models\Household;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\ResidentSocioEconomicProfile;
+use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
+use App\Support\RbiTemplatePdfGenerator;
 use App\Support\TabularExport;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -109,42 +111,51 @@ class ResidentController extends Controller
     /**
      * Download a single resident profile as PDF.
      */
-    public function pdf(Resident $resident): Response
+    public function pdf(
+        Resident $resident,
+        RbiTemplatePdfGenerator $generator,
+        BarangayOfficialsRegistry $officialsRegistry
+    ): Response
     {
         Gate::authorize('view', $resident);
 
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
+        $barangay = $resident->household->purok->barangay;
+        $officials = $officialsRegistry->keyed($barangay);
 
         ExportAudit::log('resident profile', 'pdf', [
             'model_type' => Resident::class,
             'record_count' => 1,
             'record_ids' => [$resident->id],
+            'document_type' => 'RBI Form B',
+            'barangay_id' => $barangay->id,
+            'barangay_name' => $barangay->name,
         ]);
 
-        return Pdf::loadView('documents.residents.rbi-form', [
-            'resident' => $resident,
-            'attestedByName' => null,
-            'attestedByRole' => 'Barangay Secretary',
-            'accomplishingPartyName' => Auth::user()?->name,
-            'documentDate' => now(),
-            'showBrowserPrintScript' => false,
-        ])->setPaper('a4')->download('resident-rbi-form-'.$resident->id.'.pdf');
+        $content = $generator->generateResidents([$resident], [
+            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+        ]);
+
+        return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf');
     }
 
-    public function printView(Resident $resident): View
+    public function printView(
+        Resident $resident,
+        RbiTemplatePdfGenerator $generator,
+        BarangayOfficialsRegistry $officialsRegistry
+    ): Response
     {
         Gate::authorize('view', $resident);
 
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
+        $barangay = $resident->household->purok->barangay;
+        $officials = $officialsRegistry->keyed($barangay);
 
-        return view('documents.residents.rbi-form', [
-            'resident' => $resident,
-            'attestedByName' => null,
-            'attestedByRole' => 'Barangay Secretary',
-            'accomplishingPartyName' => Auth::user()?->name,
-            'documentDate' => now(),
-            'showBrowserPrintScript' => true,
+        $content = $generator->generateResidents([$resident], [
+            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
         ]);
+
+        return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf', true);
     }
 
     /**
@@ -454,5 +465,13 @@ class ResidentController extends Controller
             'is_ip',
             'ethnicity',
         ];
+    }
+
+    private function pdfResponse(string $content, string $filename, bool $inline = false): Response
+    {
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment').'; filename="'.$filename.'"',
+        ]);
     }
 }

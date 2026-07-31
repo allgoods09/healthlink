@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { getResidents } from '../lib/storage';
@@ -28,7 +29,7 @@ export function ResidentsScreen({ navigation }: any) {
   }, [dataVersion, isFocused, search]);
 
   return (
-    <View style={styles.screen}>
+    <KeyboardShiftView style={styles.screen}>
       <TextInput
         value={search}
         onChangeText={setSearch}
@@ -48,6 +49,7 @@ export function ResidentsScreen({ navigation }: any) {
         <FlatList
           data={records}
           keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.list}
           ListHeaderComponent={
             <Pressable
@@ -82,7 +84,7 @@ export function ResidentsScreen({ navigation }: any) {
           )}
         />
       )}
-    </View>
+    </KeyboardShiftView>
   );
 }
 

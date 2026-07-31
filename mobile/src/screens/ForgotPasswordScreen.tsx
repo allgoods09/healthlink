@@ -8,12 +8,15 @@ import {
   View,
 } from 'react-native';
 
+import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext } from '../context/AppContext';
+import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import { theme } from '../theme';
 
 export function ForgotPasswordScreen({ navigation }: any) {
   const { requestPasswordReset, showToast } = useAppContext();
+  const { handleInputFocus } = useKeyboardAwareScroll();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,7 +37,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
   }
 
   return (
-    <View style={styles.screen}>
+    <KeyboardShiftView style={styles.screen}>
       <View style={styles.card}>
         <Text style={styles.title}>{i18n.t('forgotPasswordTitle')}</Text>
         <Text style={styles.subtitle}>{i18n.t('forgotPasswordSubtitle')}</Text>
@@ -45,6 +48,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
+          onFocus={handleInputFocus}
           style={styles.input}
         />
 
@@ -64,7 +68,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
           <Text style={styles.secondaryButtonText}>{i18n.t('backToLogin')}</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardShiftView>
   );
 }
 

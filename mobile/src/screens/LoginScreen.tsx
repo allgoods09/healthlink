@@ -15,12 +15,15 @@ import {
 } from "react-native";
 
 import { useAppContext } from "../context/AppContext";
+import { useKeyboardAwareScroll } from "../hooks/useKeyboardAwareScroll";
 import { i18n } from "../i18n";
 import { theme } from "../theme";
 import { authBackgroundImage, BrandMark } from "../components/BrandMark";
 
 export function LoginScreen({ navigation }: any) {
     const { showToast, signIn, statusMessage } = useAppContext();
+    const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
+        useKeyboardAwareScroll();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -71,8 +74,11 @@ export function LoginScreen({ navigation }: any) {
                 style={styles.flex}
             >
                 <ScrollView
+                    ref={scrollRef}
                     contentContainerStyle={styles.scroll}
                     keyboardShouldPersistTaps="handled"
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
                 >
                     <View style={styles.hero}>
                         <BrandMark
@@ -98,6 +104,7 @@ export function LoginScreen({ navigation }: any) {
                                 style={styles.input}
                                 value={email}
                                 onChangeText={setEmail}
+                                onFocus={handleInputFocus}
                             />
                         </View>
 
@@ -115,6 +122,7 @@ export function LoginScreen({ navigation }: any) {
                                 style={styles.input}
                                 value={password}
                                 onChangeText={setPassword}
+                                onFocus={handleInputFocus}
                             />
                             <Pressable
                                 onPress={() =>
@@ -167,7 +175,7 @@ export function LoginScreen({ navigation }: any) {
                         </Pressable>
                     </View>
 
-                    <View style={styles.notes}>
+                    <View style={[styles.notes, { paddingBottom: keyboardInset }]}>
                         <Text style={styles.notePrimary}>
                             {i18n.t("loginSubtitle")}
                         </Text>
