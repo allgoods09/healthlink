@@ -1,7 +1,7 @@
 @extends('layouts.portal')
 
 @section('title', 'Reset Frontline Password - HealthLink')
-@section('header', 'Reset Password for '.$frontlineUser->name)
+@section('header', 'Reset Password for '.$frontlineUser->display_name)
 @section('subheader', 'Use a custom password or generate a temporary password for secure frontline account recovery.')
 
 @section('actions')

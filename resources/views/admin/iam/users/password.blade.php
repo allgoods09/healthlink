@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('title', 'Reset Password - HealthLink Admin')
-@section('header', 'Reset Password for ' . $user->name)
+@section('header', 'Reset Password for ' . $user->display_name)
 
 @section('actions')
     <a href="{{ route('admin.users.index') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">

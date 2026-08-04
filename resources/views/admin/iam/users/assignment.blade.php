@@ -27,7 +27,7 @@
             <div class="space-y-5 p-6">
                 <div>
                     <p class="text-sm font-medium text-gray-500">User</p>
-                    <p class="mt-1 text-base font-semibold text-gray-900">{{ $user->name }}</p>
+                    <p class="mt-1 text-base font-semibold text-gray-900">{{ $user->display_name }}</p>
                     <p class="text-sm text-gray-500">{{ $user->email }}</p>
                 </div>
 
@@ -75,7 +75,10 @@
                     @csrf
                     @method('PUT')
 
-                    <input type="hidden" name="name" value="{{ old('name', $user->name) }}">
+                    <input type="hidden" name="first_name" value="{{ old('first_name', $user->resolved_first_name) }}">
+                    <input type="hidden" name="middle_name" value="{{ old('middle_name', $user->resolved_middle_name) }}">
+                    <input type="hidden" name="last_name" value="{{ old('last_name', $user->resolved_last_name) }}">
+                    <input type="hidden" name="suffix" value="{{ old('suffix', $user->resolved_suffix) }}">
                     <input type="hidden" name="email" value="{{ old('email', $user->email) }}">
 
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -150,7 +153,7 @@
                 @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
                     <div class="mt-6 border-t border-gray-200 pt-6">
                         <div class="flex flex-wrap items-center gap-2">
-                            <form action="{{ route('admin.users.approve', $user) }}" method="POST" onsubmit="return confirm('Approve this registration after reviewing the assignment?')">
+                            <form action="{{ route('admin.users.approve', $user) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
@@ -158,7 +161,7 @@
                                 </button>
                             </form>
 
-                            <form action="{{ route('admin.users.reject', $user) }}" method="POST" onsubmit="return captureRejectionReason(this, '{{ addslashes($user->name) }}')">
+                            <form action="{{ route('admin.users.reject', $user) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <input type="hidden" name="approval_notes" value="">
@@ -176,18 +179,6 @@
 
 @push('scripts')
     <script>
-        function captureRejectionReason(form, userName) {
-            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="approval_notes"]').value = reason;
-
-            return true;
-        }
-
         function assignmentForm() {
             return {
                 role: '{{ old('role', $user->requested_role ?? $user->role) }}',

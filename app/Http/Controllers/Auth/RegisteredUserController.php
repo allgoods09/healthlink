@@ -38,7 +38,10 @@ class RegisteredUserController extends Controller
     public function store(Request $request, RoleNotificationService $roleNotificationService): RedirectResponse
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'requested_role' => ['required', 'in:bhw,bns'],
@@ -47,7 +50,10 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = User::create([
-            'name' => $request->name,
+            'first_name' => $request->string('first_name')->toString(),
+            'middle_name' => $request->filled('middle_name') ? $request->string('middle_name')->toString() : null,
+            'last_name' => $request->string('last_name')->toString(),
+            'suffix' => $request->filled('suffix') ? $request->string('suffix')->toString() : null,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->requested_role,

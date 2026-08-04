@@ -87,7 +87,7 @@
                                                 {{ $barangay->is_active ? 'Deactivate' : 'Activate' }}
                                             </button>
                                         </form>
-                                        <form action="{{ route('admin.barangays.destroy', $barangay) }}" method="POST" class="inline" onsubmit="return confirm('Delete this barangay? Existing puroks and assignments must already be cleared.')">
+                                        <form action="{{ route('admin.barangays.destroy', $barangay) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>

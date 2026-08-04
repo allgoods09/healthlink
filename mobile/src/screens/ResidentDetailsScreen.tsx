@@ -2,23 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import {
   calculateAgeFromBirthDate,
   daysSinceDate,
   formatFriendlyDate,
   formatPurokLabel,
+  formatResidentFormalName,
 } from '../lib/format';
 import {
   getLatestRiskAssessmentForResident,
   getResidentByLocalId,
   getRiskAssessmentsForResident,
 } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { ResidentRecord, RiskAssessmentRecord } from '../types';
 
 export function ResidentDetailsScreen({ route, navigation }: any) {
+  const styles = useThemedStyles(createStyles);
   const isFocused = useIsFocused();
   const { assignment, dataVersion } = useAppContext();
   const [resident, setResident] = useState<ResidentRecord | null>(null);
@@ -81,12 +83,7 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.heroName}>
-          {resident.last_name}, {resident.first_name}
-        </Text>
-        {resident.middle_name ? (
-          <Text style={styles.heroSubline}>{resident.middle_name}</Text>
-        ) : null}
+        <Text style={styles.heroName}>{formatResidentFormalName(resident)}</Text>
         <View style={styles.badgeRow}>
           <View style={[styles.badge, canEdit ? styles.badgeEditable : styles.badgeReadOnly]}>
             <Text style={[styles.badgeText, canEdit ? styles.badgeEditableText : styles.badgeReadOnlyText]}>
@@ -202,6 +199,7 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -210,7 +208,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -237,12 +235,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   heroName: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontSize: 28,
     fontWeight: '700',
   },
   heroSubline: {
-    color: '#D9E7FA',
+    color: theme.colors.heroTextMuted,
     marginTop: 6,
   },
   badgeRow: {
@@ -253,28 +251,28 @@ const styles = StyleSheet.create({
   },
   badge: {
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: theme.colors.heroSurface,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   badgeEditable: {
-    backgroundColor: 'rgba(218, 252, 231, 0.18)',
+    backgroundColor: theme.colors.heroSuccessSurface,
   },
   badgeReadOnly: {
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    backgroundColor: theme.colors.heroSurface,
   },
   badgeText: {
     fontWeight: '700',
     fontSize: 12,
   },
   badgeEditableText: {
-    color: '#DDFBE7',
+    color: theme.colors.textOnBrand,
   },
   badgeReadOnlyText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   badgePlainText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -313,7 +311,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -23,6 +25,10 @@ class User extends Authenticatable implements MustVerifyEmailContract
      */
     protected $fillable = [
         'name',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'suffix',
         'email',
         'password',
         'role',
@@ -92,6 +98,29 @@ class User extends Authenticatable implements MustVerifyEmailContract
     public const PUROK_ROLES = ['bhw'];
     public const SECRETARY_APPROVAL_ROLES = ['bhw', 'bns'];
     public const MUNICIPAL_APPROVAL_ROLES = ['admin', 'secretary', 'phn', 'mho'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            $user->syncNameColumns();
+        });
+    }
+
+    /**
+     * Send the HealthLink-branded email verification message.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification);
+    }
+
+    /**
+     * Send the HealthLink-branded password reset message.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 
     // =============================================
     // RELATIONSHIPS
@@ -356,6 +385,145 @@ class User extends Authenticatable implements MustVerifyEmailContract
     // ACCESSORS & MUTATORS
     // =============================================
 
+    public static function buildDisplayName(
+        ?string $firstName,
+        ?string $middleName,
+        ?string $lastName,
+        ?string $suffix = null
+    ): string {
+        $parts = array_filter([
+            static::normalizeNamePart($firstName),
+            static::normalizeNamePart($middleName),
+            static::normalizeNamePart($lastName),
+        ]);
+
+        $name = trim(implode(' ', $parts));
+        $suffix = static::normalizeNamePart($suffix);
+
+        if ($suffix !== null && $suffix !== '') {
+            $name = trim($name.' '.$suffix);
+        }
+
+        return preg_replace('/\s+/', ' ', $name) ?? $name;
+    }
+
+    public static function buildFormalName(
+        ?string $firstName,
+        ?string $middleName,
+        ?string $lastName,
+        ?string $suffix = null
+    ): string {
+        $firstName = static::normalizeNamePart($firstName);
+        $middleName = static::normalizeNamePart($middleName);
+        $lastName = static::normalizeNamePart($lastName);
+        $suffix = static::normalizeNamePart($suffix);
+
+        if ($lastName === null || $lastName === '') {
+            return static::buildDisplayName($firstName, $middleName, null, $suffix);
+        }
+
+        $name = trim($lastName.', '.trim(implode(' ', array_filter([$firstName, $middleName]))));
+
+        if ($suffix !== null && $suffix !== '') {
+            $name = trim($name.' '.$suffix);
+        }
+
+        return preg_replace('/\s+/', ' ', $name) ?? $name;
+    }
+
+    public static function parseLegacyName(?string $name): array
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim((string) $name)) ?? '';
+
+        if ($normalized === '') {
+            return [
+                'first_name' => null,
+                'middle_name' => null,
+                'last_name' => null,
+                'suffix' => null,
+            ];
+        }
+
+        $tokens = preg_split('/\s+/', $normalized) ?: [];
+        $suffix = null;
+
+        if (count($tokens) > 1) {
+            $candidateSuffix = strtoupper((string) end($tokens));
+
+            if (preg_match('/^(JR\.?|SR\.?|I{1,4}|V|VI{0,3}|IX|X)$/', $candidateSuffix)) {
+                $suffix = array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) === 1) {
+            return [
+                'first_name' => $tokens[0],
+                'middle_name' => null,
+                'last_name' => null,
+                'suffix' => $suffix,
+            ];
+        }
+
+        $firstName = array_shift($tokens);
+        $lastName = array_pop($tokens);
+        $middleName = count($tokens) > 0 ? implode(' ', $tokens) : null;
+
+        return [
+            'first_name' => $firstName,
+            'middle_name' => $middleName,
+            'last_name' => $lastName,
+            'suffix' => $suffix,
+        ];
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        if ($this->first_name || $this->last_name) {
+            return static::buildDisplayName(
+                $this->first_name,
+                $this->middle_name,
+                $this->last_name,
+                $this->suffix
+            );
+        }
+
+        return trim((string) $this->name);
+    }
+
+    public function getFormalNameAttribute(): string
+    {
+        if ($this->first_name || $this->last_name) {
+            return static::buildFormalName(
+                $this->first_name,
+                $this->middle_name,
+                $this->last_name,
+                $this->suffix
+            );
+        }
+
+        return trim((string) $this->name);
+    }
+
+    public function getResolvedFirstNameAttribute(): ?string
+    {
+        return $this->first_name ?: $this->legacyNameParts()['first_name'];
+    }
+
+    public function getResolvedMiddleNameAttribute(): ?string
+    {
+        return $this->middle_name ?: $this->legacyNameParts()['middle_name'];
+    }
+
+    public function getResolvedLastNameAttribute(): ?string
+    {
+        return $this->last_name ?: $this->legacyNameParts()['last_name'];
+    }
+
+    public function getResolvedSuffixAttribute(): ?string
+    {
+        return $this->suffix ?: $this->legacyNameParts()['suffix'];
+    }
+
     /**
      * Get the user's role label.
      */
@@ -550,5 +718,40 @@ class User extends Authenticatable implements MustVerifyEmailContract
         }
 
         return $this->assigned_purok_id === $purokId;
+    }
+
+    private static function normalizeNamePart(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', trim($value)) ?? '';
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function syncNameColumns(): void
+    {
+        $this->first_name = static::normalizeNamePart($this->first_name);
+        $this->middle_name = static::normalizeNamePart($this->middle_name);
+        $this->last_name = static::normalizeNamePart($this->last_name);
+        $this->suffix = static::normalizeNamePart($this->suffix);
+
+        if ($this->first_name || $this->last_name) {
+            $this->name = static::buildDisplayName(
+                $this->first_name,
+                $this->middle_name,
+                $this->last_name,
+                $this->suffix
+            );
+        } else {
+            $this->name = trim((string) $this->name);
+        }
+    }
+
+    private function legacyNameParts(): array
+    {
+        return static::parseLegacyName($this->name);
     }
 }

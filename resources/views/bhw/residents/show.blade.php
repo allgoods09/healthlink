@@ -23,35 +23,7 @@
 @section('content')
     <div class="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
         <section class="space-y-6">
-            <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-6 py-5">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ $resident->formal_name }}</h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ $resident->official_resident_code ?? 'No resident code yet' }}</p>
-                </div>
-                <div class="grid gap-4 p-6 sm:grid-cols-2">
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p class="text-sm text-slate-500">Household</p>
-                        <p class="mt-2 text-sm font-semibold text-slate-900">{{ $resident->household?->full_identifier ?? 'Unknown household' }}</p>
-                        <p class="mt-1 text-xs text-slate-400">{{ $resident->household?->purok?->display_name ?? 'Unknown purok' }}</p>
-                    </div>
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p class="text-sm text-slate-500">Status</p>
-                        <p class="mt-2 text-sm font-semibold text-slate-900">{{ ucfirst($resident->resident_status) }}</p>
-                    </div>
-                </div>
-                <div class="grid gap-4 border-t border-slate-200 px-6 py-5 sm:grid-cols-2">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Birth Details</p>
-                        <p class="mt-2 text-sm text-slate-700">{{ optional($resident->birth_date)->format('M d, Y') ?? 'Not recorded' }}</p>
-                        <p class="mt-1 text-sm text-slate-500">{{ $resident->birth_place }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Contact</p>
-                        <p class="mt-2 text-sm text-slate-700">{{ $resident->contact_number ?: 'No contact number' }}</p>
-                        <p class="mt-1 text-sm text-slate-500">{{ $resident->email_address ?: 'No email address' }}</p>
-                    </div>
-                </div>
-            </div>
+            @include('residents.partials.profile-details', ['resident' => $resident])
 
             <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-6 py-5">
@@ -103,6 +75,8 @@
                     @endif
                 </div>
             </section>
+
+            @include('residents.partials.socio-economic-profile', ['resident' => $resident])
         </aside>
     </div>
 @endsection

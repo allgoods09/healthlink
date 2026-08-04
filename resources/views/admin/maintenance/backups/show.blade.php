@@ -197,7 +197,7 @@
                         </a>
                     @endif
 
-                    <form method="POST" action="{{ route('admin.backups.destroy', $backup) }}" onsubmit="return confirm('Are you sure you want to delete this backup?')">
+                    <form method="POST" action="{{ route('admin.backups.destroy', $backup) }}">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="w-full rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">

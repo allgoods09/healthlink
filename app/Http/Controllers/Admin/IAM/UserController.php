@@ -67,7 +67,7 @@ class UserController extends Controller
             ->get();
 
         $columns = [
-            'Name' => 'name',
+            'Name' => 'display_name',
             'Email' => 'email',
             'Role' => fn (User $user) => $user->role_label,
             'Approval Queue' => fn (User $user) => $user->approval_queue_label,

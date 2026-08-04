@@ -1,8 +1,8 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
 
-import { theme } from '../theme';
+import { useAppTheme, useThemedStyles } from '../context/AppContext';
+import { AppTheme } from '../theme';
 import { BrandMark } from './BrandMark';
 
 type BrandSplashProps = {
@@ -14,9 +14,15 @@ export function BrandSplash({
   loadingLabel,
   showSpinner = true,
 }: BrandSplashProps) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.screen}>
-      <StatusBar style="light" />
+      <StatusBar
+        animated
+        backgroundColor={theme.colors.brandBackground}
+        barStyle="light-content"
+      />
 
       <View style={styles.content}>
         <BrandMark />
@@ -24,7 +30,7 @@ export function BrandSplash({
         {showSpinner ? (
           <ActivityIndicator
             size="small"
-            color="rgba(255, 255, 255, 0.92)"
+            color={theme.colors.textOnBrand}
             style={styles.spinner}
           />
         ) : null}
@@ -35,10 +41,10 @@ export function BrandSplash({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.brandBackground,
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.spacing.xl,
@@ -51,7 +57,7 @@ const styles = StyleSheet.create({
   },
   label: {
     marginTop: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: theme.colors.heroTextMuted,
     fontSize: 15,
     letterSpacing: 0.3,
   },

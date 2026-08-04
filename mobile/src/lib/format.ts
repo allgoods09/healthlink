@@ -1,5 +1,12 @@
 const DATE_INPUT_PLACEHOLDER = 'YYYY/MM/DD';
 
+type ResidentNameShape = {
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  suffix?: string | null;
+};
+
 function pad(value: number) {
   return String(value).padStart(2, '0');
 }
@@ -36,6 +43,63 @@ function parseDateValue(value: string) {
 
 function startOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function normalizeNamePart(value: string | null | undefined) {
+  const normalized = (value ?? '').trim().replace(/\s+/g, ' ');
+
+  return normalized !== '' ? normalized : null;
+}
+
+export function formatResidentDisplayName(
+  resident: ResidentNameShape | null | undefined,
+  fallback = 'Unknown resident'
+) {
+  if (!resident) {
+    return fallback;
+  }
+
+  const parts = [
+    normalizeNamePart(resident.first_name),
+    normalizeNamePart(resident.middle_name),
+    normalizeNamePart(resident.last_name),
+  ].filter(Boolean);
+
+  const suffix = normalizeNamePart(resident.suffix);
+  const baseName = parts.join(' ').trim();
+
+  if (!baseName) {
+    return fallback;
+  }
+
+  return suffix ? `${baseName} ${suffix}` : baseName;
+}
+
+export function formatResidentFormalName(
+  resident: ResidentNameShape | null | undefined,
+  fallback = 'Unknown resident'
+) {
+  if (!resident) {
+    return fallback;
+  }
+
+  const firstName = normalizeNamePart(resident.first_name);
+  const middleName = normalizeNamePart(resident.middle_name);
+  const lastName = normalizeNamePart(resident.last_name);
+  const suffix = normalizeNamePart(resident.suffix);
+
+  if (!firstName && !lastName) {
+    return fallback;
+  }
+
+  if (!lastName) {
+    return formatResidentDisplayName(resident, fallback);
+  }
+
+  const givenNames = [firstName, middleName].filter(Boolean).join(' ').trim();
+  const baseName = givenNames ? `${lastName}, ${givenNames}` : lastName;
+
+  return suffix ? `${baseName} ${suffix}` : baseName;
 }
 
 export function calculateAgeOnDate(

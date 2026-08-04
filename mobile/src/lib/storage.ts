@@ -713,9 +713,13 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
        FROM risk_assessments
        GROUP BY resident_server_id
      ) AS latest_risk_assessments ON latest_risk_assessments.resident_server_id = residents.server_id
-     WHERE residents.first_name LIKE ? OR residents.last_name LIKE ? OR COALESCE(households.household_no, '') LIKE ?
+     WHERE residents.first_name LIKE ?
+        OR residents.last_name LIKE ?
+        OR COALESCE(residents.middle_name, '') LIKE ?
+        OR COALESCE(residents.suffix, '') LIKE ?
+        OR COALESCE(households.household_no, '') LIKE ?
      ORDER BY residents.last_name ASC, residents.first_name ASC`,
-    [`%${search}%`, `%${search}%`, `%${search}%`]
+    [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
   );
 
   return rows.map((row: any) => ({

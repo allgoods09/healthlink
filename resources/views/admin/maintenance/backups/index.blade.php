@@ -8,7 +8,7 @@
         <a href="#backup-create" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             Generate Backup
         </a>
-        <form action="{{ route('admin.backups.delete-expired') }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete all expired backups?')">
+        <form action="{{ route('admin.backups.delete-expired') }}" method="POST" class="inline">
             @csrf
             @method('DELETE')
             <button type="submit" class="inline-flex items-center rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700">
@@ -199,7 +199,7 @@
                                     @if($backup->status === 'completed')
                                         <a href="{{ route('admin.backups.download', $backup) }}" class="text-emerald-600 hover:text-emerald-900">Download</a>
                                     @endif
-                                    <form action="{{ route('admin.backups.destroy', $backup) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this backup?')">
+                                    <form action="{{ route('admin.backups.destroy', $backup) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-rose-600 hover:text-rose-900">Delete</button>

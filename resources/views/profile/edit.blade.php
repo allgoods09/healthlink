@@ -21,7 +21,7 @@
         <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-tubigon to-tubigon-hover text-white shadow-xl shadow-tubigon/20">
             <div class="px-6 py-8 sm:px-8">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-white/65">Account Overview</p>
-                <h2 class="mt-3 text-3xl font-semibold tracking-tight">{{ $user->name }}</h2>
+                <h2 class="mt-3 text-3xl font-semibold tracking-tight">{{ $user->display_name }}</h2>
                 <p class="mt-3 max-w-2xl text-sm leading-7 text-white/82">
                     Your profile reflects the role, assignment, and contact details tied to your HealthLink access. Keep these current so approvals, notices, and account recovery continue working cleanly.
                 </p>

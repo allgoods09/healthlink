@@ -19,18 +19,44 @@
                 @csrf
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <!-- Name -->
                     <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                        <input type="text" name="name" id="name" value="{{ old('name') }}" 
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('name') border-red-500 @enderror"
+                        <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
+                        <input type="text" name="first_name" id="first_name" value="{{ old('first_name') }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('first_name') border-red-500 @enderror"
                                required>
-                        @error('name')
+                        @error('first_name')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <!-- Email -->
+                    <div>
+                        <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                        <input type="text" name="last_name" id="last_name" value="{{ old('last_name') }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('last_name') border-red-500 @enderror"
+                               required>
+                        @error('last_name')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label for="middle_name" class="block text-sm font-medium text-gray-700">Middle Name</label>
+                        <input type="text" name="middle_name" id="middle_name" value="{{ old('middle_name') }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('middle_name') border-red-500 @enderror">
+                        @error('middle_name')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label for="suffix" class="block text-sm font-medium text-gray-700">Suffix</label>
+                        <input type="text" name="suffix" id="suffix" value="{{ old('suffix') }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error('suffix') border-red-500 @enderror">
+                        @error('suffix')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <div>
                         <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
                         <input type="email" name="email" id="email" value="{{ old('email') }}" 

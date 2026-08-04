@@ -34,7 +34,10 @@ class BhwController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'assigned_purok_id' => [
@@ -53,7 +56,10 @@ class BhwController extends Controller
         $purok = $this->bnsPuroksQuery()->active()->find($validated['assigned_purok_id']);
 
         $user = User::create([
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'suffix' => $validated['suffix'] ?? null,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => 'bhw',
@@ -67,6 +73,7 @@ class BhwController extends Controller
             'approval_notes' => null,
             'approved_at' => now(),
             'approved_by' => Auth::id(),
+            'email_verified_at' => now(),
             'rejected_at' => null,
             'rejected_by' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -101,7 +108,7 @@ class BhwController extends Controller
             ->get();
 
         $columns = [
-            'Name' => 'name',
+            'Name' => 'display_name',
             'Email' => 'email',
             'Assigned Purok' => fn (User $user) => $user->assignedPurok?->display_name ?? 'Unassigned',
             'Requested Purok' => fn (User $user) => $user->requestedPurok?->display_name ?? 'N/A',

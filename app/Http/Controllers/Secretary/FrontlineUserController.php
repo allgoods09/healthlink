@@ -49,7 +49,7 @@ class FrontlineUserController extends Controller
             ->get();
 
         $columns = [
-            'Name' => 'name',
+            'Name' => 'display_name',
             'Email' => 'email',
             'Role' => fn (User $user) => $user->role_label,
             'Assigned Barangay' => fn (User $user) => $user->assignedBarangay?->name ?: $user->requestedBarangay?->name,
@@ -99,7 +99,10 @@ class FrontlineUserController extends Controller
 
         $validated = $request->validate([
             'role' => ['required', 'in:bhw,bns'],
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'assigned_purok_id' => [
@@ -122,7 +125,10 @@ class FrontlineUserController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'suffix' => $validated['suffix'] ?? null,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],

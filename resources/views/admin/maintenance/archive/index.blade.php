@@ -131,7 +131,7 @@
                                 <div class="table-actions">
                                     <a href="{{ route('admin.archive.show', $archive) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                     @if(!$archive->is_purged)
-                                        <form action="{{ route('admin.archive.restore', $archive) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to restore this record?')">
+                                        <form action="{{ route('admin.archive.restore', $archive) }}" method="POST" class="inline">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="text-green-600 hover:text-green-900">Restore</button>

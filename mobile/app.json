@@ -2,24 +2,23 @@
     "expo": {
         "name": "HealthLink BHW",
         "slug": "healthlink-bhw",
-        "version": "1.0.19",
+        "version": "1.0.20",
         "scheme": "healthlinkbhw",
         "platforms": ["android"],
         "orientation": "portrait",
-        "icon": "./assets/tubigon-logo.png",
-        "userInterfaceStyle": "light",
+        "icon": "./assets/apk-logo-icon.png",
+        "userInterfaceStyle": "automatic",
         "androidStatusBar": {
             "backgroundColor": "#003F7F",
             "barStyle": "light-content"
         },
         "android": {
             "package": "com.allgoods09.healthlink.bhw",
-            "versionCode": 19,
+            "versionCode": 20,
             "softwareKeyboardLayoutMode": "resize",
             "adaptiveIcon": {
-                "backgroundColor": "#E6F4FE",
-                "foregroundImage": "./assets/tubigon-logo.png",
-                "monochromeImage": "./assets/android-icon-monochrome.png"
+                "backgroundColor": "#003F7F",
+                "foregroundImage": "./assets/apk-logo-foreground.png"
             },
             "predictiveBackGestureEnabled": false,
             "permissions": [
@@ -32,6 +31,13 @@
             "expo-sqlite",
             "expo-secure-store",
             "expo-localization",
+            [
+                "expo-navigation-bar",
+                {
+                    "enforceContrast": false,
+                    "style": "light"
+                }
+            ],
             [
                 "expo-splash-screen",
                 {

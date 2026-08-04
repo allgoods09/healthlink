@@ -24,7 +24,7 @@
             <div class="grid gap-6 p-6 md:grid-cols-2">
                 <div>
                     <p class="text-sm font-medium text-slate-500">Full Name</p>
-                    <p class="mt-1 text-sm text-slate-900">{{ $frontlineUser->name }}</p>
+                    <p class="mt-1 text-sm text-slate-900">{{ $frontlineUser->display_name }}</p>
                 </div>
                 <div>
                     <p class="text-sm font-medium text-slate-500">Email</p>
@@ -112,7 +112,7 @@
                         </button>
                     </form>
 
-                    <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST" onsubmit="return confirm('Mark this email as verified manually?')">
+                    <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST">
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-5 py-2.5 text-sm font-medium text-amber-900 transition hover:bg-amber-200">

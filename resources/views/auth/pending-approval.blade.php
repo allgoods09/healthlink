@@ -17,7 +17,7 @@
         <dl class="grid gap-4 rounded-3xl border border-slate-200 bg-white/80 px-5 py-5 text-sm text-slate-700 sm:grid-cols-2">
             <div>
                 <dt class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Name</dt>
-                <dd class="mt-2 font-medium text-slate-900">{{ $user->name }}</dd>
+                <dd class="mt-2 font-medium text-slate-900">{{ $user->display_name }}</dd>
             </div>
             <div>
                 <dt class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Email</dt>

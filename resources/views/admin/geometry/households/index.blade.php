@@ -140,7 +140,7 @@
                                             </button>
                                         </form>
                                         @if($canDelete ?? true)
-                                            <form action="{{ route($routePrefix.'.households.destroy', $household) }}" method="POST" class="inline" onsubmit="return confirm('Delete this household and soft-delete all of its residents?')">
+                                            <form action="{{ route($routePrefix.'.households.destroy', $household) }}" method="POST" class="inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>

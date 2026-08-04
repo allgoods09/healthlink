@@ -9,7 +9,7 @@ use App\Models\PhilpenRiskAssessment;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
@@ -516,6 +516,6 @@ class MobileApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true);
 
-        Notification::assertSentTo($user, ResetPassword::class);
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
     }
 }

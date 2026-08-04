@@ -30,14 +30,14 @@
                 <div class="p-6">
                     <div class="mb-6 flex justify-center">
                         <div class="flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-2xl font-bold text-blue-600">
-                            {{ strtoupper(substr($user->name, 0, 2)) }}
+                            {{ strtoupper(substr($user->display_name, 0, 2)) }}
                         </div>
                     </div>
 
                     <dl class="space-y-4">
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Full Name</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $user->name }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $user->display_name }}</dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Email</dt>
@@ -166,7 +166,7 @@
                         </div>
 
                         <div class="flex flex-wrap items-center gap-2 pt-2">
-                            <form action="{{ route('admin.users.approve', $user) }}" method="POST" onsubmit="return confirm('Approve this registration?')">
+                        <form action="{{ route('admin.users.approve', $user) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
@@ -174,7 +174,7 @@
                                 </button>
                             </form>
 
-                            <form action="{{ route('admin.users.reject', $user) }}" method="POST" onsubmit="return captureRejectionReason(this, '{{ addslashes($user->name) }}')">
+                        <form action="{{ route('admin.users.reject', $user) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <input type="hidden" name="approval_notes" value="">
@@ -194,7 +194,7 @@
                                 </button>
                             </form>
 
-                            <form action="{{ route('admin.users.verification.mark', $user) }}" method="POST" onsubmit="return confirm('Mark this email as verified manually?')">
+                        <form action="{{ route('admin.users.verification.mark', $user) }}" method="POST">
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit" class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
@@ -259,19 +259,3 @@
         </div>
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        function captureRejectionReason(form, userName) {
-            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="approval_notes"]').value = reason;
-
-            return true;
-        }
-    </script>
-@endpush

@@ -14,13 +14,15 @@ import {
     View,
 } from "react-native";
 
-import { useAppContext } from "../context/AppContext";
+import { useAppContext, useAppTheme, useThemedStyles } from "../context/AppContext";
 import { useKeyboardAwareScroll } from "../hooks/useKeyboardAwareScroll";
 import { i18n } from "../i18n";
-import { theme } from "../theme";
+import { AppTheme } from "../theme";
 import { authBackgroundImage, BrandMark } from "../components/BrandMark";
 
 export function LoginScreen({ navigation }: any) {
+    const theme = useAppTheme();
+    const styles = useThemedStyles(createStyles);
     const { showToast, signIn, statusMessage } = useAppContext();
     const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
         useKeyboardAwareScroll();
@@ -100,7 +102,7 @@ export function LoginScreen({ navigation }: any) {
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                                 placeholder={i18n.t("email")}
-                                placeholderTextColor="rgba(13, 66, 129, 0.45)"
+                                placeholderTextColor={theme.colors.placeholder}
                                 style={styles.input}
                                 value={email}
                                 onChangeText={setEmail}
@@ -118,7 +120,7 @@ export function LoginScreen({ navigation }: any) {
                             <TextInput
                                 secureTextEntry={!showPassword}
                                 placeholder={i18n.t("password")}
-                                placeholderTextColor="rgba(13, 66, 129, 0.45)"
+                                placeholderTextColor={theme.colors.placeholder}
                                 style={styles.input}
                                 value={password}
                                 onChangeText={setPassword}
@@ -143,7 +145,7 @@ export function LoginScreen({ navigation }: any) {
                                             : "eye-outline"
                                     }
                                     size={28}
-                                    color="rgba(13, 66, 129, 0.75)"
+                                    color={theme.colors.primaryDark}
                                 />
                             </Pressable>
                         </View>
@@ -166,7 +168,7 @@ export function LoginScreen({ navigation }: any) {
                             disabled={submitting}
                         >
                             {submitting ? (
-                                <ActivityIndicator color="#FFFFFF" />
+                                <ActivityIndicator color={theme.colors.textOnPrimary} />
                             ) : (
                                 <Text style={styles.primaryButtonText}>
                                     {i18n.t("signIn")}
@@ -189,17 +191,17 @@ export function LoginScreen({ navigation }: any) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: theme.colors.primary,
+        backgroundColor: theme.colors.brandBackground,
     },
     backgroundImage: {
         resizeMode: "cover",
     },
     overlay: {
         ...StyleSheet.absoluteFill,
-        backgroundColor: "rgba(11, 84, 165, 0.58)",
+        backgroundColor: theme.colors.imageOverlay,
     },
     flex: { flex: 1 },
     scroll: {
@@ -220,12 +222,12 @@ const styles = StyleSheet.create({
         minHeight: 74,
         borderRadius: 16,
         borderWidth: 1.2,
-        borderColor: "rgba(21, 72, 138, 0.46)",
-        backgroundColor: "rgba(240, 247, 255, 0.88)",
+        borderColor: theme.colors.authInputBorder,
+        backgroundColor: theme.colors.authInputBackground,
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 18,
-        shadowColor: "#0A366A",
+        shadowColor: theme.colors.shadow,
         shadowOpacity: 0.16,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 8 },
@@ -236,7 +238,7 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        color: theme.colors.primaryDark,
+        color: theme.colors.text,
         fontSize: 16,
         paddingVertical: 18,
     },
@@ -248,28 +250,28 @@ const styles = StyleSheet.create({
         marginTop: -2,
     },
     forgotButtonText: {
-        color: "#FFFFFF",
+        color: theme.colors.textOnBrand,
         fontSize: 15,
         fontWeight: "500",
         textDecorationLine: "underline",
     },
     primaryButton: {
-        backgroundColor: "#0E5FB8",
+        backgroundColor: theme.colors.accent,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "rgba(5, 46, 98, 0.55)",
+        borderColor: theme.colors.primaryDark,
         minHeight: 76,
         paddingVertical: 15,
         alignItems: "center",
         justifyContent: "center",
-        shadowColor: "#072B56",
+        shadowColor: theme.colors.shadow,
         shadowOpacity: 0.2,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 8 },
         elevation: 4,
     },
     primaryButtonText: {
-        color: "#FFFFFF",
+        color: theme.colors.textOnPrimary,
         fontSize: 18,
         fontWeight: "700",
     },
@@ -278,14 +280,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
     },
     notePrimary: {
-        color: "#FFFFFF",
+        color: theme.colors.textOnBrand,
         textAlign: "center",
         fontSize: 14,
         lineHeight: 24,
         fontWeight: "500",
     },
     noteSecondary: {
-        color: "rgba(255, 255, 255, 0.94)",
+        color: theme.colors.textOnBrand,
         textAlign: "center",
         fontSize: 14,
         lineHeight: 24,

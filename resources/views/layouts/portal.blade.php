@@ -16,6 +16,7 @@
 </head>
 <body x-data="sidebarLayout('portal-{{ $user?->role ?? 'default' }}')" class="font-sans antialiased bg-slate-50">
 <x-flash-toasts />
+<x-action-confirmation-modal />
 @php
     $user = Auth::user();
 
@@ -230,10 +231,10 @@
             <div class="border-t border-white/10 bg-tubigon-hover/35 px-5 py-4">
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/12 text-sm font-semibold text-white ring-1 ring-white/10">
-                        {{ strtoupper(substr($user->name, 0, 2)) }}
+                        {{ strtoupper(substr($user->display_name, 0, 2)) }}
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold text-white">{{ $user->name }}</p>
+                        <p class="truncate text-sm font-semibold text-white">{{ $user->display_name }}</p>
                         <p class="truncate text-xs text-white/70">{{ $user->assignment_label }}</p>
                     </div>
                     <button @click="closeSidebar()" class="rounded-full p-1 text-white/60 transition hover:bg-white/10 hover:text-white lg:hidden" aria-label="Close sidebar">

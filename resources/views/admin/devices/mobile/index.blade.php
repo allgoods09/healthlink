@@ -127,13 +127,13 @@
                             <td class="px-6 py-4 text-sm text-gray-600">{{ $device['created_at']->format('M d, Y h:i A') }}</td>
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
-                                    <form action="{{ route($routePrefix.'.devices.revoke', $device['token']->id) }}" method="POST" class="inline" onsubmit="return confirm('Revoke this device token? The BHW will lose sync access immediately.')">
+                                    <form action="{{ route($routePrefix.'.devices.revoke', $device['token']->id) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-rose-600 hover:text-rose-900">Revoke</button>
                                     </form>
 
-                                    <form action="{{ route($routePrefix.'.devices.revoke-all', $device['user']) }}" method="POST" class="inline" onsubmit="return confirm('Revoke every device token for this BHW?')">
+                                    <form action="{{ route($routePrefix.'.devices.revoke-all', $device['user']) }}" method="POST" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-amber-600 hover:text-amber-900">Revoke All</button>

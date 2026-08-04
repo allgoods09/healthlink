@@ -24,10 +24,34 @@
                     @csrf
 
                     <div class="grid gap-6 md:grid-cols-2">
-                        <div class="md:col-span-2">
-                            <label for="name" class="block text-sm font-medium text-slate-700">Full Name</label>
-                            <input type="text" name="name" id="name" value="{{ old('name') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('name') border-rose-400 @enderror" required>
-                            @error('name')
+                        <div>
+                            <label for="first_name" class="block text-sm font-medium text-slate-700">First Name</label>
+                            <input type="text" name="first_name" id="first_name" value="{{ old('first_name') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('first_name') border-rose-400 @enderror" required>
+                            @error('first_name')
+                                <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="last_name" class="block text-sm font-medium text-slate-700">Last Name</label>
+                            <input type="text" name="last_name" id="last_name" value="{{ old('last_name') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('last_name') border-rose-400 @enderror" required>
+                            @error('last_name')
+                                <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="middle_name" class="block text-sm font-medium text-slate-700">Middle Name</label>
+                            <input type="text" name="middle_name" id="middle_name" value="{{ old('middle_name') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('middle_name') border-rose-400 @enderror">
+                            @error('middle_name')
+                                <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="suffix" class="block text-sm font-medium text-slate-700">Suffix</label>
+                            <input type="text" name="suffix" id="suffix" value="{{ old('suffix') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('suffix') border-rose-400 @enderror">
+                            @error('suffix')
                                 <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
                             @enderror
                         </div>

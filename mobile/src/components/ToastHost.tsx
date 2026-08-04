@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '../theme';
+import { useAppTheme, useThemedStyles } from '../context/AppContext';
+import { AppTheme } from '../theme';
 import { MobileToast } from '../types';
 
 type ToastHostProps = {
@@ -19,6 +20,8 @@ type ToastHostProps = {
 };
 
 export function ToastHost({ toast, onDismiss }: ToastHostProps) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const opacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(-24)).current;
@@ -110,7 +113,7 @@ export function ToastHost({ toast, onDismiss }: ToastHostProps) {
     return null;
   }
 
-  const palette = paletteForLevel(toast.level);
+  const palette = paletteForLevel(toast.level, theme);
 
   return (
     <View
@@ -147,48 +150,48 @@ export function ToastHost({ toast, onDismiss }: ToastHostProps) {
   );
 }
 
-function paletteForLevel(level: MobileToast['level']) {
+function paletteForLevel(level: MobileToast['level'], theme: AppTheme) {
   switch (level) {
     case 'success':
       return {
-        background: '#ECFDF3',
-        border: '#A7F3D0',
-        iconBackground: '#D1FAE5',
-        iconColor: '#047857',
-        textColor: '#065F46',
+        background: theme.colors.successSoft,
+        border: theme.colors.successBorder,
+        iconBackground: theme.colors.surface,
+        iconColor: theme.colors.success,
+        textColor: theme.colors.success,
         icon: 'checkmark-circle' as const,
       };
     case 'warning':
       return {
-        background: '#FFF7ED',
-        border: '#FED7AA',
-        iconBackground: '#FFEDD5',
-        iconColor: '#C2410C',
-        textColor: '#9A3412',
+        background: theme.colors.warningSoft,
+        border: theme.colors.warningBorder,
+        iconBackground: theme.colors.surface,
+        iconColor: theme.colors.warning,
+        textColor: theme.colors.warning,
         icon: 'warning' as const,
       };
     case 'error':
       return {
-        background: '#FEF2F2',
-        border: '#FECACA',
-        iconBackground: '#FEE2E2',
-        iconColor: '#B91C1C',
-        textColor: '#991B1B',
+        background: theme.colors.dangerSoft,
+        border: theme.colors.dangerBorder,
+        iconBackground: theme.colors.surface,
+        iconColor: theme.colors.danger,
+        textColor: theme.colors.danger,
         icon: 'alert-circle' as const,
       };
     default:
       return {
-        background: '#EFF6FF',
-        border: '#BFDBFE',
-        iconBackground: '#DBEAFE',
-        iconColor: '#1D4ED8',
-        textColor: '#1E3A8A',
+        background: theme.colors.infoSoft,
+        border: theme.colors.infoBorder,
+        iconBackground: theme.colors.surface,
+        iconColor: theme.colors.info,
+        textColor: theme.colors.info,
         icon: 'notifications' as const,
       };
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   portal: {
     position: 'absolute',
     left: 12,

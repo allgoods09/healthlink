@@ -27,7 +27,7 @@
             <div class="grid gap-6 p-6 md:grid-cols-2">
                 <div>
                     <p class="text-sm font-medium text-slate-500">Full Name</p>
-                    <p class="mt-1 text-sm text-slate-900">{{ $bhw->name }}</p>
+                    <p class="mt-1 text-sm text-slate-900">{{ $bhw->display_name }}</p>
                 </div>
                 <div>
                     <p class="text-sm font-medium text-slate-500">Email</p>

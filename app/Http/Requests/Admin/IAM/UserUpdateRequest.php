@@ -26,7 +26,11 @@ class UserUpdateRequest extends FormRequest
         $userId = $this->route('user') ? $this->route('user')->id : null;
 
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'first_name' => ['required_without:name', 'nullable', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required_without:name', 'nullable', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'email' => [
                 'required', 
                 'string', 
@@ -83,7 +87,8 @@ class UserUpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'The full name is required.',
+            'first_name.required_without' => 'The first name is required.',
+            'last_name.required_without' => 'The last name is required.',
             'email.required' => 'The email address is required.',
             'email.unique' => 'This email is already registered.',
             'role.required' => 'Please select a user role.',

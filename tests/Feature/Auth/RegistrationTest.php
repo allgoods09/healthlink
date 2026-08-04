@@ -4,9 +4,9 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Barangay;
 use App\Models\User;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -27,7 +27,10 @@ class RegistrationTest extends TestCase
         $barangay = Barangay::factory()->create();
 
         $response = $this->post('/register', [
-            'name' => 'Test BHW',
+            'first_name' => 'Test',
+            'middle_name' => null,
+            'last_name' => 'BHW',
+            'suffix' => null,
             'email' => 'bhw@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
@@ -40,6 +43,8 @@ class RegistrationTest extends TestCase
         $this->assertAuthenticated();
 
         $this->assertDatabaseHas('users', [
+            'first_name' => 'Test',
+            'last_name' => 'BHW',
             'email' => 'bhw@example.com',
             'role' => 'bhw',
             'requested_role' => 'bhw',
@@ -53,7 +58,7 @@ class RegistrationTest extends TestCase
         $user = User::query()->where('email', 'bhw@example.com')->firstOrFail();
 
         $this->assertNull($user->email_verified_at);
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, VerifyEmailNotification::class);
     }
 
     public function test_new_bns_users_can_register_pending_secretary_approval(): void
@@ -63,7 +68,10 @@ class RegistrationTest extends TestCase
         $barangay = Barangay::factory()->create();
 
         $response = $this->post('/register', [
-            'name' => 'Test BNS',
+            'first_name' => 'Test',
+            'middle_name' => null,
+            'last_name' => 'BNS',
+            'suffix' => null,
             'email' => 'bns@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
@@ -76,6 +84,8 @@ class RegistrationTest extends TestCase
         $this->assertAuthenticated();
 
         $this->assertDatabaseHas('users', [
+            'first_name' => 'Test',
+            'last_name' => 'BNS',
             'email' => 'bns@example.com',
             'role' => 'bns',
             'requested_role' => 'bns',
@@ -89,6 +99,6 @@ class RegistrationTest extends TestCase
         $user = User::query()->where('email', 'bns@example.com')->firstOrFail();
 
         $this->assertNull($user->email_verified_at);
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, VerifyEmailNotification::class);
     }
 }

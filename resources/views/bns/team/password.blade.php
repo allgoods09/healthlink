@@ -1,7 +1,7 @@
 @extends('layouts.portal')
 
 @section('title', 'Reset BHW Password - HealthLink')
-@section('header', 'Reset Password for '.$bhw->name)
+@section('header', 'Reset Password for '.$bhw->display_name)
 @section('subheader', 'Use a custom password or generate a one-time temporary password for secure handoff.')
 
 @section('actions')

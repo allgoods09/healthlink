@@ -29,7 +29,7 @@
                     <div class="grid gap-6 md:grid-cols-2">
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Full Name</label>
-                            <input type="text" value="{{ $frontlineUser->name }}" class="mt-1 block w-full rounded-xl border-slate-300 bg-slate-50 text-slate-500 shadow-sm" disabled>
+                            <input type="text" value="{{ $frontlineUser->display_name }}" class="mt-1 block w-full rounded-xl border-slate-300 bg-slate-50 text-slate-500 shadow-sm" disabled>
                         </div>
 
                         <div>
@@ -84,7 +84,7 @@
 
                 @if($frontlineUser->approval_status === \App\Models\User::APPROVAL_PENDING)
                     <div class="mt-6 flex flex-wrap items-center gap-3">
-                        <form action="{{ route('secretary.team.approve', $frontlineUser) }}" method="POST" onsubmit="return confirm('Approve this registration now?')">
+                        <form action="{{ route('secretary.team.approve', $frontlineUser) }}" method="POST">
                             @csrf
                             @method('PATCH')
                             <button type="submit" class="inline-flex items-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">
@@ -92,7 +92,7 @@
                             </button>
                         </form>
 
-                        <form action="{{ route('secretary.team.reject', $frontlineUser) }}" method="POST" onsubmit="return captureRejectionReason(this, '{{ addslashes($frontlineUser->name) }}')">
+                        <form action="{{ route('secretary.team.reject', $frontlineUser) }}" method="POST">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="approval_notes" value="">
@@ -144,7 +144,7 @@
                             </button>
                         </form>
 
-                        <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST" onsubmit="return confirm('Mark this email as verified manually?')">
+                        <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST">
                             @csrf
                             @method('PATCH')
                             <button type="submit" class="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-200">
@@ -176,18 +176,6 @@
             if (!requiresPurok) {
                 purokInput.value = '';
             }
-        }
-
-        function captureRejectionReason(form, userName) {
-            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="approval_notes"]').value = reason;
-
-            return true;
         }
 
         roleSelect.addEventListener('change', syncRoleFormState);

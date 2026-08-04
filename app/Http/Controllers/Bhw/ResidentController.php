@@ -48,6 +48,7 @@ class ResidentController extends Controller
         $this->ensureResidentBelongsToBarangay($resident);
 
         $resident->load([
+            'household.headResident',
             'household.purok',
             'latestOptMeasurement.campaignPeriod',
             'maternalNutritionProfile',

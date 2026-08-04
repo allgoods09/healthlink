@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
-import { formatFriendlyDate, formatPurokLabel } from '../lib/format';
+import { formatFriendlyDate, formatPurokLabel, formatResidentFormalName } from '../lib/format';
 import { getHouseholdByLocalId, getResidentsForHousehold } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
 
 export function HouseholdDetailsScreen({ route, navigation }: any) {
+  const styles = useThemedStyles(createStyles);
   const { assignment } = useAppContext();
   const [household, setHousehold] = useState<HouseholdRecord | null>(null);
   const [members, setMembers] = useState<ResidentRecord[]>([]);
@@ -83,7 +84,7 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
           members.map((member) => (
             <View key={String(member.local_id ?? member.server_id ?? member.mobile_uuid)} style={styles.memberRow}>
               <Text style={styles.memberName}>
-                {member.last_name}, {member.first_name}
+                {formatResidentFormalName(member)}
               </Text>
               <Text style={styles.memberMeta}>
                 {member.relationship_to_head} · {formatFriendlyDate(member.birth_date) ?? member.birth_date}
@@ -125,6 +126,7 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -133,7 +135,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -161,12 +163,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   heroName: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontSize: 28,
     fontWeight: '700',
   },
   heroSubline: {
-    color: '#D9E7FA',
+    color: theme.colors.heroTextMuted,
     marginTop: 8,
   },
   badgeRow: {
@@ -177,28 +179,28 @@ const styles = StyleSheet.create({
   },
   badge: {
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: theme.colors.heroSurface,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   badgeEditable: {
-    backgroundColor: 'rgba(218, 252, 231, 0.18)',
+    backgroundColor: theme.colors.heroSuccessSurface,
   },
   badgeReadOnly: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: theme.colors.heroSurface,
   },
   badgeText: {
     fontWeight: '700',
     fontSize: 12,
   },
   badgeEditableText: {
-    color: '#DDFBE7',
+    color: theme.colors.textOnBrand,
   },
   badgeReadOnlyText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   badgePlainText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

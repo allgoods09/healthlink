@@ -44,6 +44,10 @@ class UserFactory extends Factory
 
         return [
             'name' => $firstName.' '.$lastName,
+            'first_name' => $firstName,
+            'middle_name' => null,
+            'last_name' => $lastName,
+            'suffix' => null,
             'email' => $emailHandle.'@healthlink.test',
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),

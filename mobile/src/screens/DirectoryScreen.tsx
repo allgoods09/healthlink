@@ -12,16 +12,17 @@ import { useIsFocused } from '@react-navigation/native';
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import {
   calculateAgeFromBirthDate,
   daysSinceDate,
   formatFriendlyDate,
   formatPurokLabel,
+  formatResidentFormalName,
 } from '../lib/format';
 import { getHouseholds, getResidents } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
 
 type DirectoryMode = 'residents' | 'households';
@@ -30,6 +31,8 @@ type ResidentScreeningFilter = 'due30' | 'allAdults' | 'assessed' | 'allResident
 export function DirectoryScreen({ navigation }: any) {
   const isFocused = useIsFocused();
   const { assignment, dataVersion } = useAppContext();
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const [mode, setMode] = useState<DirectoryMode>('residents');
   const [residentFilter, setResidentFilter] = useState<ResidentScreeningFilter>('due30');
   const [search, setSearch] = useState('');
@@ -118,7 +121,7 @@ export function DirectoryScreen({ navigation }: any) {
       <View style={styles.dataCard}>
         <View style={styles.dataCardHeader}>
           <Text style={styles.dataTitle}>
-            {item.last_name}, {item.first_name}
+            {formatResidentFormalName(item)}
           </Text>
           <Text style={[styles.scopePill, canEdit ? styles.scopeEditable : styles.scopeReadOnly]}>
             {canEdit ? i18n.t('editable') : i18n.t('readOnly')}
@@ -254,6 +257,7 @@ export function DirectoryScreen({ navigation }: any) {
               value={search}
               onChangeText={setSearch}
               placeholder={i18n.t('searchDirectoryPlaceholder')}
+              placeholderTextColor={theme.colors.placeholder}
               style={styles.search}
             />
 
@@ -345,6 +349,8 @@ function FilterChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -357,7 +363,7 @@ function FilterChip({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -421,7 +427,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   segmentTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   filterWrap: {
     marginBottom: theme.spacing.md,
@@ -455,7 +461,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   filterChipTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   dataCard: {
     backgroundColor: theme.colors.surface,
@@ -507,22 +513,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   riskBadgeSuccess: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: theme.colors.successSoft,
   },
   riskBadgeSuccessText: {
-    color: '#166534',
+    color: theme.colors.success,
   },
   riskBadgeWarning: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: theme.colors.warningSoft,
   },
   riskBadgeWarningText: {
-    color: '#92400E',
+    color: theme.colors.warning,
   },
   riskBadgeDanger: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: theme.colors.dangerSoft,
   },
   riskBadgeDangerText: {
-    color: '#B91C1C',
+    color: theme.colors.danger,
   },
   riskBadgeNeutral: {
     backgroundColor: theme.colors.surfaceMuted,

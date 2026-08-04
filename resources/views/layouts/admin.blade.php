@@ -16,6 +16,7 @@
 </head>
 <body x-data="sidebarLayout('admin')" class="font-sans antialiased bg-gray-100">
     <x-flash-toasts />
+    <x-action-confirmation-modal />
     @php
         $isOverrideWorkspace = request()->routeIs([
             'admin.users.*',

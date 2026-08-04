@@ -103,7 +103,7 @@
                                             </button>
                                         </form>
                                         @if($canDelete ?? true)
-                                            <form action="{{ route($routePrefix.'.puroks.destroy', $purok) }}" method="POST" class="inline" onsubmit="return confirm('Delete this purok? Existing households and assignments must already be cleared.')">
+                                            <form action="{{ route($routePrefix.'.puroks.destroy', $purok) }}" method="POST" class="inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>

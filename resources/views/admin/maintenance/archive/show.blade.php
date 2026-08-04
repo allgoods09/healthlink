@@ -84,7 +84,7 @@
                 <h3 class="text-lg font-medium text-gray-900">Actions</h3>
             </div>
             <div class="p-6 flex space-x-4">
-                <form action="{{ route('admin.archive.restore', $archivedRecord) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to restore this record?')">
+                <form action="{{ route('admin.archive.restore', $archivedRecord) }}" method="POST" class="inline">
                     @csrf
                     @method('PATCH')
                     <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">

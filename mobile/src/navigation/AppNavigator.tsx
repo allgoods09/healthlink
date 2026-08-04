@@ -12,10 +12,11 @@ import {
   View,
 } from 'react-native';
 
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { BrandSplash } from '../components/BrandSplash';
+import { ActionConfirmationModal } from '../components/ActionConfirmationModal';
 import { ToastHost } from '../components/ToastHost';
 import { DirectoryScreen } from '../screens/DirectoryScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
@@ -38,6 +39,7 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const { unreadNotificationCount } = useAppContext();
+  const theme = useAppTheme();
 
   return (
     <Tab.Navigator
@@ -91,26 +93,34 @@ function MainTabs() {
   );
 }
 
-const navTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: theme.colors.background,
-    card: theme.colors.surface,
-    text: theme.colors.text,
-    border: theme.colors.border,
-    primary: theme.colors.primary,
-  },
-};
+function createNavigationTheme(theme: AppTheme) {
+  return {
+    ...DefaultTheme,
+    dark: theme.mode === 'dark',
+    colors: {
+      ...DefaultTheme.colors,
+      background: theme.colors.background,
+      card: theme.colors.surface,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      primary: theme.colors.primary,
+      notification: theme.colors.danger,
+    },
+  };
+}
 
 export function AppNavigator() {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     appVersion,
     bootstrapCompleted,
     clearToast,
+    confirmation,
     isReady,
     isAuthenticated,
     releaseCheck,
+    resolveConfirmation,
     toast,
   } = useAppContext();
   const [dismissedUpdateVersionCode, setDismissedUpdateVersionCode] = React.useState<number | null>(null);
@@ -152,7 +162,7 @@ export function AppNavigator() {
 
   return (
     <>
-      <NavigationContainer theme={navTheme}>
+      <NavigationContainer theme={createNavigationTheme(theme)}>
         <Stack.Navigator
           screenOptions={{
             headerShadowVisible: false,
@@ -228,6 +238,10 @@ export function AppNavigator() {
       </NavigationContainer>
 
       <ToastHost toast={toast} onDismiss={clearToast} />
+      <ActionConfirmationModal
+        confirmation={confirmation}
+        onResolve={resolveConfirmation}
+      />
 
       <Modal
         transparent
@@ -284,10 +298,10 @@ export function AppNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(7, 22, 43, 0.48)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
@@ -339,7 +353,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '700',
   },

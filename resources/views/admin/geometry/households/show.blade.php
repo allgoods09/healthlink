@@ -32,44 +32,13 @@
 @endsection
 
 @section('content')
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="rounded-lg bg-white shadow lg:col-span-1">
-            <div class="p-6">
-                <h2 class="text-lg font-semibold text-gray-900">Household Profile</h2>
-                <dl class="mt-4 space-y-4">
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Household Number</dt>
-                        <dd class="text-sm text-gray-900">#{{ $household->household_no }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Barangay</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->purok->barangay->name }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Purok</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->purok->display_name }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Address</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->household_address }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Head of Household</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->headResident?->formal_name ?? 'Not yet assigned' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Social Aid</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->is_social_aid_beneficiary ? 'Yes' : 'No' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500">Status</dt>
-                        <dd class="text-sm text-gray-900">{{ $household->is_active ? 'Active' : 'Inactive' }}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        @include('households.partials.profile-details', [
+            'household' => $household,
+            'containerClass' => 'rounded-lg bg-white shadow',
+        ])
 
-        <div class="rounded-lg bg-white shadow lg:col-span-2">
+        <div class="rounded-lg bg-white shadow">
             <div class="border-b border-gray-200 p-6">
                 <h2 class="text-lg font-semibold text-gray-900">Residents</h2>
                 <p class="mt-1 text-sm text-gray-500">People currently linked to this household.</p>

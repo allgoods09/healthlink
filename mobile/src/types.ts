@@ -7,6 +7,15 @@ export type MobileToast = {
   level: MobileToastLevel;
 };
 
+export type MobileConfirmationTone = 'primary' | 'warning' | 'danger';
+
+export type MobileConfirmationRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone?: MobileConfirmationTone;
+};
+
 export type MobileNotification = {
   id: string;
   title: string;

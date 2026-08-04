@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
@@ -30,12 +30,14 @@ import {
   getVisitByLocalId,
   saveVisit,
 } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { HouseholdRecord, VisitPhoto } from '../types';
 
 export function VisitFormScreen({ route, navigation }: any) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const cameraRef = useRef<CameraView | null>(null);
-  const { assignment, bumpDataVersion } = useAppContext();
+  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [permission, requestPermission] = useCameraPermissions();
@@ -219,12 +221,33 @@ export function VisitFormScreen({ route, navigation }: any) {
     setCameraVisible(false);
   }
 
-  function removePhoto(index: number) {
+  async function removePhoto(index: number) {
+    const confirmed = await requestConfirmation({
+      title: i18n.t('removePhotoConfirmationTitle'),
+      message: i18n.t('removePhotoConfirmationBody'),
+      confirmLabel: i18n.t('removePhotoConfirmationLabel'),
+      tone: 'danger',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
   }
 
   async function handleSave() {
     if (!selectedHousehold) return;
+
+    const confirmed = await requestConfirmation({
+      title: i18n.t('saveVisitConfirmationTitle'),
+      message: i18n.t('saveVisitConfirmationBody'),
+      confirmLabel: i18n.t('save'),
+    });
+
+    if (!confirmed) {
+      return;
+    }
 
     await saveVisit({
       local_id: localId ?? undefined,
@@ -316,11 +339,11 @@ export function VisitFormScreen({ route, navigation }: any) {
             {photos.map((photo, index) => (
               <View key={`${photo.file_name}-${index}`} style={styles.photoCard}>
                 <Pressable
-                  onPress={() => removePhoto(index)}
+                  onPress={() => void removePhoto(index)}
                   style={styles.removePhotoButton}
                   hitSlop={10}
                 >
-                  <Ionicons name="close" size={14} color="#fff" />
+                  <Ionicons name="close" size={14} color={theme.colors.textOnBrand} />
                 </Pressable>
                 {photo.uri ? (
                   <Image source={{ uri: photo.uri }} style={styles.photo} />
@@ -384,7 +407,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.md, gap: theme.spacing.md },
   card: {
@@ -404,7 +427,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.text,
@@ -452,7 +475,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -507,7 +530,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    backgroundColor: theme.colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -533,13 +556,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(16, 24, 40, 0.28)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'flex-end',
   },
   modalCard: {
@@ -570,21 +593,21 @@ const styles = StyleSheet.create({
   },
   cameraScreen: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: theme.colors.cameraBackdrop,
   },
   camera: {
     flex: 1,
   },
   cameraBar: {
     padding: theme.spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: theme.colors.cameraBackdrop,
     flexDirection: 'row',
     gap: theme.spacing.md,
   },
   cameraButton: {
     flex: 1,
     borderRadius: theme.radius.md,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.surfaceElevated,
     alignItems: 'center',
     paddingVertical: 14,
   },
@@ -596,11 +619,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   cameraButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnBrand,
     fontWeight: '700',
   },
   cameraButtonPrimaryText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
   },
 });

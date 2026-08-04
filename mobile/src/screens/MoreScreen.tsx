@@ -1,6 +1,4 @@
-import React from 'react';
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,13 +8,15 @@ import {
 
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 
 export function MoreScreen({ navigation }: any) {
+  const styles = useThemedStyles(createStyles);
   const {
+    appearancePreference,
     appVersion,
     assignment,
     bootstrapCompleted,
@@ -27,16 +27,27 @@ export function MoreScreen({ navigation }: any) {
     pendingSyncCount,
     refreshReleaseStatus,
     releaseCheck,
+    requestConfirmation,
     setLanguagePreference,
+    setAppearancePreference,
     signOut,
     unreadNotificationCount,
     user,
   } = useAppContext();
-  const [showLogoutWarning, setShowLogoutWarning] = React.useState(false);
-
   async function handleLogout() {
-    if (pendingSyncCount > 0) {
-      setShowLogoutWarning(true);
+    const hasPendingDrafts = pendingSyncCount > 0;
+    const confirmed = await requestConfirmation({
+      title: hasPendingDrafts
+        ? i18n.t('logoutWarningTitle')
+        : i18n.t('logoutConfirmationTitle'),
+      message: hasPendingDrafts
+        ? i18n.t('logoutWarningBody', { count: pendingSyncCount })
+        : i18n.t('logoutConfirmationBody'),
+      confirmLabel: hasPendingDrafts ? i18n.t('logoutAnyway') : i18n.t('logout'),
+      tone: hasPendingDrafts ? 'warning' : 'danger',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -138,6 +149,36 @@ export function MoreScreen({ navigation }: any) {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>{i18n.t('appearanceTitle')}</Text>
+        <View style={styles.languageCard}>
+          <View style={styles.appearanceRow}>
+            {([
+              ['system', i18n.t('systemDefault')],
+              ['light', i18n.t('lightMode')],
+              ['dark', i18n.t('darkMode')],
+            ] as const).map(([preference, label]) => (
+              <Pressable
+                key={preference}
+                onPress={() => void setAppearancePreference(preference)}
+                style={[
+                  styles.appearanceOption,
+                  appearancePreference === preference && styles.segmentActive,
+                ]}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.appearanceOptionText,
+                    appearancePreference === preference && styles.segmentTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <MenuCard
           title={i18n.t('logout')}
           subtitle={i18n.t('logoutDescription')}
@@ -146,44 +187,11 @@ export function MoreScreen({ navigation }: any) {
           tone="danger"
         />
       </ScrollView>
-
-      <Modal
-        animationType="fade"
-        transparent
-        visible={showLogoutWarning}
-        onRequestClose={() => setShowLogoutWarning(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{i18n.t('logoutWarningTitle')}</Text>
-            <Text style={styles.modalBody}>
-              {i18n.t('logoutWarningBody', { count: pendingSyncCount })}
-            </Text>
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setShowLogoutWarning(false)}
-                style={styles.modalSecondaryButton}
-              >
-                <Text style={styles.modalSecondaryButtonText}>{i18n.t('staySignedIn')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  setShowLogoutWarning(false);
-                  await signOut();
-                }}
-                style={styles.modalPrimaryButton}
-              >
-                <Text style={styles.modalPrimaryButtonText}>{i18n.t('logoutAnyway')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -248,6 +256,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  appearanceRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
   segment: {
     flex: 1,
     borderRadius: theme.radius.md,
@@ -266,59 +278,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   segmentTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
-  modalOverlay: {
+  appearanceOption: {
     flex: 1,
-    backgroundColor: 'rgba(11, 30, 54, 0.44)',
-    justifyContent: 'center',
-    padding: theme.spacing.lg,
-  },
-  modalCard: {
+    minHeight: 46,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  modalTitle: {
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  modalBody: {
-    color: theme.colors.textMuted,
-    lineHeight: 22,
-    marginTop: 12,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.lg,
-  },
-  modalSecondaryButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingVertical: 14,
+    paddingHorizontal: 8,
   },
-  modalSecondaryButtonText: {
+  appearanceOptionText: {
     color: theme.colors.text,
-    fontWeight: '700',
-  },
-  modalPrimaryButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.danger,
-    paddingVertical: 14,
-  },
-  modalPrimaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });

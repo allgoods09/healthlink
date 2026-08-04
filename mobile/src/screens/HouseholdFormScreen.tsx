@@ -10,14 +10,16 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 
 export function HouseholdFormScreen({ route, navigation }: any) {
-  const { assignment, bumpDataVersion } = useAppContext();
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
+  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [householdNo, setHouseholdNo] = useState('');
@@ -49,6 +51,16 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   }, [route.params?.localId]);
 
   async function handleSave() {
+    const confirmed = await requestConfirmation({
+      title: i18n.t('saveHouseholdConfirmationTitle'),
+      message: i18n.t('saveHouseholdConfirmationBody'),
+      confirmLabel: i18n.t('save'),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     await saveHousehold({
       local_id: localId ?? undefined,
       server_id: serverId,
@@ -97,12 +109,22 @@ export function HouseholdFormScreen({ route, navigation }: any) {
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>{i18n.t('socialAid')}</Text>
-            <Switch value={socialAid} onValueChange={setSocialAid} />
+            <Switch
+              value={socialAid}
+              onValueChange={setSocialAid}
+              trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
+              thumbColor={theme.colors.surfaceElevated}
+            />
           </View>
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
-            <Switch value={active} onValueChange={setActive} />
+            <Switch
+              value={active}
+              onValueChange={setActive}
+              trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
+              thumbColor={theme.colors.surfaceElevated}
+            />
           </View>
         </View>
 
@@ -114,7 +136,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.md, gap: theme.spacing.md },
   card: {
@@ -134,7 +156,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.text,
@@ -160,7 +182,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

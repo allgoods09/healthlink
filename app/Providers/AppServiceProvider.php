@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 
@@ -21,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::defaultView('pagination.healthlink');
+        Paginator::defaultSimpleView('pagination.healthlink-simple');
+
         View::composer(['layouts.admin', 'layouts.portal'], function ($view): void {
             $user = Auth::user();
 

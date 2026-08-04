@@ -217,7 +217,7 @@
                     Reject only when the field package is unusable or clearly wrong. Use the review form when the package is mostly correct but still needs secretary adjustments before approval.
                 </p>
 
-                <form action="{{ route('secretary.drafts.reject', $householdDraft) }}" method="POST" class="mt-5" onsubmit="return captureRejectionReason(this, '{{ addslashes($householdDraft->draft_reference_code) }}')">
+                <form action="{{ route('secretary.drafts.reject', $householdDraft) }}" method="POST" class="mt-5">
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="review_notes" value="">
@@ -229,19 +229,3 @@
         </section>
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        function captureRejectionReason(form, referenceCode) {
-            const reason = window.prompt(`Enter a rejection note for ${referenceCode}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="review_notes"]').value = reason;
-
-            return true;
-        }
-    </script>
-@endpush

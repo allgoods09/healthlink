@@ -187,6 +187,7 @@ class ResidentController extends Controller
         Gate::authorize('view', $resident);
 
         $resident->load([
+            'household.headResident',
             'household.purok.barangay',
             'socioEconomicProfile',
             'latestPhilpenRiskAssessment.recordedBy',

@@ -19,7 +19,10 @@ class FrontlineUserManagementTest extends TestCase
 
         $response = $this->actingAs($secretary)->post(route('secretary.team.store'), [
             'role' => 'bhw',
-            'name' => 'New Barangay Health Worker',
+            'first_name' => 'New',
+            'middle_name' => 'Barangay',
+            'last_name' => 'Health Worker',
+            'suffix' => null,
             'email' => 'new-bhw@example.com',
             'password' => 'securePass123',
             'password_confirmation' => 'securePass123',
@@ -82,7 +85,10 @@ class FrontlineUserManagementTest extends TestCase
             ->from(route('secretary.team.create'))
             ->post(route('secretary.team.store'), [
                 'role' => 'bhw',
-                'name' => 'Wrong Scope User',
+                'first_name' => 'Wrong',
+                'middle_name' => 'Scope',
+                'last_name' => 'User',
+                'suffix' => null,
                 'email' => 'wrong-scope@example.com',
                 'password' => 'securePass123',
                 'password_confirmation' => 'securePass123',

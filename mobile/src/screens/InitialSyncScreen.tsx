@@ -10,19 +10,35 @@ import {
   View,
 } from 'react-native';
 
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { authBackgroundImage, BrandMark } from '../components/BrandMark';
 
 export function InitialSyncScreen() {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     initialSyncInProgress,
     isOnline,
+    requestConfirmation,
     retryInitialSync,
     signOut,
     statusMessage,
   } = useAppContext();
+
+  async function handleLogout() {
+    const confirmed = await requestConfirmation({
+      title: i18n.t('logoutConfirmationTitle'),
+      message: i18n.t('logoutConfirmationBody'),
+      confirmLabel: i18n.t('logout'),
+      tone: 'danger',
+    });
+
+    if (confirmed) {
+      await signOut();
+    }
+  }
 
   return (
     <ImageBackground
@@ -69,7 +85,7 @@ export function InitialSyncScreen() {
                 <Text style={styles.primaryButtonText}>{i18n.t('retry')}</Text>
               </Pressable>
 
-              <Pressable onPress={signOut} style={styles.secondaryButton}>
+              <Pressable onPress={() => void handleLogout()} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>{i18n.t('logout')}</Text>
               </Pressable>
             </View>
@@ -80,17 +96,17 @@ export function InitialSyncScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.brandBackground,
   },
   backgroundImage: {
     resizeMode: 'cover',
   },
   overlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(11, 84, 165, 0.62)',
+    backgroundColor: theme.colors.imageOverlay,
   },
   scroll: {
     flexGrow: 1,
@@ -103,12 +119,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    backgroundColor: theme.colors.surfaceElevated,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(23, 76, 142, 0.12)',
+    borderColor: theme.colors.border,
     padding: theme.spacing.lg,
-    shadowColor: '#0A366A',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.16,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 10 },
@@ -139,7 +155,7 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     marginTop: theme.spacing.lg,
-    backgroundColor: 'rgba(219, 232, 250, 0.92)',
+    backgroundColor: theme.colors.primarySoft,
     borderRadius: 22,
     padding: theme.spacing.lg,
     alignItems: 'center',
@@ -173,7 +189,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

@@ -228,7 +228,7 @@ class ResidentController extends Controller
     {
         Gate::authorize('view', $resident);
 
-        $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
+        $resident->load(['household.headResident', 'household.purok.barangay', 'socioEconomicProfile']);
 
         return view('admin.geometry.residents.show', compact('resident'));
     }

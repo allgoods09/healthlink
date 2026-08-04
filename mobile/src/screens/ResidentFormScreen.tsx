@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
@@ -28,11 +28,13 @@ import {
   getResidentByLocalId,
   saveResident,
 } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { HouseholdRecord } from '../types';
 
 export function ResidentFormScreen({ route, navigation }: any) {
-  const { assignment, bumpDataVersion } = useAppContext();
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
+  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
@@ -44,6 +46,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [middleName, setMiddleName] = useState('');
+  const [suffix, setSuffix] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [birthPlace, setBirthPlace] = useState('');
   const [sex, setSex] = useState<'Male' | 'Female'>('Female');
@@ -86,6 +89,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       setFirstName(existing.first_name);
       setLastName(existing.last_name);
       setMiddleName(existing.middle_name ?? '');
+      setSuffix(existing.suffix ?? '');
       setBirthDate(birthDateInputFromServer(existing.birth_date));
       setBirthPlace(existing.birth_place);
       setSex(existing.sex);
@@ -147,6 +151,16 @@ export function ResidentFormScreen({ route, navigation }: any) {
 
     setFormError(null);
 
+    const confirmed = await requestConfirmation({
+      title: i18n.t('saveResidentConfirmationTitle'),
+      message: i18n.t('saveResidentConfirmationBody'),
+      confirmLabel: i18n.t('save'),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     await saveResident({
       local_id: localId ?? undefined,
       server_id: serverId,
@@ -156,6 +170,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       last_name: lastName,
       first_name: firstName,
       middle_name: middleName || null,
+      suffix: suffix || null,
       birth_date: normalizedBirthDate,
       birth_place: birthPlace,
       sex,
@@ -215,6 +230,14 @@ export function ResidentFormScreen({ route, navigation }: any) {
           style={styles.input}
         />
 
+        <Text style={styles.label}>{i18n.t('suffix')}</Text>
+        <TextInput
+          value={suffix}
+          onChangeText={setSuffix}
+          onFocus={handleInputFocus}
+          style={styles.input}
+        />
+
         <Text style={styles.label}>{i18n.t('birthDate')}</Text>
         <View style={styles.dateRow}>
           <TextInput
@@ -226,6 +249,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
             onFocus={handleInputFocus}
             style={[styles.input, styles.dateInput]}
             placeholder={i18n.t('birthDatePlaceholder')}
+            placeholderTextColor={theme.colors.placeholder}
             maxLength={10}
           />
           <Pressable onPress={openBirthDatePicker} style={styles.calendarButton}>
@@ -305,7 +329,12 @@ export function ResidentFormScreen({ route, navigation }: any) {
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
-          <Switch value={active} onValueChange={setActive} />
+          <Switch
+            value={active}
+            onValueChange={setActive}
+            trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
+            thumbColor={theme.colors.surfaceElevated}
+          />
         </View>
 
           {formError ? (
@@ -356,7 +385,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
   content: { padding: theme.spacing.md, gap: theme.spacing.md },
   card: {
@@ -376,7 +405,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.text,
@@ -391,7 +420,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -440,7 +469,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   segmentTextActive: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
   },
   switchRow: {
     flexDirection: 'row',
@@ -470,13 +499,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(16, 24, 40, 0.28)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'flex-end',
   },
   modalCard: {

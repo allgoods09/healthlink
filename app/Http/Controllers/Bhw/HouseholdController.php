@@ -46,7 +46,7 @@ class HouseholdController extends Controller
     {
         $this->ensureHouseholdBelongsToBarangay($household);
 
-        $household->load(['purok', 'headResident', 'residents']);
+        $household->load(['purok.barangay', 'headResident', 'residents']);
 
         return view('bhw.households.show', [
             'household' => $household,

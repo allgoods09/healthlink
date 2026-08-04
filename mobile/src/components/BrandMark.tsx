@@ -1,6 +1,8 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
+import { useAppTheme } from '../context/AppContext';
+
 export const authBackgroundImage = require('../../assets/healthlink-bg.jpg');
 const brandLogoImage = require('../../assets/tubigon-logo.png');
 
@@ -16,9 +18,11 @@ export function BrandMark({
   logoSize = 112,
   titleSize = 32,
   subtitleSize = 24,
-  titleColor = '#FFFFFF',
-  subtitleColor = 'rgba(155, 204, 255, 0.9)',
+  titleColor,
+  subtitleColor,
 }: BrandMarkProps) {
+  const theme = useAppTheme();
+
   return (
     <View style={styles.container}>
       <Image
@@ -26,13 +30,13 @@ export function BrandMark({
         style={{ width: logoSize, height: logoSize }}
         resizeMode="contain"
       />
-      <Text style={[styles.title, { fontSize: titleSize, color: titleColor }]}>
+      <Text style={[styles.title, { fontSize: titleSize, color: titleColor ?? theme.colors.textOnBrand }]}>
         HEALTHLINK
       </Text>
       <Text
         style={[
           styles.subtitle,
-          { fontSize: subtitleSize, color: subtitleColor },
+          { fontSize: subtitleSize, color: subtitleColor ?? theme.colors.heroTextMuted },
         ]}
       >
         TUBIGON

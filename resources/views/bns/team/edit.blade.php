@@ -29,7 +29,7 @@
                     <div class="grid gap-6 md:grid-cols-2">
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Full Name</label>
-                            <input type="text" value="{{ $bhw->name }}" class="mt-1 block w-full rounded-xl border-slate-300 bg-slate-50 text-slate-500 shadow-sm" disabled>
+                            <input type="text" value="{{ $bhw->display_name }}" class="mt-1 block w-full rounded-xl border-slate-300 bg-slate-50 text-slate-500 shadow-sm" disabled>
                         </div>
 
                         <div>
@@ -71,7 +71,7 @@
                 </form>
 
                 @if($bhw->approval_status === \App\Models\User::APPROVAL_PENDING)
-                    <form action="{{ route('bns.team.approve', $bhw) }}" method="POST" class="mt-3" onsubmit="return confirm('Approve this BHW registration now?')">
+                    <form action="{{ route('bns.team.approve', $bhw) }}" method="POST" class="mt-3">
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="inline-flex items-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">

@@ -308,14 +308,19 @@ class Resident extends Model
      */
     public function getFullNameAttribute(): string
     {
-        $name = "{$this->first_name} {$this->last_name}";
-        if ($this->middle_name) {
-            $name = "{$this->first_name} {$this->middle_name} {$this->last_name}";
-        }
+        $parts = array_filter([
+            trim((string) $this->first_name),
+            $this->middle_name ? trim((string) $this->middle_name) : null,
+            trim((string) $this->last_name),
+        ]);
+
+        $name = trim(implode(' ', $parts));
+
         if ($this->suffix) {
-            $name .= " {$this->suffix}";
+            $name = trim($name.' '.trim((string) $this->suffix));
         }
-        return $name;
+
+        return preg_replace('/\s+/', ' ', $name) ?? $name;
     }
 
     /**
@@ -323,11 +328,7 @@ class Resident extends Model
      */
     public function getFullNameWithSuffixAttribute(): string
     {
-        $name = $this->full_name;
-        if ($this->suffix) {
-            $name .= " {$this->suffix}";
-        }
-        return $name;
+        return $this->full_name;
     }
 
     /**
@@ -335,14 +336,16 @@ class Resident extends Model
      */
     public function getFormalNameAttribute(): string
     {
-        $name = "{$this->last_name}, {$this->first_name}";
-        if ($this->middle_name) {
-            $name .= " {$this->middle_name}";
-        }
+        $baseName = trim($this->last_name.', '.trim(implode(' ', array_filter([
+            trim((string) $this->first_name),
+            $this->middle_name ? trim((string) $this->middle_name) : null,
+        ]))));
+
         if ($this->suffix) {
-            $name .= " {$this->suffix}";
+            $baseName = trim($baseName.' '.trim((string) $this->suffix));
         }
-        return $name;
+
+        return preg_replace('/\s+/', ' ', $baseName) ?? $baseName;
     }
 
     /**

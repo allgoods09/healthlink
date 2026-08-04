@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import {
@@ -19,6 +19,7 @@ import {
   calculateAgeFromBirthDate,
   formatFriendlyDate,
   formatPurokLabel,
+  formatResidentFormalName,
 } from '../lib/format';
 import {
   getLatestRiskAssessmentForResident,
@@ -26,7 +27,7 @@ import {
   getRiskAssessmentByLocalId,
   saveRiskAssessment,
 } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { ResidentRecord, RiskAssessmentFlags } from '../types';
 
 type WizardStep =
@@ -134,7 +135,9 @@ const ALCOHOL_OPTIONS: ChoiceOption[] = [
 ];
 
 export function RiskAssessmentFormScreen({ route, navigation }: any) {
-  const { user, assignment, bumpDataVersion } = useAppContext();
+  const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
+  const appTheme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [resident, setResident] = useState<ResidentRecord | null>(null);
@@ -346,6 +349,17 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
       return;
     }
 
+    const confirmed = await requestConfirmation({
+      title: i18n.t('saveRiskAssessmentConfirmationTitle'),
+      message: i18n.t('saveRiskAssessmentConfirmationBody'),
+      confirmLabel: i18n.t('save'),
+      tone: 'warning',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     await saveRiskAssessment({
       local_id: localId ?? undefined,
       server_id: serverId,
@@ -377,7 +391,7 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
           'No purok'
         ),
         bhw_name: user?.name ?? null,
-        resident_name: `${resident.last_name}, ${resident.first_name}`,
+        resident_name: formatResidentFormalName(resident),
       },
       red_flags: redFlags,
       past_medical_history: pastMedicalHistory,
@@ -451,7 +465,7 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
         style={styles.screen}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: theme.spacing.xl + keyboardInset },
+          { paddingBottom: appTheme.spacing.xl + keyboardInset },
         ]}
         keyboardShouldPersistTaps="handled"
         onScroll={handleScroll}
@@ -459,7 +473,7 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
       >
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>PhilPEN Risk Assessment</Text>
-          <Text style={styles.heroTitle}>{resident.last_name}, {resident.first_name}</Text>
+          <Text style={styles.heroTitle}>{formatResidentFormalName(resident)}</Text>
           <Text style={styles.heroSubline}>
             {resident.sex} · Age {assessmentAge ?? residentAge ?? 'N/A'} · {formatPurokLabel(resident.household_purok_display_name, resident.household_purok_id)}
           </Text>
@@ -789,6 +803,8 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
 }
 
 function FieldLabel({ label }: { label: string }) {
+  const styles = useThemedStyles(createStyles);
+
   return <Text style={styles.fieldLabel}>{label}</Text>;
 }
 
@@ -805,6 +821,9 @@ function TextInputField({
   onFocus?: () => void;
   multiline?: boolean;
 }) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View>
       <FieldLabel label={label} />
@@ -813,6 +832,7 @@ function TextInputField({
         onChangeText={onChangeText}
         onFocus={onFocus}
         multiline={multiline}
+        placeholderTextColor={theme.colors.placeholder}
         style={[styles.input, multiline && styles.textArea]}
       />
     </View>
@@ -830,6 +850,9 @@ function NumericField({
   onChangeText: (value: string) => void;
   onFocus?: () => void;
 }) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.flexField}>
       <FieldLabel label={label} />
@@ -838,6 +861,7 @@ function NumericField({
         onChangeText={onChangeText}
         onFocus={onFocus}
         keyboardType="numeric"
+        placeholderTextColor={theme.colors.placeholder}
         style={styles.input}
       />
     </View>
@@ -853,6 +877,8 @@ function ReadOnlyRow({
   value: string;
   compact?: boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={compact ? styles.readOnlyCompact : styles.readOnlyBlock}>
       <Text style={styles.readOnlyLabel}>{label}</Text>
@@ -872,6 +898,8 @@ function BooleanRow({
   onChange: (nextValue: boolean) => void;
   highlight?: boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={[styles.booleanRow, highlight && styles.booleanRowHighlight]}>
       <Text style={styles.booleanLabel}>{label}</Text>
@@ -904,6 +932,8 @@ function ChoiceGroup({
   options: ChoiceOption[];
   onChange: (value: string) => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View>
       <FieldLabel label={label} />
@@ -932,7 +962,7 @@ function ChoiceGroup({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -959,37 +989,37 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   heroEyebrow: {
-    color: '#DCE8F7',
+    color: theme.colors.heroTextMuted,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontSize: 27,
     fontWeight: '700',
     marginTop: 10,
   },
   heroSubline: {
-    color: '#DCE8F7',
+    color: theme.colors.heroTextMuted,
     marginTop: 8,
     lineHeight: 21,
   },
   noticeCard: {
-    backgroundColor: '#FFF7E1',
+    backgroundColor: theme.colors.warningSoft,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    borderColor: '#F7D98D',
+    borderColor: theme.colors.warningBorder,
     padding: theme.spacing.md,
   },
   noticeTitle: {
-    color: '#8A5A00',
+    color: theme.colors.warning,
     fontWeight: '700',
     fontSize: 15,
   },
   noticeBody: {
-    color: '#8A5A00',
+    color: theme.colors.warning,
     marginTop: 8,
     lineHeight: 21,
   },
@@ -997,7 +1027,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.dangerSoft,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    borderColor: '#F6B1B1',
+    borderColor: theme.colors.dangerBorder,
     padding: theme.spacing.md,
   },
   criticalTitle: {
@@ -1032,7 +1062,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   stepChipTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   card: {
     backgroundColor: theme.colors.surface,
@@ -1136,8 +1166,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   booleanRowHighlight: {
-    borderColor: '#F1A6A6',
-    backgroundColor: '#FFF3F3',
+    borderColor: theme.colors.dangerBorder,
+    backgroundColor: theme.colors.dangerSoft,
   },
   booleanLabel: {
     color: theme.colors.text,
@@ -1171,7 +1201,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   booleanChipTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
   },
   choiceGroup: {
     gap: theme.spacing.sm,
@@ -1249,7 +1279,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

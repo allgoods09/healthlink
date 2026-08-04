@@ -41,7 +41,7 @@
                         <div class="rounded-lg border border-gray-100 px-4 py-3">
                             <div class="flex items-start justify-between gap-3">
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-900">{{ $queuedUser->name }}</p>
+                                    <p class="text-sm font-semibold text-gray-900">{{ $queuedUser->display_name }}</p>
                                     <p class="mt-1 text-sm text-gray-500">{{ $queuedUser->email }}</p>
                                     <p class="mt-1 text-xs text-gray-500">
                                         {{ \App\Models\User::ROLES[$queuedUser->requested_role ?? $queuedUser->role] ?? ($queuedUser->requested_role ?? $queuedUser->role) }}
@@ -169,10 +169,10 @@
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 font-semibold text-gray-700">
-                                        {{ strtoupper(substr($user->name, 0, 2)) }}
+                                        {{ strtoupper(substr($user->display_name, 0, 2)) }}
                                     </div>
                                     <div>
-                                        <div class="text-sm font-semibold text-gray-900">{{ $user->name }}</div>
+                                        <div class="text-sm font-semibold text-gray-900">{{ $user->display_name }}</div>
                                         <div class="text-sm text-gray-500">{{ $user->email }}</div>
                                         <div class="text-xs text-gray-400">Registered via {{ $user->registered_via_label }}</div>
                                         <div class="mt-1">
@@ -251,13 +251,13 @@
                                         <a href="{{ route('admin.users.edit', $user) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
 
                                         @if($user->approval_status === \App\Models\User::APPROVAL_PENDING)
-                                            <form action="{{ route('admin.users.approve', $user) }}" method="POST" class="inline" onsubmit="return confirm('Approve this self-registration?')">
+                                            <form action="{{ route('admin.users.approve', $user) }}" method="POST" class="inline">
                                                 @csrf
                                                 @method('PATCH')
                                                 <button type="submit" class="text-emerald-600 hover:text-emerald-900">Approve</button>
                                             </form>
 
-                                            <form action="{{ route('admin.users.reject', $user) }}" method="POST" class="inline" onsubmit="return captureRejectionReason(this, '{{ addslashes($user->name) }}')">
+                                            <form action="{{ route('admin.users.reject', $user) }}" method="POST" class="inline">
                                                 @csrf
                                                 @method('PATCH')
                                                 <input type="hidden" name="approval_notes" value="">
@@ -273,7 +273,7 @@
                                             </button>
                                         </form>
 
-                                        <form action="{{ route('admin.users.destroy', $user) }}" method="POST" class="inline" onsubmit="return confirm('Delete this user account?')">
+                                        <form action="{{ route('admin.users.destroy', $user) }}" method="POST" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
@@ -297,19 +297,3 @@
         </div>
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        function captureRejectionReason(form, userName) {
-            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="approval_notes"]').value = reason;
-
-            return true;
-        }
-    </script>
-@endpush

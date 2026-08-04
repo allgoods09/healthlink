@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '../theme';
+import { useAppTheme, useThemedStyles } from '../context/AppContext';
+import { AppTheme } from '../theme';
 
 type TopHeaderProps = {
   title: string;
@@ -22,6 +23,8 @@ export function TopHeader({
   onActionPress,
 }: TopHeaderProps) {
   const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
 
   return (
     <View style={[styles.wrapper, { paddingTop: Math.max(insets.top, 14) }]}>
@@ -40,7 +43,7 @@ export function TopHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   wrapper: {
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,

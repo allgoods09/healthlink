@@ -16,20 +16,64 @@
 
             <div class="grid gap-5 md:grid-cols-2">
                 <div>
-                    <x-input-label for="name" :value="__('Full Name')" />
+                    <x-input-label for="first_name" :value="__('First Name')" />
                     <input
-                        id="name"
+                        id="first_name"
                         type="text"
-                        name="name"
-                        value="{{ old('name') }}"
+                        name="first_name"
+                        value="{{ old('first_name') }}"
                         required
                         autofocus
-                        autocomplete="name"
+                        autocomplete="given-name"
                         class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-tubigon focus:ring-2 focus:ring-tubigon/20"
                     />
-                    <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                    <x-input-error :messages="$errors->get('first_name')" class="mt-2" />
                 </div>
 
+                <div>
+                    <x-input-label for="last_name" :value="__('Last Name')" />
+                    <input
+                        id="last_name"
+                        type="text"
+                        name="last_name"
+                        value="{{ old('last_name') }}"
+                        required
+                        autocomplete="family-name"
+                        class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-tubigon focus:ring-2 focus:ring-tubigon/20"
+                    />
+                    <x-input-error :messages="$errors->get('last_name')" class="mt-2" />
+                </div>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                    <x-input-label for="middle_name" :value="__('Middle Name')" />
+                    <input
+                        id="middle_name"
+                        type="text"
+                        name="middle_name"
+                        value="{{ old('middle_name') }}"
+                        autocomplete="additional-name"
+                        class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-tubigon focus:ring-2 focus:ring-tubigon/20"
+                    />
+                    <x-input-error :messages="$errors->get('middle_name')" class="mt-2" />
+                </div>
+
+                <div>
+                    <x-input-label for="suffix" :value="__('Suffix')" />
+                    <input
+                        id="suffix"
+                        type="text"
+                        name="suffix"
+                        value="{{ old('suffix') }}"
+                        autocomplete="honorific-suffix"
+                        class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-tubigon focus:ring-2 focus:ring-tubigon/20"
+                    />
+                    <x-input-error :messages="$errors->get('suffix')" class="mt-2" />
+                </div>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-2">
                 <div>
                     <x-input-label for="email" :value="__('Email Address')" />
                     <input
@@ -43,9 +87,7 @@
                     />
                     <x-input-error :messages="$errors->get('email')" class="mt-2" />
                 </div>
-            </div>
 
-            <div class="grid gap-5 md:grid-cols-2">
                 <div>
                     <x-input-label for="password" :value="__('Password')" />
                     <input
@@ -59,7 +101,7 @@
                     <x-input-error :messages="$errors->get('password')" class="mt-2" />
                 </div>
 
-                <div>
+                <div class="md:col-start-2">
                     <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
                     <input
                         id="password_confirmation"

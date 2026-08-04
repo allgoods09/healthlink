@@ -79,7 +79,7 @@
                     @forelse($bhws as $bhw)
                         <tr class="{{ $bhw->approval_status === \App\Models\User::APPROVAL_PENDING ? 'bg-amber-50/40' : '' }}">
                             <td class="px-6 py-4">
-                                <p class="text-sm font-semibold text-slate-900">{{ $bhw->name }}</p>
+                                <p class="text-sm font-semibold text-slate-900">{{ $bhw->display_name }}</p>
                                 <p class="text-sm text-slate-500">{{ $bhw->email }}</p>
                                 <p class="mt-1 text-xs text-slate-400">Registered via {{ $bhw->registered_via_label }}</p>
                             </td>
@@ -113,13 +113,13 @@
                                     <a href="{{ route('bns.team.password.edit', $bhw) }}" class="text-amber-700 hover:text-amber-900">Password</a>
 
                                     @if($bhw->approval_status === \App\Models\User::APPROVAL_PENDING)
-                                        <form action="{{ route('bns.team.approve', $bhw) }}" method="POST" class="inline" onsubmit="return confirm('Approve this BHW registration?')">
+                                        <form action="{{ route('bns.team.approve', $bhw) }}" method="POST" class="inline">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="text-emerald-600 hover:text-emerald-800">Approve</button>
                                         </form>
 
-                                        <form action="{{ route('bns.team.reject', $bhw) }}" method="POST" class="inline" onsubmit="return captureRejectionReason(this, '{{ addslashes($bhw->name) }}')">
+                                        <form action="{{ route('bns.team.reject', $bhw) }}" method="POST" class="inline">
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="approval_notes" value="">
@@ -143,19 +143,3 @@
         </div>
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        function captureRejectionReason(form, userName) {
-            const reason = window.prompt(`Enter a rejection note for ${userName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="approval_notes"]').value = reason;
-
-            return true;
-        }
-    </script>
-@endpush

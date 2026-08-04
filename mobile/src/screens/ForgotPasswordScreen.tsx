@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 
 export function ForgotPasswordScreen({ navigation }: any) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const { requestPasswordReset, showToast } = useAppContext();
   const { handleInputFocus } = useKeyboardAwareScroll();
   const [email, setEmail] = useState('');
@@ -49,6 +51,8 @@ export function ForgotPasswordScreen({ navigation }: any) {
           value={email}
           onChangeText={setEmail}
           onFocus={handleInputFocus}
+          placeholder={i18n.t('email')}
+          placeholderTextColor={theme.colors.placeholder}
           style={styles.input}
         />
 
@@ -58,7 +62,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
           disabled={submitting}
         >
           {submitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.colors.textOnPrimary} />
           ) : (
             <Text style={styles.primaryButtonText}>{i18n.t('sendResetLink')}</Text>
           )}
@@ -72,7 +76,7 @@ export function ForgotPasswordScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     padding: theme.spacing.lg,
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFA',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.text,
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
   },

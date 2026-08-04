@@ -10,13 +10,16 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
+import { formatResidentFormalName } from '../lib/format';
 import { getResidents } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { ResidentRecord } from '../types';
 
 export function ResidentsScreen({ navigation }: any) {
+  const styles = useThemedStyles(createStyles);
+  const theme = useAppTheme();
   const isFocused = useIsFocused();
   const { bootstrapCompleted, dataVersion, syncNow } = useAppContext();
   const [search, setSearch] = useState('');
@@ -34,6 +37,7 @@ export function ResidentsScreen({ navigation }: any) {
         value={search}
         onChangeText={setSearch}
         placeholder={i18n.t('residents')}
+        placeholderTextColor={theme.colors.placeholder}
         style={styles.search}
       />
 
@@ -63,7 +67,7 @@ export function ResidentsScreen({ navigation }: any) {
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>
-                  {item.last_name}, {item.first_name}
+                  {formatResidentFormalName(item)}
                 </Text>
                 <Text style={styles.badge}>{item.sync_status}</Text>
               </View>
@@ -88,7 +92,7 @@ export function ResidentsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -101,6 +105,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    color: theme.colors.text,
   },
   list: {
     paddingTop: theme.spacing.md,
@@ -183,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
   },
 });

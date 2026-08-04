@@ -12,14 +12,16 @@ import {
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
 import { getVisits } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { FieldVisitRecord } from '../types';
 
 export function VisitsScreen({ navigation }: any) {
+  const styles = useThemedStyles(createStyles);
+  const theme = useAppTheme();
   const isFocused = useIsFocused();
   const { bootstrapCompleted, dataVersion, syncNow } = useAppContext();
   const [search, setSearch] = useState('');
@@ -57,6 +59,7 @@ export function VisitsScreen({ navigation }: any) {
               value={search}
               onChangeText={setSearch}
               placeholder={i18n.t('visits')}
+              placeholderTextColor={theme.colors.placeholder}
               style={styles.search}
             />
 
@@ -106,7 +109,7 @@ export function VisitsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
   },
   emptyHistoryCard: {

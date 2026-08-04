@@ -8,12 +8,13 @@ import {
 
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 
 export function SyncScreen() {
+  const styles = useThemedStyles(createStyles);
   const {
     assignment,
     bootstrapCompleted,
@@ -99,7 +100,7 @@ export function SyncScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -109,26 +110,28 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   hero: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.heroBackground,
     borderRadius: 28,
+    borderWidth: theme.mode === 'dark' ? 2 : 0,
+    borderColor: theme.colors.heroBorder,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.lg,
   },
   heroKicker: {
-    color: '#D9E7FA',
+    color: theme.colors.heroMuted,
     fontSize: 12,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: theme.colors.heroText,
     fontSize: 26,
     fontWeight: '700',
     marginTop: 10,
   },
   heroBody: {
-    color: '#D9E7FA',
+    color: theme.colors.heroMuted,
     lineHeight: 21,
     marginTop: 10,
   },
@@ -140,22 +143,22 @@ const styles = StyleSheet.create({
   heroMetaCard: {
     flex: 1,
     borderRadius: theme.radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: theme.colors.heroSurface,
     padding: theme.spacing.md,
   },
   heroMetaLabel: {
-    color: '#D9E7FA',
+    color: theme.colors.heroMuted,
     fontSize: 12,
     fontWeight: '600',
   },
   heroMetaValue: {
-    color: '#FFFFFF',
+    color: theme.colors.heroText,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 8,
   },
   heroMetaValueSmall: {
-    color: '#FFFFFF',
+    color: theme.colors.heroText,
     fontSize: 15,
     fontWeight: '700',
     marginTop: 8,

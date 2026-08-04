@@ -9,14 +9,15 @@ import { useIsFocused } from '@react-navigation/native';
 
 import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
 import { getHouseholds, getResidents, getVisits } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { FieldVisitRecord } from '../types';
 
 export function HomeScreen({ navigation }: any) {
+  const styles = useThemedStyles(createStyles);
   const isFocused = useIsFocused();
   const {
     assignment,
@@ -160,7 +161,7 @@ export function HomeScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -170,26 +171,28 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   hero: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.heroBackground,
     borderRadius: 28,
+    borderWidth: theme.mode === 'dark' ? 2 : 0,
+    borderColor: theme.colors.heroBorder,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.lg,
   },
   heroKicker: {
-    color: '#D9E7FA',
+    color: theme.colors.heroMuted,
     fontSize: 12,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: theme.colors.heroText,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 12,
   },
   heroSubtitle: {
-    color: '#D9E7FA',
+    color: theme.colors.heroMuted,
     marginTop: 8,
     lineHeight: 21,
   },
@@ -201,12 +204,12 @@ const styles = StyleSheet.create({
   },
   heroPill: {
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: theme.colors.heroSurface,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   heroPillText: {
-    color: '#FFFFFF',
+    color: theme.colors.heroText,
     fontWeight: '600',
     fontSize: 12,
   },

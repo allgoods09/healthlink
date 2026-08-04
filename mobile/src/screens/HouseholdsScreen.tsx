@@ -10,13 +10,15 @@ import {
 } from 'react-native';
 
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { getHouseholds } from '../lib/storage';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 import { HouseholdRecord } from '../types';
 
 export function HouseholdsScreen({ navigation }: any) {
+  const styles = useThemedStyles(createStyles);
+  const theme = useAppTheme();
   const isFocused = useIsFocused();
   const {
     assignment,
@@ -48,6 +50,7 @@ export function HouseholdsScreen({ navigation }: any) {
         value={search}
         onChangeText={setSearch}
         placeholder={i18n.t('households')}
+        placeholderTextColor={theme.colors.placeholder}
         style={styles.search}
       />
 
@@ -121,7 +124,7 @@ export function HouseholdsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     padding: theme.spacing.md,
@@ -149,6 +152,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    color: theme.colors.text,
   },
   list: {
     paddingTop: theme.spacing.md,
@@ -242,7 +246,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
   },
 });

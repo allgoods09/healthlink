@@ -23,36 +23,7 @@
 
 @section('content')
     <div class="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-        <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-5">
-                <h2 class="text-lg font-semibold text-slate-900">{{ $resident->formal_name }}</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ $resident->sex }} · Age {{ $resident->age }} · {{ $resident->resident_status_label }}</p>
-            </div>
-            <div class="grid gap-6 p-6 md:grid-cols-2">
-                <div>
-                    <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Identity</h3>
-                    <dl class="mt-4 space-y-3 text-sm">
-                        <div><dt class="font-medium text-slate-500">Resident Code</dt><dd class="text-slate-900">{{ $resident->official_resident_code ?: 'No resident code' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">PhilSys Card</dt><dd class="text-slate-900">{{ $resident->philsys_card_no ?: 'N/A' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Birth Date</dt><dd class="text-slate-900">{{ $resident->birth_date?->format('F j, Y') }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Birth Place</dt><dd class="text-slate-900">{{ $resident->birth_place }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Civil Status</dt><dd class="text-slate-900">{{ $resident->civil_status }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Citizenship</dt><dd class="text-slate-900">{{ $resident->citizenship }}</dd></div>
-                    </dl>
-                </div>
-                <div>
-                    <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Location and Contact</h3>
-                    <dl class="mt-4 space-y-3 text-sm">
-                        <div><dt class="font-medium text-slate-500">Barangay</dt><dd class="text-slate-900">{{ $resident->household?->purok?->barangay?->name ?? 'Unknown barangay' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Purok</dt><dd class="text-slate-900">{{ $resident->household?->purok?->display_name ?? 'Unknown purok' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Household</dt><dd class="text-slate-900">{{ $resident->household?->full_identifier ?? 'No household linked' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Head of Household</dt><dd class="text-slate-900">{{ $resident->household?->headResident?->formal_name ?? 'No head assigned' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Contact Number</dt><dd class="text-slate-900">{{ $resident->contact_number ?: 'N/A' }}</dd></div>
-                        <div><dt class="font-medium text-slate-500">Email Address</dt><dd class="text-slate-900">{{ $resident->email_address ?: 'N/A' }}</dd></div>
-                    </dl>
-                </div>
-            </div>
-        </section>
+        @include('residents.partials.profile-details', ['resident' => $resident])
 
         <section class="space-y-6">
             <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -84,17 +55,7 @@
                 </div>
             </div>
 
-            <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-6 py-5">
-                    <h3 class="text-lg font-semibold text-slate-900">Socio-Economic Context</h3>
-                </div>
-                <div class="space-y-4 p-6 text-sm">
-                    <div><p class="font-medium text-slate-500">Occupation</p><p class="mt-1 text-slate-900">{{ $resident->socioEconomicProfile?->occupation ?: 'N/A' }}</p></div>
-                    <div><p class="font-medium text-slate-500">Employment Status</p><p class="mt-1 text-slate-900">{{ $resident->socioEconomicProfile?->employment_status ?: 'N/A' }}</p></div>
-                    <div><p class="font-medium text-slate-500">Highest Education</p><p class="mt-1 text-slate-900">{{ $resident->socioEconomicProfile?->highest_education_level ?: 'N/A' }}</p></div>
-                    <div><p class="font-medium text-slate-500">Disability Type</p><p class="mt-1 text-slate-900">{{ $resident->socioEconomicProfile?->disability_type ?: 'N/A' }}</p></div>
-                </div>
-            </div>
+            @include('residents.partials.socio-economic-profile', ['resident' => $resident])
         </section>
     </div>
 

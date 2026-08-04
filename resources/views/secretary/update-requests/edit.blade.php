@@ -255,7 +255,7 @@
                     Reject only if the requested correction is unsupported or inaccurate. If the field report is directionally correct, adjust the values in the approval form instead and apply the cleaned version.
                 </p>
 
-                <form action="{{ route('secretary.update-requests.reject', $profileUpdateRequest) }}" method="POST" class="mt-5" onsubmit="return captureRejectionReason(this, '{{ addslashes($profileUpdateRequest->subject_name) }}')">
+                <form action="{{ route('secretary.update-requests.reject', $profileUpdateRequest) }}" method="POST" class="mt-5">
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="review_notes" value="">
@@ -267,19 +267,3 @@
         </section>
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        function captureRejectionReason(form, subjectName) {
-            const reason = window.prompt(`Enter a rejection note for ${subjectName}:`);
-
-            if (!reason) {
-                return false;
-            }
-
-            form.querySelector('input[name="review_notes"]').value = reason;
-
-            return true;
-        }
-    </script>
-@endpush

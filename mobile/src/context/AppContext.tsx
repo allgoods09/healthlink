@@ -5,9 +5,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, useColorScheme } from 'react-native';
 
 import { i18n, setLocale, SupportedLocale } from '../i18n';
 import {
@@ -41,12 +42,18 @@ import {
 } from '../lib/storage';
 import {
   MobileAssignment,
+  MobileConfirmationRequest,
   MobileNotification,
   MobileReleaseCheck,
   MobileToast,
   MobileToastLevel,
   MobileUser,
 } from '../types';
+import {
+  AppTheme,
+  AppearancePreference,
+  resolveTheme,
+} from '../theme';
 
 type AppContextValue = {
   isReady: boolean;
@@ -58,6 +65,8 @@ type AppContextValue = {
   user: MobileUser | null;
   assignment: MobileAssignment | null;
   language: SupportedLocale;
+  appearancePreference: AppearancePreference;
+  appTheme: AppTheme;
   appVersion: string;
   appVersionCode: number;
   lastSyncAt: string | null;
@@ -80,7 +89,11 @@ type AppContextValue = {
   markAllNotificationsRead: () => Promise<void>;
   showToast: (message: string | null | undefined, level?: MobileToastLevel) => void;
   clearToast: () => void;
+  confirmation: MobileConfirmationRequest | null;
+  requestConfirmation: (request: MobileConfirmationRequest) => Promise<boolean>;
+  resolveConfirmation: (confirmed: boolean) => void;
   setLanguagePreference: (locale: SupportedLocale) => Promise<void>;
+  setAppearancePreference: (preference: AppearancePreference) => Promise<void>;
   bumpDataVersion: () => void;
 };
 
@@ -92,11 +105,14 @@ const APP_VERSION_CODE = Number(appConfig.expo?.android?.versionCode ?? 1);
 const MINIMUM_STARTUP_SPLASH_MS = 1000;
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const systemColorScheme = useColorScheme();
   const [isReady, setIsReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<MobileUser | null>(null);
   const [assignment, setAssignment] = useState<MobileAssignment | null>(null);
   const [language, setLanguageState] = useState<SupportedLocale>('en');
+  const [appearancePreference, setAppearancePreferenceState] =
+    useState<AppearancePreference>('system');
   const [isOnline, setIsOnline] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
@@ -109,6 +125,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [initialSyncInProgress, setInitialSyncInProgress] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [releaseCheck, setReleaseCheck] = useState<MobileReleaseCheck | null>(null);
+  const [confirmation, setConfirmation] =
+    useState<MobileConfirmationRequest | null>(null);
+  const confirmationResolver = useRef<((confirmed: boolean) => void) | null>(null);
+
+  function requestConfirmation(request: MobileConfirmationRequest) {
+    return new Promise<boolean>((resolve) => {
+      confirmationResolver.current = resolve;
+      setConfirmation(request);
+    });
+  }
+
+  function resolveConfirmation(confirmed: boolean) {
+    confirmationResolver.current?.(confirmed);
+    confirmationResolver.current = null;
+    setConfirmation(null);
+  }
 
   async function refreshPendingSyncCount() {
     const summary = await getPendingChangeSummary();
@@ -225,6 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [
         storedToken,
         storedLanguage,
+        storedAppearancePreference,
         storedLastSyncAt,
         bootstrapped,
         storedSessionUser,
@@ -233,6 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await Promise.all([
           loadToken(),
           getAppState('language'),
+          getAppState('appearance_preference'),
           getAppState('last_sync_at'),
           hasBootstrapData(),
           getAppState('session_user'),
@@ -243,9 +277,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         storedLanguage === 'ceb' || storedLanguage === 'en'
           ? storedLanguage
           : 'en';
+      const nextAppearancePreference: AppearancePreference =
+        storedAppearancePreference === 'light' ||
+        storedAppearancePreference === 'dark' ||
+        storedAppearancePreference === 'system'
+          ? storedAppearancePreference
+          : 'system';
 
       setLocale(nextLanguage);
       setLanguageState(nextLanguage);
+      setAppearancePreferenceState(nextAppearancePreference);
       setLastSyncAt(storedLastSyncAt || null);
       setBootstrapCompleted(bootstrapped);
 
@@ -501,6 +542,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await setAppState('language', locale);
   }
 
+  async function setAppearancePreference(preference: AppearancePreference) {
+    setAppearancePreferenceState(preference);
+    await setAppState('appearance_preference', preference);
+  }
+
+  const appTheme = useMemo(
+    () => resolveTheme(appearancePreference, systemColorScheme),
+    [appearancePreference, systemColorScheme]
+  );
+
   async function markNotificationRead(notificationId: string) {
     if (!token) {
       return;
@@ -563,6 +614,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       assignment,
       language,
+      appearancePreference,
+      appTheme,
       appVersion: APP_VERSION,
       appVersionCode: APP_VERSION_CODE,
       lastSyncAt,
@@ -585,12 +638,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead,
       showToast,
       clearToast,
+      confirmation,
+      requestConfirmation,
+      resolveConfirmation,
       setLanguagePreference,
+      setAppearancePreference,
       bumpDataVersion: () => setDataVersion((current) => current + 1),
     }),
     [
       assignment,
+      appearancePreference,
+      appTheme,
       bootstrapCompleted,
+      confirmation,
       dataVersion,
       releaseCheck,
       isOnline,
@@ -606,6 +666,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       token,
       unreadNotificationCount,
       user,
+      systemColorScheme,
     ]
   );
 
@@ -620,4 +681,14 @@ export function useAppContext() {
   }
 
   return context;
+}
+
+export function useAppTheme() {
+  return useAppContext().appTheme;
+}
+
+export function useThemedStyles<T>(factory: (theme: AppTheme) => T) {
+  const appTheme = useAppTheme();
+
+  return useMemo(() => factory(appTheme), [appTheme, factory]);
 }

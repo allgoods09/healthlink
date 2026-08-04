@@ -6,6 +6,29 @@
     [x-cloak] {
         display: none !important;
     }
+
+    /* Firefox renders native option popups separately from their parent form. */
+    select {
+        color-scheme: light;
+        color: #0f172a;
+        background-color: #ffffff;
+    }
+
+    select option,
+    select optgroup {
+        color: #0f172a;
+        background-color: #ffffff;
+    }
+
+    select option:checked {
+        color: #0f172a;
+        background-color: #dbeafe;
+    }
+
+    select:disabled {
+        color: #64748b;
+        background-color: #f1f5f9;
+    }
 }
 
 @layer components {

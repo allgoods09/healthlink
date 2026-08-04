@@ -7,7 +7,8 @@ import {
   View,
 } from 'react-native';
 
-import { theme } from '../theme';
+import { useAppTheme, useThemedStyles } from '../context/AppContext';
+import { AppTheme } from '../theme';
 
 type MenuCardProps = {
   title: string;
@@ -26,11 +27,13 @@ export function MenuCard({
   tone = 'default',
   badge,
 }: MenuCardProps) {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const palette =
     tone === 'primary'
       ? {
           iconBg: theme.colors.primarySoft,
-          iconColor: theme.colors.primary,
+          iconColor: theme.colors.primaryDark,
           titleColor: theme.colors.text,
         }
       : tone === 'danger'
@@ -73,7 +76,7 @@ export function MenuCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   pressable: {
     marginBottom: theme.spacing.md,
   },
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeText: {
-    color: theme.colors.primary,
+    color: theme.colors.primaryDark,
     fontWeight: '700',
     fontSize: 12,
   },

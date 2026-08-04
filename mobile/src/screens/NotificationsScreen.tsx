@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 
 import { TopHeader } from '../components/TopHeader';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
-import { theme } from '../theme';
+import { AppTheme } from '../theme';
 
 export function NotificationsScreen() {
+  const theme = useAppTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     isOnline,
     markAllNotificationsRead,
@@ -103,7 +105,7 @@ export function NotificationsScreen() {
                     <View
                       style={[
                         styles.dot,
-                        { backgroundColor: levelColor(notification.level) },
+                        { backgroundColor: levelColor(notification.level, theme) },
                       ]}
                     />
                     <Text style={styles.cardTitle}>{notification.title}</Text>
@@ -162,12 +164,15 @@ export function NotificationsScreen() {
   );
 }
 
-function levelColor(level: 'info' | 'success' | 'warning' | 'error') {
+function levelColor(
+  level: 'info' | 'success' | 'warning' | 'error',
+  theme: AppTheme
+) {
   switch (level) {
     case 'success':
       return theme.colors.success;
     case 'warning':
-      return '#C2410C';
+      return theme.colors.warning;
     case 'error':
       return theme.colors.danger;
     default:
@@ -175,7 +180,7 @@ function levelColor(level: 'info' | 'success' | 'warning' | 'error') {
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -259,8 +264,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   cardUnread: {
-    backgroundColor: '#F7FBFF',
-    borderColor: '#BFD8FF',
+    backgroundColor: theme.colors.infoSoft,
+    borderColor: theme.colors.infoBorder,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -314,7 +319,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textOnPrimary,
     fontWeight: '700',
   },
   secondaryButton: {
