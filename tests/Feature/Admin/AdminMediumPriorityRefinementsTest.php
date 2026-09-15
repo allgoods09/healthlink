@@ -31,6 +31,11 @@ class AdminMediumPriorityRefinementsTest extends TestCase
             ->get(route('admin.reports.export', ['report' => 'staffing', 'format' => 'csv']))
             ->assertOk()
             ->assertHeader('content-type', 'text/csv; charset=utf-8');
+
+        $this->actingAs($admin)
+            ->get(route('admin.reports.export', ['report' => 'staffing', 'format' => 'xlsx']))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
     public function test_protected_admin_actions_require_confirmation_phrase_and_reason(): void

@@ -372,6 +372,448 @@ function initializeProgressivePurokFilters() {
     });
 }
 
+function filterLabelForControl(form, control) {
+    if (!control.name) {
+        return 'Filter';
+    }
+
+    const label = control.id
+        ? form.querySelector(`label[for="${CSS.escape(control.id)}"]`)
+        : null;
+
+    return label?.textContent?.trim() || control.name.replace(/_/g, ' ');
+}
+
+function filterValueForControl(control, fallbackValue) {
+    if (control instanceof HTMLSelectElement) {
+        return control.selectedOptions[0]?.textContent?.trim() || fallbackValue;
+    }
+
+    if (control instanceof HTMLInputElement && control.type === 'date') {
+        const date = new Date(`${fallbackValue}T00:00:00`);
+
+        return Number.isNaN(date.getTime())
+            ? fallbackValue
+            : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    }
+
+    return fallbackValue;
+}
+
+function buildActiveFilterSummary(form) {
+    const activeFilters = [];
+    const query = new URLSearchParams(window.location.search);
+    const handledNames = new Set();
+
+    Array.from(form.elements).forEach((control) => {
+        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) {
+            return;
+        }
+
+        if (!control.name || handledNames.has(control.name) || ['page', 'search'].includes(control.name)) {
+            return;
+        }
+
+        const value = query.get(control.name);
+
+        if (!value) {
+            return;
+        }
+
+        handledNames.add(control.name);
+        activeFilters.push({
+            name: control.name,
+            label: filterLabelForControl(form, control),
+            value: filterValueForControl(control, value),
+        });
+    });
+
+    if (activeFilters.length === 0) {
+        return null;
+    }
+
+    const summary = document.createElement('div');
+    summary.className = 'filter-modal-active-summary';
+
+    const heading = document.createElement('span');
+    heading.className = 'filter-modal-active-label';
+    heading.textContent = `${activeFilters.length} active`;
+    summary.appendChild(heading);
+
+    const chips = document.createElement('div');
+    chips.className = 'filter-modal-chips';
+
+    activeFilters.slice(0, 3).forEach((filter) => {
+        const chip = document.createElement('a');
+        const removalUrl = new URL(window.location.href);
+        removalUrl.searchParams.delete(filter.name);
+        removalUrl.searchParams.delete('page');
+
+        chip.className = 'filter-modal-chip';
+        chip.href = removalUrl.toString();
+        chip.title = `Remove ${filter.label} filter`;
+        chip.setAttribute('aria-label', `Remove ${filter.label}: ${filter.value}`);
+        chip.innerHTML = `
+            <span class="filter-modal-chip-text"></span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" d="M6 6l8 8m0-8-8 8"></path>
+            </svg>
+        `;
+        chip.querySelector('.filter-modal-chip-text').textContent = `${filter.label}: ${filter.value}`;
+        chips.appendChild(chip);
+    });
+
+    if (activeFilters.length > 3) {
+        const overflow = document.createElement('span');
+        overflow.className = 'filter-modal-chip filter-modal-chip-overflow';
+        overflow.textContent = `+${activeFilters.length - 3} more`;
+        chips.appendChild(overflow);
+    }
+
+    const clearLink = document.createElement('a');
+    clearLink.className = 'filter-modal-clear';
+    const clearUrl = new URL(form.action, window.location.href);
+    const currentSearch = query.get('search');
+
+    if (currentSearch) {
+        clearUrl.searchParams.set('search', currentSearch);
+    }
+
+    clearLink.href = clearUrl.toString();
+    clearLink.textContent = 'Clear filters';
+
+    summary.append(heading, chips, clearLink);
+
+    return summary;
+}
+
+function findStandaloneFilterContainer(form) {
+    let candidate = form;
+    let parent = candidate.parentElement;
+
+    while (parent && !parent.matches('body, main, [role="main"]')) {
+        const siblingElements = Array.from(parent.children).filter((child) => child !== candidate);
+
+        if (siblingElements.length > 0) {
+            break;
+        }
+
+        candidate = parent;
+        parent = candidate.parentElement;
+    }
+
+    return candidate;
+}
+
+function createLiveTableSearch(filterForm, index) {
+    const searchInput = filterForm.querySelector('input[name="search"], input[type="search"]');
+
+    if (!(searchInput instanceof HTMLInputElement)) {
+        return null;
+    }
+
+    const searchName = searchInput.name || 'search';
+    const currentValue = searchInput.value;
+    const fieldContainer = searchInput.parentElement;
+
+    searchInput.remove();
+
+    if (fieldContainer && !fieldContainer.querySelector('input, select, textarea, button, a')) {
+        fieldContainer.remove();
+    }
+
+    // Keep the current search term when filters are applied from the modal.
+    const searchMirror = document.createElement('input');
+    searchMirror.type = 'hidden';
+    searchMirror.name = searchName;
+    searchMirror.value = currentValue;
+    filterForm.appendChild(searchMirror);
+
+    const liveSearchForm = document.createElement('form');
+    liveSearchForm.method = 'GET';
+    liveSearchForm.action = filterForm.action;
+    liveSearchForm.className = 'live-table-search';
+    liveSearchForm.dataset.filterPanel = 'false';
+    liveSearchForm.setAttribute('role', 'search');
+
+    const query = new URLSearchParams(window.location.search);
+
+    query.forEach((value, name) => {
+        if (!name || name === searchName || name === 'page') {
+            return;
+        }
+
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = name;
+        hiddenInput.value = value;
+        liveSearchForm.appendChild(hiddenInput);
+    });
+
+    const accessibleLabel = document.createElement('label');
+    const searchId = `live-table-search-${index + 1}`;
+    accessibleLabel.className = 'sr-only';
+    accessibleLabel.htmlFor = searchId;
+    accessibleLabel.textContent = 'Search records';
+
+    searchInput.id = searchId;
+    searchInput.type = 'search';
+    searchInput.classList.add('live-table-search-input');
+    searchInput.setAttribute('autocomplete', 'off');
+    searchInput.setAttribute('aria-label', 'Search records');
+
+    const field = document.createElement('div');
+    field.className = 'live-table-search-field';
+
+    const searchIcon = document.createElement('span');
+    searchIcon.className = 'live-table-search-icon';
+    searchIcon.setAttribute('aria-hidden', 'true');
+    searchIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path stroke-linecap="round" d="m20 20-3.5-3.5"></path>
+        </svg>
+    `;
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'live-table-search-clear';
+    clearButton.setAttribute('aria-label', 'Clear search');
+    clearButton.hidden = currentValue === '';
+    clearButton.innerHTML = `
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"></path>
+        </svg>
+    `;
+
+    field.append(searchIcon, searchInput, clearButton);
+    liveSearchForm.append(accessibleLabel, field);
+
+    const focusStorageKey = `healthlink.live-search-focus:${window.location.pathname}`;
+    let debounceTimer = null;
+    let isComposing = false;
+
+    const rememberFocus = () => {
+        try {
+            window.sessionStorage.setItem(focusStorageKey, '1');
+        } catch (error) {
+            // Searching must still work when browser storage is unavailable.
+        }
+    };
+
+    const submitSearch = () => {
+        rememberFocus();
+        liveSearchForm.requestSubmit();
+    };
+
+    const scheduleSearch = () => {
+        searchMirror.value = searchInput.value;
+        clearButton.hidden = searchInput.value === '';
+        window.clearTimeout(debounceTimer);
+
+        if (!isComposing) {
+            debounceTimer = window.setTimeout(submitSearch, 400);
+        }
+    };
+
+    searchInput.addEventListener('input', scheduleSearch);
+    searchInput.addEventListener('compositionstart', () => {
+        isComposing = true;
+        window.clearTimeout(debounceTimer);
+    });
+    searchInput.addEventListener('compositionend', () => {
+        isComposing = false;
+        scheduleSearch();
+    });
+    liveSearchForm.addEventListener('submit', () => {
+        window.clearTimeout(debounceTimer);
+        rememberFocus();
+    });
+    liveSearchForm.addEventListener('live-search:cancel', () => {
+        window.clearTimeout(debounceTimer);
+    });
+    clearButton.addEventListener('click', () => {
+        searchInput.value = '';
+        searchMirror.value = '';
+        clearButton.hidden = true;
+        submitSearch();
+    });
+
+    try {
+        if (window.sessionStorage.getItem(focusStorageKey) === '1') {
+            window.sessionStorage.removeItem(focusStorageKey);
+            window.setTimeout(() => {
+                searchInput.focus();
+                searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+            }, 0);
+        }
+    } catch (error) {
+        // Focus restoration is an enhancement and should never block filtering.
+    }
+
+    return liveSearchForm;
+}
+
+function formHasVisibleFilterControls(form) {
+    return Array.from(form.elements).some((control) => (
+        (control instanceof HTMLInputElement && !['hidden', 'submit', 'button'].includes(control.type))
+        || control instanceof HTMLSelectElement
+        || control instanceof HTMLTextAreaElement
+    ));
+}
+
+function initializeFilterModals() {
+    const filterForms = document.querySelectorAll('form[method="get" i]:not([data-filter-panel="false"])');
+
+    filterForms.forEach((form, index) => {
+        if (!(form instanceof HTMLFormElement) || form.dataset.filterPanelInitialized === 'true') {
+            return;
+        }
+
+        // Only convert forms that actually collect filter values. This keeps simple GET actions untouched.
+        if (!form.querySelector('input, select, textarea')) {
+            return;
+        }
+
+        form.dataset.filterPanelInitialized = 'true';
+
+        const panelId = `filter-modal-${index + 1}`;
+        const originalParent = form.parentElement;
+        const existingSidebar = form.closest('aside');
+        const layout = existingSidebar?.parentElement;
+        const standaloneContainer = existingSidebar ? null : findStandaloneFilterContainer(form);
+        const controlsArea = document.createElement('div');
+        controlsArea.className = 'data-table-controls';
+        const liveSearch = createLiveTableSearch(form, index);
+        const triggerArea = document.createElement('div');
+        triggerArea.className = 'filter-modal-trigger-area';
+        const trigger = document.createElement('button');
+
+        trigger.type = 'button';
+        trigger.className = 'filter-modal-trigger';
+        trigger.setAttribute('aria-controls', panelId);
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.innerHTML = `
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M7 12h10m-7 6h4" />
+            </svg>
+            <span>Filter</span>
+        `;
+
+        triggerArea.appendChild(trigger);
+
+        if (liveSearch) {
+            controlsArea.appendChild(liveSearch);
+        }
+
+        if (!formHasVisibleFilterControls(form)) {
+            if (existingSidebar instanceof HTMLElement) {
+                layout?.classList.add('filter-modal-layout');
+                existingSidebar.before(controlsArea);
+                existingSidebar.remove();
+            } else if (standaloneContainer instanceof HTMLElement && standaloneContainer !== form) {
+                standaloneContainer.replaceWith(controlsArea);
+            } else if (originalParent instanceof HTMLElement) {
+                originalParent.appendChild(controlsArea);
+                form.remove();
+            }
+
+            return;
+        }
+
+        controlsArea.appendChild(triggerArea);
+
+        const activeSummary = buildActiveFilterSummary(form);
+
+        if (activeSummary) {
+            triggerArea.classList.add('has-active-filters');
+            triggerArea.appendChild(activeSummary);
+        }
+
+        const modal = document.createElement('div');
+        modal.id = panelId;
+        modal.className = 'filter-modal-shell';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML = `
+            <div class="filter-modal-backdrop" data-filter-modal-close></div>
+            <section class="filter-modal-panel" role="dialog" aria-modal="true" aria-labelledby="${panelId}-title">
+                <div class="filter-modal-header">
+                    <div>
+                        <p class="filter-modal-eyebrow">Refine results</p>
+                        <h2 id="${panelId}-title" class="filter-modal-title">Filters</h2>
+                    </div>
+                    <button type="button" class="filter-modal-close" data-filter-modal-close aria-label="Close filters">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="filter-modal-body"></div>
+            </section>
+        `;
+
+        const panelBody = modal.querySelector('.filter-modal-body');
+        const closeButton = modal.querySelector('.filter-modal-close');
+
+        if (!(panelBody instanceof HTMLElement) || !(closeButton instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        form.classList.add('filter-modal-form');
+        panelBody.appendChild(form);
+        document.body.appendChild(modal);
+
+        if (existingSidebar instanceof HTMLElement) {
+            layout?.classList.add('filter-modal-layout');
+            layout?.before(controlsArea);
+            existingSidebar.remove();
+        } else if (standaloneContainer instanceof HTMLElement && standaloneContainer !== form) {
+            standaloneContainer.replaceWith(controlsArea);
+        } else if (originalParent instanceof HTMLElement) {
+            originalParent.appendChild(controlsArea);
+        }
+
+        let returnFocusElement = null;
+
+        const setOpen = (isOpen) => {
+            modal.classList.toggle('is-open', isOpen);
+            modal.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+            trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            document.body.classList.toggle('filter-modal-open', isOpen);
+
+            if (isOpen) {
+                returnFocusElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+                window.setTimeout(() => {
+                    const firstField = panelBody.querySelector('input:not([type="hidden"]), select, textarea, button');
+                    firstField?.focus();
+                }, 0);
+            } else {
+                returnFocusElement?.focus();
+            }
+        };
+
+        trigger.addEventListener('click', () => {
+            liveSearch?.dispatchEvent(new Event('live-search:cancel'));
+            setOpen(true);
+        });
+        modal.querySelectorAll('[data-filter-modal-close]').forEach((button) => {
+            button.addEventListener('click', () => setOpen(false));
+        });
+        modal.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setOpen(false);
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                event.preventDefault();
+                setOpen(false);
+            }
+        });
+    });
+}
+
 Alpine.data('actionConfirmationModal', () => ({
     open: false,
     form: null,
@@ -726,5 +1168,6 @@ Alpine.data('actionConfirmationModal', () => ({
     },
 }));
 
+initializeFilterModals();
 Alpine.start();
 initializeProgressivePurokFilters();

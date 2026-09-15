@@ -26,7 +26,7 @@
                 </div>
             </div>
 
-            <form method="GET" action="{{ route($routePrefix.'.documents.index') }}" class="mt-6" x-data="{ documentType: @js($selectedDocumentType) }">
+            <form method="GET" action="{{ route($routePrefix.'.documents.index') }}" class="mt-6" x-data="{ documentType: @js($selectedDocumentType) }" data-filter-panel="false">
                 <div class="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                     <div class="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                         <div>

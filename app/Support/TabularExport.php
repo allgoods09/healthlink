@@ -5,8 +5,10 @@ namespace App\Support;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Closure;
 use Illuminate\Http\Response;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TabularExport
@@ -33,7 +35,7 @@ class TabularExport
     /**
      * Build an XLSX download for a tabular dataset.
      */
-    public static function xlsx(string $filename, string $sheetName, array $columns, iterable $rows): Response
+    public static function xlsx(string $filename, string $sheetName, array $columns, iterable $rows): BinaryFileResponse
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -42,14 +44,14 @@ class TabularExport
         $headers = array_keys($columns);
 
         foreach ($headers as $index => $header) {
-            $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($index + 1) . '1', $header);
         }
 
         $rowNumber = 2;
 
         foreach ($rows as $row) {
             foreach (self::mapRow($row, $columns) as $index => $value) {
-                $sheet->setCellValueByColumnAndRow($index + 1, $rowNumber, (string) $value);
+                $sheet->setCellValue(Coordinate::stringFromColumnIndex($index + 1) . $rowNumber, (string) $value);
             }
 
             $rowNumber++;

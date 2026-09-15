@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>@yield('title', 'HealthLink Admin')</title>
-
+    <link rel="icon" type="image/png" href="{{ asset('tubigon_favicon.png') }}?v=2">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
 
@@ -123,9 +123,9 @@
                             Backups
                         </x-sidebar-link>
 
-                        <x-sidebar-link :href="route('admin.archive.index')" :active="request()->routeIs('admin.archive.*')" icon="archive">
+                        {{-- <x-sidebar-link :href="route('admin.archive.index')" :active="request()->routeIs('admin.archive.*')" icon="archive">
                             Data Archive
-                        </x-sidebar-link>
+                        </x-sidebar-link> --}}
 
                         <x-sidebar-link :href="route('admin.metrics.index')" :active="request()->routeIs('admin.metrics.*')" icon="metrics">
                             System Metrics

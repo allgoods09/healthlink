@@ -18,7 +18,7 @@
         <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
             PDF
         </a>
-        @if($canClearOld ?? true)
+        {{-- @if($canClearOld ?? true)
             <x-destructive-confirm-modal
                 :action="route($routePrefix.'.clear-old')"
                 method="DELETE"
@@ -28,7 +28,7 @@
                 confirmation-word="CLEAR"
                 submit-label="Clear Logs"
             />
-        @endif
+        @endif --}}
     </div>
 @endsection
 

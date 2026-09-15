@@ -70,9 +70,9 @@
                             <a href="{{ route('admin.reports.export', array_merge(['report' => $report['key'], 'format' => 'csv'], request()->query())) }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
                                 CSV
                             </a>
-                            <a href="{{ route('admin.reports.export', array_merge(['report' => $report['key'], 'format' => 'xlsx'], request()->query())) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                            {{-- <a href="{{ route('admin.reports.export', array_merge(['report' => $report['key'], 'format' => 'xlsx'], request()->query())) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
                                 Excel
-                            </a>
+                            </a> --}}
                             <a href="{{ route('admin.reports.export', array_merge(['report' => $report['key'], 'format' => 'pdf'], request()->query())) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
                                 PDF
                             </a>

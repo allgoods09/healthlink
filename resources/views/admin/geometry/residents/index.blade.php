@@ -92,7 +92,7 @@
                 </div>
 
                 <div>
-                    <label for="resident_status" class="block text-sm font-medium text-gray-700">Civil Status</label>
+                    <label for="resident_status" class="block text-sm font-medium text-gray-700">Residency Status</label>
                     <select name="resident_status" id="resident_status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">All statuses</option>
                         <option value="active" {{ request('resident_status') === 'active' ? 'selected' : '' }}>Active Resident</option>

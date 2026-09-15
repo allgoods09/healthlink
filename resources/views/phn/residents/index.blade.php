@@ -30,7 +30,7 @@
                 </select>
             </div>
             <div>
-                <label for="resident_status" class="block text-sm font-medium text-slate-700">Civil Status</label>
+                <label for="resident_status" class="block text-sm font-medium text-slate-700">Residency Status</label>
                 <select id="resident_status" name="resident_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
                     <option value="">All</option>
                     <option value="active" @selected(request('resident_status') === 'active')>Active</option>
