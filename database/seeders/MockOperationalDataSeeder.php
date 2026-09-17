@@ -116,7 +116,7 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'admin',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
-            'email_verified_at' => now()
+            'email_verified_at' => now(),
         ]);
 
         $phn = $this->upsertUser([
@@ -125,7 +125,7 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'phn',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
-            'email_verified_at' => now()
+            'email_verified_at' => now(),
         ], $admin);
 
         $mho = $this->upsertUser([
@@ -134,15 +134,10 @@ class MockOperationalDataSeeder extends Seeder
             'role' => 'mho',
             'assigned_barangay_id' => null,
             'assigned_purok_id' => null,
-            'email_verified_at' => now()
+            'email_verified_at' => now(),
         ], $admin);
 
         $barangays = Barangay::query()->orderBy('name')->get();
-
-        $firstSecretary = null;
-        $firstBns = null;
-        $firstBhw = null;
-        $firstPurok = null;
 
         foreach ($barangays as $barangayIndex => $barangay) {
             $slug = Str::slug($barangay->name);
@@ -201,11 +196,6 @@ class MockOperationalDataSeeder extends Seeder
                     'households' => $households,
                     'residents_by_household' => $residentsByHousehold,
                 ]);
-
-                if ($firstBhw === null) {
-                    $firstBhw = $bhw;
-                    $firstPurok = $purok;
-                }
             }
 
             $this->seedBarangayArtifacts(
@@ -217,47 +207,8 @@ class MockOperationalDataSeeder extends Seeder
                 $purokContexts,
                 $barangayIndex
             );
-
-            $firstSecretary ??= $secretary;
-            $firstBns ??= $bns;
         }
 
-        if ($barangays->isNotEmpty()) {
-            $firstBarangay = $barangays->first();
-
-            if ($firstSecretary) {
-                $this->upsertUser([
-                    'name' => 'Tubigon Demo Secretary',
-                    'email' => 'secretary@healthlink.com',
-                    'role' => 'secretary',
-                    'assigned_barangay_id' => $firstBarangay->id,
-                    'assigned_purok_id' => null,
-                    'email_verified_at' => now(),
-                ], $admin);
-            }
-
-            if ($firstBns) {
-                $this->upsertUser([
-                    'name' => 'Tubigon Demo BNS',
-                    'email' => 'bns@healthlink.com',
-                    'role' => 'bns',
-                    'assigned_barangay_id' => $firstBarangay->id,
-                    'assigned_purok_id' => null,
-                    'email_verified_at' => now(),
-                ], $admin);
-            }
-
-            if ($firstBhw && $firstPurok) {
-                $this->upsertUser([
-                    'name' => 'Tubigon Demo BHW',
-                    'email' => 'bhw@healthlink.com',
-                    'role' => 'bhw',
-                    'assigned_barangay_id' => $firstBarangay->id,
-                    'assigned_purok_id' => $firstPurok->id,
-                    'email_verified_at' => now(),
-                ], $admin);
-            }
-        }
     }
 
     private function seedPurokHouseholds(Barangay $barangay, Purok $purok, int $barangayIndex, int $purokNumber): array

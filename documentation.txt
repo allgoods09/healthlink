@@ -15,324 +15,495 @@ ID:	UC-01
 Importance Level:	High
 Primary Actor:	Prospective BHW or BNS
 Use Case Type:	Essential, Detailed
-Scenario:	A frontline worker requests a HealthLink account.
-Brief Description:	Registers a BHW/BNS applicant and verifies the applicant's email before approval.
-Trigger:	The applicant submits the public registration form.
-Normal Flow of Events:	1. Enter separated name fields, email, password, requested role, and barangay. 2. Accept terms. 3. System validates data and email uniqueness. 4. System creates approval_status=pending, registered_via=self, is_active=false. 5. Verification email is sent. 6. Applicant opens the signed link. 7. System records email_verified_at and notifies the barangay Secretary.
-Sub Flows:	Applicant may resend verification or request a password-reset link.
-Alternative/Exceptional Flows:	Only bhw and bns are accepted publicly; duplicate email, invalid data, or expired links are rejected; protected access remains blocked until verification and approval.
+Scenario:	A prospective BHW or BNS creates an account and confirms ownership of the provided email address.
+Brief Description:	This use case allows a frontline worker to submit personal and account details for review. Registration does not provide immediate system access because the email must first be verified and the account must later be approved by the appropriate Barangay Secretary.
+Trigger:	The applicant opens and submits the public registration form.
+Normal Flow of Events:
+1. The applicant enters separate name fields, an email address, a password, the requested BHW or BNS role, and the barangay where the applicant will serve.
+2. The applicant reviews and accepts the terms before submitting the form.
+3. The system validates the required fields, requested role, password rules, and uniqueness of the email address.
+4. The system creates an inactive account with approval_status=pending and registered_via=self.
+5. The system sends a signed verification link to the registered email address.
+6. The applicant opens the link, and the system records email_verified_at when the link is valid.
+7. The system notifies the Barangay Secretary that a verified applicant is waiting for review.
+Sub Flows:	If the first message is not received, the applicant may request another verification email. Password recovery is also available for an existing account.
+Alternative/Exceptional Flows:	Public registration accepts only BHW and BNS roles. Duplicate emails, incomplete or invalid information, and expired or invalid verification links are rejected. The applicant cannot enter protected modules while the account remains unverified, pending, rejected, or inactive.
 
 Use Case Name:	Frontline Account Approval and Assignment
 ID:	UC-02
 Importance Level:	High
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	A Secretary reviews a verified BHW/BNS applicant for the assigned barangay.
-Brief Description:	Approves or rejects the account and establishes its barangay/purok scope.
-Trigger:	A pending registration enters Frontline Team.
-Normal Flow of Events:	1. Open applicant. 2. Verify identity, role, email state, and barangay. 3. Assign BHW to an active purok or BNS to barangay scope. 4. Confirm approval. 5. System stores approved_at, approved_by, assignments, approved status, and active state. 6. Audit and notify applicant.
-Sub Flows:	Secretary may directly create a frontline account, resend/mark verification, update assignment, or reset/generate a password.
-Alternative/Exceptional Flows:	Cross-barangay management and BHW approval without a purok are blocked; rejection records reviewer, time, and notes.
+Scenario:	A Barangay Secretary reviews a verified BHW or BNS applicant who requested assignment to the Secretary's barangay.
+Brief Description:	This use case confirms whether a frontline applicant is authorized to work in the barangay. It also establishes the geographic assignment that will control which records and functions the user can access.
+Trigger:	A verified registration appears in the pending section of the Frontline Team module.
+Normal Flow of Events:
+1. The Secretary opens the pending applicant and reviews the submitted identity, requested role, email-verification state, and barangay.
+2. The Secretary confirms that the applicant belongs to the barangay and that the requested frontline role is appropriate.
+3. For a BHW applicant, the Secretary selects an active purok assignment. For a BNS applicant, the system applies barangay-level scope.
+4. The Secretary confirms the approval decision.
+5. The system records the approving user and time, saves the assignment, changes the approval status, and activates the account.
+6. The system writes an audit entry and informs the applicant that the account has been approved.
+Sub Flows:	The Secretary may create a frontline account directly, update an existing assignment, resend or mark email verification, and reset or generate a password when authorized.
+Alternative/Exceptional Flows:	The system blocks cross-barangay account management and does not approve a BHW without a valid active purok. If the application is rejected, the system retains the reviewer, decision time, and review notes and leaves the account without protected access.
 
 Use Case Name:	Web Authentication, Recovery, and Profile Management
 ID:	UC-03
 Importance Level:	High
 Primary Actor:	Registered User
 Use Case Type:	Essential, Detailed
-Scenario:	An authorized user accesses and maintains a web account.
-Brief Description:	Authenticates the user, redirects by role, and supports profile/password management.
-Trigger:	User submits login or account-management form.
-Normal Flow of Events:	1. Validate credentials and account state. 2. Regenerate session. 3. Redirect to role dashboard. 4. Permit profile/password updates. 5. Logout invalidates session.
-Sub Flows:	Forgot Password sends the branded reset link; unverified users may resume verification.
-Alternative/Exceptional Flows:	Invalid, pending, rejected, inactive, or unverified users are denied; no-cache middleware protects browser history after logout.
+Scenario:	A registered user signs in to the web application and manages basic account information during an authorized session.
+Brief Description:	This use case authenticates the user, checks whether the account is permitted to enter the system, and directs the user to the dashboard for the assigned role. It also covers profile updates, password changes, and secure logout.
+Trigger:	The user submits the login form or opens an available account-management action.
+Normal Flow of Events:
+1. The user enters the registered email address and password.
+2. The system validates the credentials and checks email verification, approval, activation, and role status.
+3. After successful authentication, the system regenerates the session to protect it from reuse.
+4. The system identifies the user's role and redirects the user to the corresponding authorized dashboard.
+5. During the session, the user may update permitted profile fields or change the account password after passing validation.
+6. When the user logs out, the system invalidates the session and returns the browser to a public page.
+Sub Flows:	A user who forgets the password may request a branded reset link. An unverified user may resume the email-verification process instead of attempting protected access.
+Alternative/Exceptional Flows:	The system denies access when credentials are incorrect or the account is unverified, pending, rejected, or inactive. After logout, no-cache protection prevents a protected page from being reopened through normal browser history.
 
 Use Case Name:	Role-Based Notification Review
 ID:	UC-04
 Importance Level:	Medium
 Primary Actor:	Authenticated User
 Use Case Type:	Essential, Detailed
-Scenario:	A role-relevant event requires awareness or action.
-Brief Description:	Stores scoped notifications and links recipients to permitted records.
-Trigger:	Registration, draft, correction, triage, escalation, PhilPEN alert, registry creation, or mobile release event occurs.
-Normal Flow of Events:	1. Determine recipients by role/scope. 2. Store title, body, level, category, action URL, sender, and metadata. 3. Show unread count. 4. User opens notification. 5. Mark read and open authorized destination.
-Sub Flows:	User may mark all read; mobile API returns only the authenticated BHW's notifications.
-Alternative/Exceptional Flows:	No message is sent when no eligible recipient exists; destination authorization is still enforced.
+Scenario:	An event in HealthLink requires one or more authorized users to be informed or to take action.
+Brief Description:	This use case creates notifications according to the recipient's role and assigned scope. Each notification gives enough context for the user to understand the event and, when applicable, links to the related record.
+Trigger:	A registration, draft, correction, triage, escalation, PhilPEN alert, registry creation, or mobile-release event is recorded.
+Normal Flow of Events:
+1. The system identifies the event type and determines which roles and geographic assignments should receive it.
+2. The system confirms that each intended recipient is eligible to receive information about the affected record.
+3. A notification is stored with its title, message, severity level, category, action URL, sender, and supporting metadata.
+4. The recipient sees the updated unread count and opens the notification list.
+5. The system marks the selected notification as read when it is opened.
+6. If an action link is available, the system rechecks authorization before displaying the related record.
+Sub Flows:	A user may mark all accessible notifications as read. Through the mobile API, a BHW receives only notifications belonging to the authenticated account.
+Alternative/Exceptional Flows:	If no eligible recipient exists, the system does not create a message. Possession of a notification link does not bypass role or location-based authorization.
 
 Use Case Name:	BHW Mobile Login and Single-Device Access
 ID:	UC-05
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	An approved BHW signs in on Android.
-Brief Description:	Validates mobile eligibility and enforces one active Sanctum token.
-Trigger:	BHW submits credentials and device information.
-Normal Flow of Events:	1. Check release/maintenance state. 2. Verify credentials, BHW role, verification, approval, active state, barangay, and purok. 3. Revoke old tokens. 4. Issue new mobile token. 5. Audit device/version/locale. 6. Store authenticated assignment locally.
-Sub Flows:	Mobile Forgot Password and token-revoking logout are supported.
-Alternative/Exceptional Flows:	Non-BHW, unassigned, inactive, unverified, pending, rejected, rate-limited, or maintenance-blocked login is denied.
+Scenario:	An approved and assigned BHW signs in to the HealthLink Android application from a field device.
+Brief Description:	This use case verifies that the account is eligible for mobile access and creates one active authenticated mobile session. The saved assignment determines the barangay and purok available to the BHW during field work.
+Trigger:	The BHW submits an email address, password, and available device information on the mobile login screen.
+Normal Flow of Events:
+1. The application sends the credentials and device details to the mobile authentication endpoint.
+2. The server checks whether the installed release may connect and whether mobile login is under maintenance.
+3. The server validates the credentials, BHW role, verified email, approved and active account state, barangay, and active purok assignment.
+4. After validation, the server revokes older mobile tokens belonging to the account to enforce single-device access.
+5. The server issues a new Sanctum token and records relevant device, application-version, and locale information in the audit trail.
+6. The application stores the authenticated identity and assignment for use in the local-first workspace.
+Sub Flows:	The BHW may request password recovery from the mobile application. Logging out revokes the current token and removes access to the authenticated session.
+Alternative/Exceptional Flows:	Login is denied for a non-BHW user or an account that is unassigned, inactive, unverified, pending, rejected, rate-limited, or blocked by maintenance settings.
 
 Use Case Name:	First-Time Mobile Bootstrap
 ID:	UC-06
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A fresh installation has no local registry.
-Brief Description:	Blocks field work until the assigned-barangay dataset is safely stored in SQLite.
-Trigger:	bootstrapCompleted is false after login.
-Normal Flow of Events:	1. Show Initial Sync. 2. Request bootstrap with token. 3. Server scopes to assigned barangay. 4. Return assignment, households, residents, visits, and PhilPEN assessments. 5. Write SQLite transaction. 6. Store completion/last-sync state. 7. Open local-first workspace.
-Sub Flows:	Later launches use SQLite immediately; another BHW login clears the previous account's local dataset.
-Alternative/Exceptional Flows:	Failure or download maintenance keeps the UI blocked with Retry and Log out; partial data is not accepted as complete.
+Scenario:	A BHW has successfully logged in on a new or cleared installation that does not yet contain an offline barangay registry.
+Brief Description:	This use case prepares the device for local-first field work by downloading the BHW's authorized dataset and storing it safely in SQLite. Data-entry features remain unavailable until the initial local copy is complete.
+Trigger:	The application detects that bootstrapCompleted is false after authentication.
+Normal Flow of Events:
+1. The application displays the Initial Sync screen instead of opening an incomplete field workspace.
+2. Using the authenticated token, the application requests the bootstrap dataset from the server.
+3. The server validates the session and limits the requested information to the BHW's assigned barangay.
+4. The server returns assignment details together with authorized households, residents, visits, and PhilPEN assessments.
+5. The application writes the returned dataset to SQLite as a transaction so that a partial write is not treated as a valid registry.
+6. After a successful transaction, the application stores bootstrap completion and last-sync information.
+7. The BHW is taken to the local-first workspace and may begin using the downloaded records.
+Sub Flows:	On later launches, the application can open the SQLite dataset immediately. If a different BHW signs in, the previous account's local dataset is cleared before the new account is prepared.
+Alternative/Exceptional Flows:	A connection failure, server error, invalid token, or download-maintenance state keeps the workspace blocked and presents Retry and Log out actions. Incomplete data is not marked as a successful bootstrap.
 
 Use Case Name:	Offline Barangay Directory and Mobile Registry Capture
 ID:	UC-07
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW reads barangay records or captures household/resident data offline.
-Brief Description:	Provides whole-barangay read access and assigned-purok mobile write access.
-Trigger:	BHW opens Directory or a household/resident form.
-Normal Flow of Events:	1. Read/search SQLite. 2. Show full read-only details for other puroks. 3. Permit local create/edit in assigned purok. 4. Validate household and civil fields. 5. Generate UUID. 6. Save sync_status=pending_upload. 7. Keep editable until accepted.
-Sub Flows:	Resident selection displays household/purok context and user-friendly dates.
-Alternative/Exceptional Flows:	Other-purok edits are unavailable; server rejects duplicates. Current mobile sync writes accepted entries directly to Household/Resident and notifies the Secretary, rather than creating draft tables.
+Scenario:	While working in the field, a BHW searches the barangay directory or records household and resident information without relying on a continuous internet connection.
+Brief Description:	This use case provides read access to the downloaded barangay directory while limiting mobile creation and editing to the BHW's assigned purok. New or changed records remain local until they are accepted during synchronization.
+Trigger:	The BHW opens the Directory or starts an available household or resident form.
+Normal Flow of Events:
+1. The application loads household and resident information from SQLite and allows the BHW to search the local directory.
+2. Records from the whole assigned barangay may be viewed, including full read-only details for residents of other puroks.
+3. When the selected record belongs to the BHW's assigned purok, the application enables the permitted create or edit action.
+4. The BHW enters the household location, identity, relationship, and other required civil information.
+5. The application validates the fields and generates a UUID that can identify the record during later synchronization.
+6. The record is saved locally with sync_status=pending_upload and remains available even when the device is offline.
+7. The BHW may correct the pending local record until the server accepts it during synchronization.
+Alternative/Exceptional Flows:	The application does not offer editing for another purok, and the server rejects duplicate or out-of-scope submissions. Accepted mobile entries are written directly to Household or Resident and the Secretary is notified; they do not enter the separate web draft tables.
 
 Use Case Name:	Offline Household Visit Capture
 ID:	UC-08
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW records an assigned-purok household visit.
-Brief Description:	Stores visit time, notes, and optional camera/gallery photographs for later sync.
-Trigger:	BHW starts a visit from a household.
-Normal Flow of Events:	1. Load household. 2. Select date/time and enter notes. 3. Add/remove optional photos. 4. Generate mobile_uuid. 5. Save pending_upload. 6. Sync validates scope, stores photos, source=mobile, and last_synced_at. 7. Mark synced.
-Sub Flows:	Visit may be saved without photos and edited while unsynced.
-Alternative/Exceptional Flows:	Other-purok visits and invalid retained photos are rejected; upload/storage failure leaves local work pending. No dedicated Secretary/BNS visit web route currently exists.
+Scenario:	A BHW documents a household visit conducted within the assigned purok, including notes and available photographic evidence.
+Brief Description:	This use case stores a field visit on the device for later synchronization. It preserves when the visit occurred, what the BHW observed, and any optional photographs selected from the camera or gallery.
+Trigger:	The BHW selects the visit action from an authorized household record.
+Normal Flow of Events:
+1. The application loads the chosen household from SQLite and verifies that it belongs to the BHW's assigned purok.
+2. The BHW enters the visit date and time and writes relevant field notes.
+3. The BHW may capture photographs or select them from the gallery and may remove unwanted selections before saving.
+4. The application validates the visit information and generates a mobile_uuid for retry-safe synchronization.
+5. The visit is stored locally as pending_upload and remains visible in the offline workspace.
+6. During synchronization, the server validates the assignment, stores valid photographs, records source=mobile and last_synced_at, and returns the accepted record.
+7. The application reconciles the server result and marks the local visit as synced.
+Sub Flows:	A visit may be saved without photographs. The BHW may edit it while it is still unsynced.
+Alternative/Exceptional Flows:	Visits for another purok and invalid retained photographs are rejected. If upload or file storage fails, the local visit remains pending rather than being discarded. The current web routes do not provide a dedicated household-visit module for the Secretary or BNS.
 
 Use Case Name:	Offline PhilPEN Risk Assessment
 ID:	UC-09
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW screens an adult resident in the field.
-Brief Description:	Captures the Revised 2022 PhilPEN sections and identifies urgent red flags.
-Trigger:	BHW selects New Risk Assessment for a resident.
-Normal Flow of Events:	1. Require age >=20 on assessment date. 2. Pre-fill resident/location identity. 3. Capture measurements, histories, risks, screening, reported medicine, advice, follow-up, and remarks. 4. Calculate BMI/referral flag. 5. Generate mobile_uuid. 6. Save pending_upload. 7. Make read-only after sync.
-Sub Flows:	Adult directory supports assessment-recency filters and deliberate reassessment.
-Alternative/Exceptional Flows:	Underage assessment is blocked; critical red flags show immediate referral warning and notify PHN/MHO after sync; historical synced assessments cannot be edited; BHW does not prescribe.
+Scenario:	A BHW conducts a Revised 2022 PhilPEN risk assessment for an adult resident during field work.
+Brief Description:	This use case records the resident's measurements, relevant history, risk factors, screening results, and follow-up information. It also identifies findings that require timely referral while keeping clinical prescribing outside the BHW role.
+Trigger:	The BHW selects New Risk Assessment from an eligible resident's record.
+Normal Flow of Events:
+1. The application checks the resident's age on the assessment date and requires the resident to be at least 20 years old.
+2. The application fills in the available resident identity and location details from the local registry.
+3. The BHW completes the applicable PhilPEN sections, including measurements, medical and family history, risk factors, screening responses, reported medicines, advice, follow-up, and remarks.
+4. The application validates the entries, calculates the BMI, and determines whether the recorded findings raise a referral flag.
+5. The application generates a mobile_uuid and stores the assessment locally as pending_upload.
+6. During synchronization, the server validates and accepts the assessment and sends relevant alerts for critical findings.
+7. The accepted assessment becomes read-only on the device to preserve the historical screening record.
+Sub Flows:	The adult directory may be filtered by assessment recency, and the BHW may deliberately begin a new assessment when reassessment is appropriate.
+Alternative/Exceptional Flows:	The system blocks assessment of an underage resident. Critical red flags produce an immediate referral warning and notify the PHN or MHO after synchronization. A synced historical assessment cannot be edited, and the workflow does not permit the BHW to prescribe medicine.
 
 Use Case Name:	Guarded Manual Mobile Synchronization
 ID:	UC-10
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW uploads offline work and refreshes local data.
-Brief Description:	Uploads pending records first and downloads only when local changes are cleared.
-Trigger:	BHW selects Sync Now.
-Normal Flow of Events:	1. Check connection/count unsynced rows. 2. Upload households, residents, visits, assessments with IDs/mobile_uuid. 3. Validate token, size, fields, and scope. 4. Resolve retry by ID/UUID. 5. Create SyncLog/AuditLog. 6. Reconcile IDs and mark accepted rows synced. 7. If none remain pending, download fresh bootstrap.
-Sub Flows:	Result may be success, partial, or failed; device may report a sync failure.
-Alternative/Exceptional Flows:	Upload failure skips download and preserves cache; rejected rows remain pending; maintenance and oversized payloads return controlled errors.
+Scenario:	A BHW intentionally synchronizes locally stored field records and then refreshes the device with the latest authorized barangay data.
+Brief Description:	This use case protects unsent work by uploading pending records before replacing local reference data. A fresh download is allowed only after the device has no unresolved local changes.
+Trigger:	The BHW selects Sync Now from the mobile application.
+Normal Flow of Events:
+1. The application checks network availability and counts household, resident, visit, and assessment rows that have not been synchronized.
+2. Pending records are grouped into an upload request with their local IDs and mobile_uuid values.
+3. The server validates the token, payload size, required fields, record relationships, and barangay or purok scope.
+4. For repeated requests, the server uses the model ID or UUID to reconcile the submission without creating an unintended duplicate.
+5. The server records the attempt through SyncLog and AuditLog and returns the result for each submitted record.
+6. The application saves returned server IDs and marks only accepted rows as synced.
+7. When no pending rows remain, the application downloads a fresh scoped bootstrap dataset and updates its last-sync state.
+Alternative/Exceptional Flows:	A synchronization attempt may be successful, partially successful, or failed, and the device may submit a failure report for administrative review. If uploading fails, the download stage is skipped and the existing local cache is preserved. Rejected rows remain pending for correction or retry. Maintenance settings and oversized payloads produce controlled errors instead of clearing local work.
 
 Use Case Name:	BHW Web Field Draft Package
 ID:	UC-11
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW proposes a new household and residents through the web.
-Brief Description:	Creates linked HouseholdDraft/ResidentDraft records for Secretary verification.
-Trigger:	BHW selects New Draft Package.
-Normal Flow of Events:	1. Select allowed purok. 2. Enter household/risk data. 3. Add resident drafts. 4. Save linked package. 5. Review/edit while pending. 6. Submit. 7. Audit and notify Secretary.
-Sub Flows:	BHW tracks pending, approved, and rejected package status.
-Alternative/Exceptional Flows:	Out-of-scope or reviewed packages cannot be edited; rejected package retains review notes.
+Scenario:	A BHW uses the web application to propose a new household together with its resident members for official verification.
+Brief Description:	This use case creates a linked HouseholdDraft and one or more ResidentDraft records. The package remains separate from the verified civil registry until the Barangay Secretary reviews and approves it.
+Trigger:	The BHW selects New Draft Package from the web field-work module.
+Normal Flow of Events:
+1. The BHW selects a purok allowed by the account assignment.
+2. The BHW enters the proposed household location, classification, and applicable risk information.
+3. The BHW adds the available resident details and links each resident draft to the proposed household.
+4. The system validates the package and saves the household and resident drafts together.
+5. While the package remains pending, the BHW reviews the information and corrects incomplete or inaccurate entries.
+6. The BHW submits the completed package for verification.
+7. The system records the submission, creates an audit entry, and notifies the Barangay Secretary.
+Sub Flows:	The BHW may monitor the package after submission and view whether it remains pending or has been approved or rejected.
+Alternative/Exceptional Flows:	The system rejects an out-of-scope purok and does not allow an already reviewed package to be edited. A rejected package remains available with the Secretary's review notes.
 
 Use Case Name:	Verified Profile Correction Request
 ID:	UC-12
 Importance Level:	High
 Primary Actor:	BHW or PHN
 Use Case Type:	Essential, Detailed
-Scenario:	A field/clinical user finds incorrect verified civil data.
-Brief Description:	Proposes resident/household changes without direct registry edit access.
-Trigger:	Actor opens a correction-request form.
-Normal Flow of Events:	1. Select scoped verified subject. 2. Review current values. 3. Enter proposed values/reason. 4. Create pending ProfileUpdateRequest. 5. Notify Secretary. 6. Track result.
-Sub Flows:	BHW and PHN routes use the same Secretary pipeline and receive decision notifications.
-Alternative/Exceptional Flows:	Empty/out-of-scope requests are rejected; verified data remains unchanged before approval.
+Scenario:	A BHW or PHN notices that verified household or resident information is inaccurate but does not have authority to alter the civil registry directly.
+Brief Description:	This use case allows an authorized field or clinical user to propose a correction and explain why it is needed. The existing verified record remains unchanged until the Barangay Secretary decides on the request.
+Trigger:	The BHW or PHN opens the correction-request form for an accessible verified record.
+Normal Flow of Events:
+1. The user selects a household or resident within the account's authorized scope.
+2. The system displays the current verified values so the user can identify the inaccurate information.
+3. The user enters only the proposed changes and provides a reason that will help the Secretary evaluate the request.
+4. The system validates that the request contains a meaningful change and creates a pending ProfileUpdateRequest.
+5. The system links the request to the subject and requester, records the submission, and notifies the Barangay Secretary.
+6. The requester may later view the resulting approval or rejection and the corresponding decision information.
+Alternative/Exceptional Flows:	An empty request or a subject outside the user's scope is rejected. Submission alone never changes the verified civil record; changes are applied only after approval.
 
 Use Case Name:	BHW Clinic Triage Submission
 ID:	UC-13
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW records pre-consultation vitals.
-Brief Description:	Forwards a pending triage entry to the municipal PHN queue.
-Trigger:	BHW selects New Triage Entry.
-Normal Flow of Events:	1. Select active barangay resident. 2. Record time, BP, heart rate, temperature, respiratory rate, glucose, and notes. 3. Create pending TriageRecord. 4. Audit and notify PHN. 5. Permit edit while consumed_at is null. 6. Linked encounter stores consumer/time/status.
-Sub Flows:	BHW filters own triage; Secretary has read-only barangay triage queue.
-Alternative/Exceptional Flows:	Consumed triage is permanently locked from BHW edits; out-of-scope resident is rejected.
+Scenario:	A BHW records a resident's available pre-consultation vital signs and submits them for assessment by a municipal PHN.
+Brief Description:	This use case creates a pending triage record that carries basic observations from the barangay into the clinical queue. The record may be corrected before use, but it becomes fixed once incorporated into a clinical encounter.
+Trigger:	The BHW selects New Triage Entry from the web application.
+Normal Flow of Events:
+1. The BHW searches for and selects an active resident from the assigned barangay.
+2. The system displays the resident's identifying context to reduce the chance of recording information for the wrong person.
+3. The BHW enters the triage time, blood pressure, heart rate, temperature, respiratory rate, glucose when available, and relevant notes.
+4. After validation, the system creates a pending TriageRecord linked to the resident and submitting BHW.
+5. The system records the action in the audit trail and notifies the PHN that a triage record is waiting.
+6. The BHW may edit the entry while consumed_at remains empty.
+7. When a PHN uses the triage in an encounter, the system records the consumer, consumption time, and resulting status.
+Alternative/Exceptional Flows:	The system rejects a resident outside the BHW's authorized scope. Once consumed by an encounter, the triage record is permanently locked against BHW editing so the clinical record remains consistent.
 
 Use Case Name:	Child Nutrition Assessment Referral
 ID:	UC-14
 Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW observes a child needing BNS assessment.
-Brief Description:	Creates an open referral flag resolved by an official OPT+ measurement.
-Trigger:	BHW selects Flag for Nutrition Assessment.
-Normal Flow of Events:	1. Select eligible child. 2. Enter reason. 3. Create open flag with BHW/time/scope. 4. Notify BNS. 5. Show on BNS dashboard. 6. OPT+ measurement stores resolver, resolved measurement, closed_at, and closed status.
-Sub Flows:	BHW reviews referral status.
-Alternative/Exceptional Flows:	Duplicate open referral may be blocked; BHW cannot record official OPT+ through this action.
+Scenario:	During community work, a BHW identifies a child who should receive a formal nutrition assessment from the BNS.
+Brief Description:	This use case creates an open nutrition referral with the BHW's stated reason. The referral remains visible to the BNS until an official OPT+ measurement is recorded and linked as its resolution.
+Trigger:	The BHW selects Flag for Nutrition Assessment for an eligible child.
+Normal Flow of Events:
+1. The BHW selects an eligible child from the accessible resident records.
+2. The system displays the child's identity and household context for confirmation.
+3. The BHW records the reason for requesting assessment and submits the referral.
+4. The system creates an open flag with the submitting BHW, time, and barangay scope.
+5. The system notifies the assigned BNS and displays the child among open referrals on the BNS dashboard.
+6. When the BNS records the corresponding official OPT+ measurement, the system stores the resolver and measurement, records closed_at, and changes the referral to closed.
+Sub Flows:	The BHW may review the referral later to see whether it is still open or has already been resolved.
+Alternative/Exceptional Flows:	The system may block another open referral for the same child when one already requires action. This referral action does not authorize the BHW to enter an official OPT+ measurement.
 
 Use Case Name:	BHW Community Campaign Task Completion
 ID:	UC-15
 Importance Level:	Medium
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
-Scenario:	A BHW processes an assigned resident/household campaign task.
-Brief Description:	Records pending, completed, or skipped state and field notes.
-Trigger:	BHW opens an assigned campaign roster entry.
-Normal Flow of Events:	1. List assignments for authenticated BHW. 2. Open campaign/target. 3. Select status and enter notes. 4. Store completed_at when non-pending. 5. Audit update.
-Sub Flows:	Dashboard prioritizes active tasks due today.
-Alternative/Exceptional Flows:	Another BHW's assignment is inaccessible. Current routes support task consumption but not campaign-definition/assignment creation.
+Scenario:	A BHW carries out a campaign task that has been assigned to a particular resident or household.
+Brief Description:	This use case lets the BHW document whether an assigned field task is still pending, completed, or skipped and retain notes explaining what occurred during the activity.
+Trigger:	The BHW opens an assigned entry from the campaign roster or dashboard.
+Normal Flow of Events:
+1. The system lists campaign assignments belonging to the authenticated BHW.
+2. The BHW opens an entry and reviews the campaign details and intended resident or household target.
+3. After performing or attempting the task, the BHW selects the appropriate pending, completed, or skipped status.
+4. The BHW enters relevant notes and submits the update.
+5. For a completed or skipped task, the system records completed_at together with the selected status.
+6. The system saves the change and creates an audit entry identifying the user and updated assignment.
+Alternative/Exceptional Flows:	A BHW cannot open or update another worker's assignment. Current routes support viewing and processing assigned tasks but do not expose campaign-definition or assignment-creation pages.
 
 Use Case Name:	Secretary Civil Registry and Household Clustering
 ID:	UC-16
 Importance Level:	High
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	The Secretary manages official residents and households.
-Brief Description:	Maintains household location/risk data, resident civil/socioeconomic data, household heads, relocation, and lifecycle.
-Trigger:	Secretary opens Household or Resident module.
-Normal Flow of Events:	1. Select active barangay purok/household. 2. Create or update household and resident details. 3. Validate scope, PhilSys, identity, and relationships. 4. Generate/preserve official identifiers. 5. Set head where available. 6. Audit changes.
-Sub Flows:	Relocate resident to new/existing household; mark active/deceased/relocated; activate/deactivate records; produce profile RBI PDF/print.
-Alternative/Exceptional Flows:	Secretary routes do not hard-delete; cross-barangay changes and invalid destinations are rejected; serious changes require confirmation.
+Scenario:	The Barangay Secretary creates and maintains the official household and resident records for the assigned barangay.
+Brief Description:	This use case covers the continuing administration of civil-registry information, including household location and risk data, resident identity and socioeconomic details, household-head designation, relocation, and record status.
+Trigger:	The Secretary opens the Household or Resident module and chooses a permitted record-management action.
+Normal Flow of Events:
+1. The Secretary selects an active purok and, when working with a resident, the appropriate household within the assigned barangay.
+2. The Secretary enters or updates the available household, civil, relationship, and socioeconomic information.
+3. The system validates the barangay scope, PhilSys and identity fields, required values, and relationships between records.
+4. For a new record, the system generates the proper official identifier; for an update, the existing identifier is preserved.
+5. The Secretary designates a household head when an eligible resident is available and reviews the resulting household membership.
+6. The system saves the verified information and records the responsible user and changes in the audit trail.
+Sub Flows:	The Secretary may relocate a resident to a new or existing household, change a resident's lifecycle state to active, deceased, or relocated, activate or deactivate permitted records, and generate an RBI profile PDF or print view.
+Alternative/Exceptional Flows:	Secretary routes do not hard-delete official records. Cross-barangay changes, invalid relocation destinations, and inconsistent relationships are rejected, while serious status or location changes require confirmation.
 
 Use Case Name:	Secretary Purok and Frontline Team Management
 ID:	UC-17
 Importance Level:	High
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	The Secretary maintains local geography and frontline staffing.
-Brief Description:	Manages barangay puroks, BHW/BNS accounts, assignments, verification, and passwords.
-Trigger:	Secretary opens Puroks or Frontline Team.
-Normal Flow of Events:	1. Create/update/toggle purok. 2. View scoped frontline users. 3. Create/update BHW/BNS. 4. Assign valid area. 5. Manage verification/password when authorized. 6. Audit changes.
-Sub Flows:	Filtered purok/team lists may be exported.
-Alternative/Exceptional Flows:	Duplicate purok number, cross-barangay data, non-frontline role, or invalid assignment is rejected.
+Scenario:	The Barangay Secretary maintains the puroks and frontline personnel responsible for service delivery in the assigned barangay.
+Brief Description:	This use case combines local geographic maintenance with the administration of BHW and BNS accounts. It ensures that frontline users have valid roles, account states, and work assignments.
+Trigger:	The Secretary opens the Puroks or Frontline Team module.
+Normal Flow of Events:
+1. The Secretary reviews existing puroks and may create, update, activate, or deactivate a purok within the assigned barangay.
+2. The Secretary opens the scoped frontline list to review BHW and BNS users, pending applications, and current assignments.
+3. The Secretary creates or updates an authorized frontline account and verifies the role and contact information.
+4. The Secretary assigns a BHW to a valid active purok or confirms barangay scope for a BNS.
+5. When authorized, the Secretary manages verification state or performs an available password action for the account.
+6. The system validates and saves each change and records it in the audit trail.
+Alternative/Exceptional Flows:	The system rejects a duplicate purok number, cross-barangay data, a non-frontline role, or an assignment that does not match the user's role and barangay.
 
 Use Case Name:	Secretary Draft and Correction Verification
 ID:	UC-18
 Importance Level:	High
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	The Secretary processes a web draft package or correction request.
-Brief Description:	Edits before approval, approves, or rejects while preserving the request as audit evidence.
-Trigger:	Pending HouseholdDraft or ProfileUpdateRequest enters queue.
-Normal Flow of Events:	1. Verify scope. 2. Compare submitted/current values. 3. Edit valid proposal if needed. 4. Confirm decision. 5. Transaction creates verified package or applies correction. 6. Store reviewer/time/notes. 7. Audit and notify requester.
-Sub Flows:	Draft approval creates one household and all linked residents, with optional selected head.
-Alternative/Exceptional Flows:	Rejection requires reason and changes no verified data; reviewed/out-of-scope requests cannot be processed again.
+Scenario:	The Barangay Secretary examines a household draft package or profile-correction request submitted by an authorized field or clinical user.
+Brief Description:	This use case allows the Secretary to verify proposed information, make justified corrections before approval, and either approve or reject the request. The original request and decision are retained as evidence of the review.
+Trigger:	A pending HouseholdDraft package or ProfileUpdateRequest appears in the Secretary's review queue.
+Normal Flow of Events:
+1. The Secretary opens the pending item, and the system verifies that it belongs to the assigned barangay.
+2. For a draft, the Secretary reviews the proposed household and linked residents. For a correction, the Secretary compares the current and proposed values.
+3. The Secretary corrects the proposal when permitted and checks that required identity, location, and relationship information is valid.
+4. The Secretary chooses approval or rejection, enters applicable review notes, and confirms the decision.
+5. On approval, a transaction creates the verified household package or applies the accepted correction without leaving partial changes.
+6. The system stores the reviewer, decision time, status, and notes and preserves the reviewed request.
+7. The system adds an audit entry and notifies the requester of the result.
+Sub Flows:	Approving a draft creates one verified household and all linked residents together. The Secretary may select an eligible proposed resident as the household head.
+Alternative/Exceptional Flows:	A rejection requires a reason and does not change verified registry data. An out-of-scope or already reviewed request cannot be processed again.
 
 Use Case Name:	Barangay Certificate Issuance
 ID:	UC-19
 Importance Level:	Medium
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	Secretary issues Barangay Clearance or Certificate of Indigency.
-Brief Description:	Creates a numbered resident/household certificate and PDF with a searchable log.
-Trigger:	Secretary selects Issue Certificate.
-Normal Flow of Events:	1. Select type and recipient type. 2. Select active scoped resident/household. 3. Enter purpose/date/remarks. 4. Generate type-barangay-year sequence. 5. Store issuer/time and audit. 6. View/download PDF.
-Sub Flows:	Filter/export certificate log as CSV, XLSX, or PDF.
-Alternative/Exceptional Flows:	Out-of-scope recipient, invalid pairing, or missing required data is rejected.
+Scenario:	The Barangay Secretary issues a Barangay Clearance or Certificate of Indigency to an eligible resident or household.
+Brief Description:	This use case creates a uniquely numbered certificate, generates its PDF, and records the transaction in a searchable issuance log for later reference.
+Trigger:	The Secretary selects Issue Certificate from the certificate module.
+Normal Flow of Events:
+1. The Secretary selects the certificate type and indicates whether the recipient is a resident or household.
+2. The Secretary searches for and selects an active recipient within the assigned barangay.
+3. The system displays the recipient information, and the Secretary enters the purpose, issue date, and any permitted remarks.
+4. After validation, the system generates the next certificate number using the certificate type, barangay, year, and sequence.
+5. The system stores the certificate details, issuing Secretary, and issuance time and records the action in the audit trail.
+6. The Secretary views the completed certificate and may download its generated PDF for printing or release.
+Sub Flows:	The Secretary may search and filter the certificate log and export the permitted results as CSV, XLSX, or PDF.
+Alternative/Exceptional Flows:	The system rejects an out-of-scope or inactive recipient, an invalid certificate-recipient pairing, or a request missing required issuance information.
 
 Use Case Name:	RBI Document and Demographic Report Generation
 ID:	UC-20
 Importance Level:	High
 Primary Actor:	Barangay Secretary
 Use Case Type:	Essential, Detailed
-Scenario:	Secretary produces official RBI or demographic output.
-Brief Description:	Generates template-locked RBI PDFs and filtered tabular demographic reports.
-Trigger:	Secretary requests Documents or Demographic export.
-Normal Flow of Events:	1. Select Form A, Form B, or demographic report. 2. Apply supported filters. 3. Retrieve assigned-barangay records. 4. Import immutable PDF template and overlay vector text. 5. Spill Form A members onto repeated pages; attest final page only. 6. Use configured officials. 7. Return permitted PDF/CSV/XLSX and audit export.
-Sub Flows:	Officials may be updated; individual profile PDFs use the same RBI generator.
-Alternative/Exceptional Flows:	No-match and unsupported format requests do not generate a file.
+Scenario:	The Barangay Secretary prepares an official Registry of Barangay Inhabitants document or a filtered demographic report.
+Brief Description:	This use case converts verified barangay records into template-based RBI PDFs or tabular demographic exports. It limits output to the Secretary's assigned barangay and records the export for accountability.
+Trigger:	The Secretary requests an output from the Documents or Demographic reporting module.
+Normal Flow of Events:
+1. The Secretary selects RBI Form A, RBI Form B, or an available demographic report.
+2. The Secretary applies the supported filters and chooses an allowed output format.
+3. The system validates the request and retrieves matching verified records only from the assigned barangay.
+4. For an RBI document, the system imports the immutable PDF template and overlays the required information as vector text.
+5. When Form A contains more household members than one page can hold, the system repeats the member page and places the attestation only on the final page.
+6. The system inserts the configured official information where required and produces the requested PDF, CSV, or XLSX file.
+7. The file is returned to the Secretary, and the export event is added to the audit trail.
+Alternative/Exceptional Flows:	If no records match the request or the selected format is unsupported, the system does not create a misleading or invalid output file.
 
 Use Case Name:	BNS OPT+ Campaign and Growth Assessment
 ID:	UC-21
 Importance Level:	High
 Primary Actor:	BNS
 Use Case Type:	Essential, Detailed
-Scenario:	A BNS measures an eligible child in an OPT+ cycle.
-Brief Description:	Stores measurement history and calculates WHO-reference nutrition statuses.
-Trigger:	BNS selects Record Measurement.
-Normal Flow of Events:	1. Create/select scoped OPT+ period. 2. Select verified eligible child. 3. Record date, weight, height/length, posture, remarks. 4. Calculate age months and WFA/HFA/WFL-H z-scores/statuses. 5. Store new OptMeasurement. 6. Update latest-status watchlist. 7. Resolve matching BHW referral. 8. Permit audited CSV/XLSX/PDF export.
-Sub Flows:	Campaign details/status may be updated; watchlist uses latest measurement.
-Alternative/Exceptional Flows:	Duplicate child/campaign/date, age outside 0-71 months, multiple same-type active periods, and unavailable reference coverage are rejected rather than guessed.
+Scenario:	A BNS records the growth measurements of an eligible child during an authorized OPT+ campaign period.
+Brief Description:	This use case preserves each measurement as part of the child's nutrition history and derives applicable status classifications from the available WHO references. The latest result also supports the BNS watchlist and may resolve an open BHW referral.
+Trigger:	The BNS selects Record Measurement within an OPT+ campaign.
+Normal Flow of Events:
+1. The BNS creates or selects an OPT+ period belonging to the assigned barangay.
+2. The BNS searches for and selects a verified child who is eligible for measurement in that period.
+3. The BNS records the measurement date, weight, height or length, measurement posture, and relevant remarks.
+4. The system validates the values, calculates the child's age in months, and retrieves the applicable reference coverage.
+5. The system calculates the supported weight-for-age, height-for-age, and weight-for-length or height z-scores and corresponding statuses.
+6. A new OptMeasurement is stored without replacing the child's earlier measurement history.
+7. The system updates the latest-status watchlist and closes a matching open BHW referral by linking it to the measurement.
+8. The BNS may include the authorized campaign results in an audited CSV, XLSX, or PDF export.
+Sub Flows:	The BNS may update permitted campaign details or status. Watchlist decisions use the child's latest available measurement while prior measurements remain in history.
+Alternative/Exceptional Flows:	The system rejects a duplicate child-campaign-date entry, an age outside 0-71 months, multiple active periods of the same type, or a measurement for which reference coverage is unavailable. It does not guess a nutrition classification.
 
 Use Case Name:	BNS Feeding Program Management
 ID:	UC-22
 Importance Level:	High
 Primary Actor:	BNS
 Use Case Type:	Essential, Detailed
-Scenario:	A BNS manages supplementary feeding participation and progress.
-Brief Description:	Tracks program, enrollment, attendance, and recurring weight-progress history.
-Trigger:	BNS creates/opens a feeding program.
-Normal Flow of Events:	1. Record scoped program. 2. Enroll eligible verified child from watchlist or manually. 3. Store enrollment. 4. Record attendance. 5. Record progress/weight notes. 6. Update enrollment/program status. 7. Preserve history.
-Sub Flows:	Borderline or field-identified eligible child may be manually enrolled.
-Alternative/Exceptional Flows:	Cross-barangay or invalid enrollment/attendance/progress is rejected.
+Scenario:	A BNS organizes a supplementary feeding program and monitors each enrolled child's participation and progress over time.
+Brief Description:	This use case connects a scoped feeding program with verified child records, attendance entries, and recurring progress observations. Historical entries remain available so changes can be reviewed across the program period.
+Trigger:	The BNS creates a feeding program or opens an existing program in the assigned barangay.
+Normal Flow of Events:
+1. The BNS records the program name, schedule, scope, status, and other required program details.
+2. The BNS selects an eligible verified child from the nutrition watchlist or through the permitted manual enrollment process.
+3. The system validates the child and creates an enrollment linked to the program.
+4. On feeding dates, the BNS records the child's attendance according to the available attendance options.
+5. At appropriate intervals, the BNS adds weight or progress information and notes relevant observations.
+6. The BNS updates the enrollment or program status as participation and implementation change.
+7. The system preserves earlier attendance and progress entries rather than replacing the program history.
+Sub Flows:	A borderline child or another child found eligible during field work may be enrolled manually after the BNS confirms the verified resident and program scope.
+Alternative/Exceptional Flows:	The system rejects a child from another barangay and any enrollment, attendance, or progress entry that is incomplete, inconsistent, or unrelated to the selected program.
 
 Use Case Name:	Maternal, Infant Feeding, and Micronutrient Surveillance
 ID:	UC-23
 Importance Level:	High
 Primary Actor:	BNS
 Use Case Type:	Essential, Detailed
-Scenario:	BNS monitors maternal/infant nutrition and supplementation.
-Brief Description:	Links nutrition-only profiles and dated histories to verified residents.
-Trigger:	BNS opens Maternal Tracking or Micronutrients.
-Normal Flow of Events:	1. Select verified scoped resident. 2. Create/update current maternal profile. 3. Add pregnancy, lactation, weight, delivery, or postpartum history. 4. Add infant-feeding log. 5. Record micronutrient recipient, product, date, dose/quantity, recorder, and notes. 6. Preserve history.
-Sub Flows:	Follow infant feeding beyond six months; current status changes without deleting prior history.
-Alternative/Exceptional Flows:	BNS cannot edit civil profile here; invalid resident, date, or cross-barangay data is rejected.
+Scenario:	A BNS monitors maternal nutrition, infant-feeding practices, and micronutrient distribution for verified residents of the assigned barangay.
+Brief Description:	This use case maintains nutrition-specific profiles and dated observations without giving the BNS authority to modify civil-registry information. Current status and historical events are kept separately so earlier records remain traceable.
+Trigger:	The BNS opens the Maternal Tracking or Micronutrients module and selects an available recording action.
+Normal Flow of Events:
+1. The BNS searches for and selects a verified resident within the assigned barangay.
+2. The system displays identifying civil information as read-only context.
+3. For maternal tracking, the BNS creates or updates the current profile and adds dated pregnancy, lactation, weight, delivery, or postpartum information as applicable.
+4. For infant monitoring, the BNS adds a dated feeding log describing the relevant feeding practice.
+5. For micronutrient distribution, the BNS records the recipient, product, date, dose or quantity, recorder, and supporting notes.
+6. The system validates and saves the nutrition entry while preserving previously recorded history.
+Sub Flows:	Infant-feeding monitoring may continue beyond six months. When a current maternal or feeding status changes, the system retains the earlier dated observations instead of deleting them.
+Alternative/Exceptional Flows:	The BNS cannot edit the resident's civil profile through these modules. The system rejects an invalid resident, invalid date or value, and data outside the BNS barangay scope.
 
 Use Case Name:	PHN Triage Consumption and Clinical Encounter
 ID:	UC-24
 Importance Level:	High
 Primary Actor:	PHN
 Use Case Type:	Essential, Detailed
-Scenario:	PHN processes BHW triage or a municipal walk-in.
-Brief Description:	Records consultation, assessment, action, disposition, treatment notes, follow-up, and escalation.
-Trigger:	PHN opens pending triage or New Walk-In Encounter.
-Normal Flow of Events:	1. Select unconsumed triage or active municipal resident. 2. Review civil, BHW, OPT+, and nutrition context. 3. Record clinical fields. 4. Set follow-up and optional MHO escalation. 5. Create encounter with resident/location/PHN/source links. 6. Consume linked triage. 7. Audit and notify MHO if escalated.
-Sub Flows:	Update encounter/follow-up; export filtered logs/patient PDF; submit civil correction request.
-Alternative/Exceptional Flows:	Consumed triage cannot be reused; invalid resident/triage is rejected; civil profile remains read-only.
+Scenario:	A PHN conducts a consultation using a pending BHW triage record or creates an encounter for a municipal walk-in patient.
+Brief Description:	This use case brings relevant community and nutrition information into the clinical workflow and records the PHN's assessment, action, disposition, treatment notes, follow-up plan, and any need for MHO review.
+Trigger:	The PHN opens an unconsumed triage entry or selects New Walk-In Encounter.
+Normal Flow of Events:
+1. The PHN selects an available triage record or an active resident from the municipality for a walk-in encounter.
+2. The system displays the resident's civil context and available BHW, OPT+, and nutrition information for review.
+3. The PHN confirms or records the consultation details, assessment, clinical action, disposition, and treatment notes.
+4. The PHN sets any necessary follow-up and indicates whether the case should be escalated to the MHO.
+5. The system validates and creates the encounter with links to the resident, location, PHN, and originating triage or walk-in source.
+6. If triage was used, the system records its consumer and time so it cannot be attached to another encounter.
+7. The system audits the encounter and notifies the MHO when escalation was requested.
+Sub Flows:	The PHN may update permitted encounter or follow-up information, export filtered clinical logs or a patient PDF, and submit a correction request when read-only civil information appears inaccurate.
+Alternative/Exceptional Flows:	A consumed triage record cannot be reused, and an invalid resident or triage selection is rejected. The PHN may view civil information for clinical context but cannot directly edit the verified civil profile.
 
 Use Case Name:	MHO Escalation Review and Resolution
 ID:	UC-25
 Importance Level:	High
 Primary Actor:	MHO
 Use Case Type:	Essential, Detailed
-Scenario:	MHO reviews a PHN-escalated encounter.
-Brief Description:	Stores final assessment, override, prescription, referral, disposition, instructions, resolution, and follow-up.
-Trigger:	is_escalated_to_mho=true encounter enters queue.
-Normal Flow of Events:	1. Open escalation. 2. Review resident, triage, PHN, nutrition, history. 3. Record MHO decision fields. 4. Set follow-up/closure. 5. Create or update one MhoClinicalReview. 6. Sync encounter state. 7. Audit and notify PHN.
-Sub Flows:	MHO may edit review and export escalation log/patient PDF.
-Alternative/Exceptional Flows:	Non-escalated encounter cannot be reviewed; existing review is updated instead of duplicated; unauthorized access is denied.
+Scenario:	The MHO evaluates a clinical encounter that a PHN has formally escalated for higher-level review and disposition.
+Brief Description:	This use case records the MHO's final assessment and any applicable override, prescription, referral, disposition, instructions, resolution, and follow-up. One review remains linked to the encounter so later updates do not create conflicting decisions.
+Trigger:	An encounter with is_escalated_to_mho=true appears in the MHO escalation queue.
+Normal Flow of Events:
+1. The MHO opens an escalated encounter from the authorized queue.
+2. The system presents the resident context, originating triage, PHN assessment, nutrition information, and available clinical history.
+3. After evaluation, the MHO records the applicable decision fields, including final assessment and any prescription, referral, override, disposition, or instructions.
+4. The MHO specifies required follow-up and whether the escalation can be considered resolved or closed.
+5. The system validates the decision and creates the encounter's MhoClinicalReview, or updates that same review when one already exists.
+6. The system synchronizes the resulting review and resolution state with the encounter.
+7. The action is audited, and the responsible PHN is notified of the MHO's decision.
+Alternative/Exceptional Flows:	An encounter that was not escalated cannot receive an MHO review through this process. An existing review is updated rather than duplicated, and access is denied to an unauthorized user.
 
 Use Case Name:	Municipal Command Center, Oversight, and Reports
 ID:	UC-26
 Importance Level:	High
 Primary Actor:	Municipal Administrator
 Use Case Type:	Essential, Detailed
-Scenario:	Administrator monitors and reports municipality-wide operations.
-Brief Description:	Provides telemetry, read-only operational oversight, reports, and supervisory CRUD.
-Trigger:	Administrator opens dashboard, oversight, reports, or supervised registry.
-Normal Flow of Events:	1. Calculate drafts, corrections, nutrition flags, overdue follow-ups, MHO escalations. 2. Inspect field/nutrition/clinical hubs. 3. Group by barangay. 4. Filter/export staffing, demographic, nutrition, or clinical reports. 5. Audit export. 6. Use supervisory user/geography/registry CRUD only when required.
-Sub Flows:	Municipal approval queue handles admin/secretary/phn/mho; dependent barangay/purok controls enforce valid assignment.
-Alternative/Exceptional Flows:	Empty state displays safely; destructive/restore actions require confirmation and audit; soft-deleted records use restore/archive controls.
+Scenario:	The Municipal Administrator reviews municipality-wide activity, prepares reports, and performs authorized supervisory maintenance when intervention is required.
+Brief Description:	This use case provides a command-center view of field, registry, nutrition, and clinical operations across barangays. Most operational information is used for oversight, while administrative create, update, archive, or restore actions remain controlled and auditable.
+Trigger:	The Administrator opens the dashboard, an oversight hub, a reporting page, or a supervised registry module.
+Normal Flow of Events:
+1. The system calculates current indicators such as pending drafts and corrections, nutrition flags, overdue follow-ups, and MHO escalations.
+2. The Administrator reviews the field, nutrition, or clinical hub and examines the available records behind an indicator.
+3. The system groups or filters information by barangay so the Administrator can compare activity and identify items requiring attention.
+4. The Administrator applies supported filters to staffing, demographic, nutrition, or clinical reports and selects an allowed export format.
+5. The system generates the permitted result and records the export in the audit trail.
+6. When operational correction is necessary, the Administrator uses the supervised user, geography, or registry management action and confirms the resulting change.
+Sub Flows:	The municipal approval queue is used for administrator, Secretary, PHN, and MHO accounts. Dependent barangay and purok controls limit the choices so an account receives a valid assignment.
+Alternative/Exceptional Flows:	When no data matches, the interface displays a safe empty state. Destructive or restoration actions require confirmation and are audited, while soft-deleted records are handled through archive and restore controls.
 
 Use Case Name:	Administrative Security, Mobile Operations, and Recovery
 ID:	UC-27
 Importance Level:	High
 Primary Actor:	Municipal Administrator
 Use Case Type:	Essential, Detailed
-Scenario:	Administrator maintains accountability, mobile distribution, security, and recovery.
-Brief Description:	Manages audit/sync logs, mobile tokens/releases, backups, archives, metrics, and rate limits.
-Trigger:	Administrator opens a System or Security module.
-Normal Flow of Events:	1. Inspect/export AuditLog/SyncLog. 2. Issue/revoke BHW tokens. 3. Create/publish/retire APK release with version, notes, mode, and file. 4. Notify BHW and expose public update/download. 5. Configure mobile login/upload/download maintenance. 6. Generate/verify/download/restore/delete backups. 7. Archive/restore/purge records. 8. Review health/query metrics and manage rate limits/blocked clients.
-Sub Flows:	Release check supports optional/required update; old maintenance records may be cleaned through dedicated actions.
-Alternative/Exceptional Flows:	PURGE/RESTORE require typed confirmation and reason; invalid backup/APK/release fails safely; driver-aware metrics degrade without breaking page; non-admin access is denied.
+Scenario:	The Municipal Administrator maintains the controls needed for system accountability, secure mobile operation, software distribution, data recovery, and service monitoring.
+Brief Description:	This use case brings together restricted administrative functions involving logs, mobile tokens and releases, maintenance controls, backups, archives, metrics, and rate limits. Sensitive actions require additional confirmation and leave an audit record.
+Trigger:	The Administrator opens an authorized System or Security module.
+Normal Flow of Events:
+1. The Administrator reviews AuditLog or SyncLog entries and may export the permitted log results for investigation or reporting.
+2. When mobile access must be controlled, the Administrator reviews BHW tokens and issues or revokes them through the available actions.
+3. For a mobile release, the Administrator provides the version, release notes, update mode, and APK file, then publishes or retires the release as appropriate.
+4. The system notifies BHW users of a published release and exposes the applicable public update or download information.
+5. The Administrator configures maintenance controls independently for mobile login, upload, and download operations.
+6. Through backup management, the Administrator may generate, verify, download, restore, or delete an authorized backup.
+7. Through archive controls, the Administrator may archive, restore, or permanently purge eligible records using the required safeguards.
+8. The Administrator reviews system-health and query metrics and manages rate limits or blocked clients when necessary.
+Sub Flows:	A release may be marked as an optional or required update when checked by the mobile application. Old maintenance records may be removed through the dedicated cleanup actions.
+Alternative/Exceptional Flows:	PURGE and RESTORE require typed confirmation and a reason. Invalid backup, APK, or release data fails without completing the sensitive operation. Metrics adapt to supported database drivers without breaking the page, and every module denies non-administrator access.
 
 IMPLEMENTATION ACCURACY NOTES
 
