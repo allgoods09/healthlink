@@ -12,18 +12,67 @@ use App\Models\InfantFeedingLog;
 use App\Models\MaternalNutritionHistory;
 use App\Models\MaternalNutritionProfile;
 use App\Models\Resident;
+use App\Support\ExportDownload;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class MaternalTrackingController extends Controller
 {
     use InteractsWithBnsScope;
 
     public function index(Request $request): View
+    {
+        $query = $this->listingQuery($request);
+
+        $recentHistories = MaternalNutritionHistory::query()
+            ->whereHas('resident.household.purok', function ($builder): void {
+                $builder->where('barangay_id', $this->assignedBarangayId());
+            })
+            ->with(['resident.household.purok', 'recordedBy'])
+            ->latest('event_date')
+            ->latest('id')
+            ->limit(8)
+            ->get();
+
+        return view('bns.maternal.index', [
+            'profiles' => $query->paginate(12)->withQueryString(),
+            'femaleResidents' => $this->bnsMaternalEligibleResidentsQuery()
+                ->with('household.purok')
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(),
+            'pregnantCount' => $this->bnsMaternalProfilesQuery()->where('is_currently_pregnant', true)->count(),
+            'lactatingCount' => $this->bnsMaternalProfilesQuery()->where('is_currently_lactating', true)->count(),
+            'recentHistories' => $recentHistories,
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Resident' => fn (MaternalNutritionProfile $profile) => $profile->resident?->formal_name ?? 'Unknown',
+            'Purok' => fn (MaternalNutritionProfile $profile) => $profile->resident?->household?->purok?->display_name ?? 'Unknown',
+            'Status' => fn (MaternalNutritionProfile $profile) => $profile->status_summary,
+            'Pregnant' => fn (MaternalNutritionProfile $profile) => $profile->is_currently_pregnant ? 'Yes' : 'No',
+            'Lactating' => fn (MaternalNutritionProfile $profile) => $profile->is_currently_lactating ? 'Yes' : 'No',
+            'Status Updated' => fn (MaternalNutritionProfile $profile) => $profile->last_status_updated_at?->format('Y-m-d'),
+            'Updated By' => fn (MaternalNutritionProfile $profile) => $profile->updatedBy?->name ?? 'Unknown',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Current Status' => $request->input('current_status'),
+        ];
+
+        return ExportDownload::make($format, 'Maternal Tracking Profiles', 'Nutrition', 'bns_maternal_profiles', $columns, $this->listingQuery($request)->get(), $filters, $this->bnsUser()->assignedBarangay?->name, MaternalNutritionProfile::class);
+    }
+
+    private function listingQuery(Request $request): Builder
     {
         $query = $this->bnsMaternalProfilesQuery()
             ->with(['resident.household.purok', 'updatedBy'])
@@ -49,27 +98,7 @@ class MaternalTrackingController extends Controller
             }
         }
 
-        $recentHistories = MaternalNutritionHistory::query()
-            ->whereHas('resident.household.purok', function ($builder): void {
-                $builder->where('barangay_id', $this->assignedBarangayId());
-            })
-            ->with(['resident.household.purok', 'recordedBy'])
-            ->latest('event_date')
-            ->latest('id')
-            ->limit(8)
-            ->get();
-
-        return view('bns.maternal.index', [
-            'profiles' => $query->paginate(12)->withQueryString(),
-            'femaleResidents' => $this->bnsMaternalEligibleResidentsQuery()
-                ->with('household.purok')
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->get(),
-            'pregnantCount' => $this->bnsMaternalProfilesQuery()->where('is_currently_pregnant', true)->count(),
-            'lactatingCount' => $this->bnsMaternalProfilesQuery()->where('is_currently_lactating', true)->count(),
-            'recentHistories' => $recentHistories,
-        ]);
+        return $query;
     }
 
     public function show(Resident $resident): View

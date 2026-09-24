@@ -12,8 +12,8 @@ use App\Models\Household;
 use App\Models\Purok;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RbiTemplatePdfGenerator;
-use App\Support\TabularExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -30,12 +30,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('viewAny', Household::class);
 
-        $query = $this->filteredQuery($request);
-
-        $households = $query->with(['purok.barangay'])
-            ->withCount('residents')
-            ->orderBy('purok_id')
-            ->orderBy('household_no')
+        $households = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -53,12 +48,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('viewAny', Household::class);
 
-        $households = $this->filteredQuery($request)
-            ->with(['purok.barangay'])
-            ->withCount('residents')
-            ->orderBy('purok_id')
-            ->orderBy('household_no')
-            ->get();
+        $households = $this->listingQuery($request)->get();
 
         $columns = [
             'Household No.' => 'household_no',
@@ -77,20 +67,10 @@ class HouseholdController extends Controller
             'Purok' => Purok::find($request->input('purok_id'))?->display_name,
             'Status' => $request->input('status'),
             'Social Aid' => $request->input('social_aid'),
+            'Lifecycle' => $request->input('lifecycle') ?: 'Current',
         ];
 
-        ExportAudit::log('household registry', $format, [
-            'model_type' => Household::class,
-            'record_count' => $households->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv('households.csv', $columns, $households),
-            'xlsx' => TabularExport::xlsx('households.xlsx', 'Households', $columns, $households),
-            'pdf' => TabularExport::pdf('households.pdf', 'Household Registry', $columns, $households, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Household Registry', 'Civil Registry', 'households', $columns, $households, $filters, 'Municipality-wide', Household::class, array_intersect_key($columns, array_flip(['Household No.', 'Barangay', 'Purok', 'Address', 'Residents', 'Social Aid', 'Status'])));
     }
 
     /**
@@ -316,6 +296,16 @@ class HouseholdController extends Controller
     /**
      * Build the shared listing query.
      */
+    private function listingQuery(Request $request)
+    {
+        return $this->filteredQuery($request)
+            ->with(['purok.barangay'])
+            ->withCount('residents')
+            ->orderBy('purok_id')
+            ->orderBy('household_no')
+            ->orderBy('id');
+    }
+
     private function filteredQuery(Request $request)
     {
         $query = Household::query();

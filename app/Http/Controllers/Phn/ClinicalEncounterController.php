@@ -12,8 +12,8 @@ use App\Models\ClinicalEncounter;
 use App\Models\Resident;
 use App\Models\TriageRecord;
 use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
-use App\Support\TabularExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -28,13 +28,7 @@ class ClinicalEncounterController extends Controller
 
     public function index(Request $request): View
     {
-        $encounters = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'attendedBy',
-                'triageRecord.recordedBy',
-            ])
-            ->latest('encountered_at')
+        $encounters = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -49,17 +43,9 @@ class ClinicalEncounterController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $encounters = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'attendedBy',
-                'triageRecord.recordedBy',
-            ])
-            ->latest('encountered_at')
-            ->get();
+        $encounters = $this->listingQuery($request)->get();
 
         $columns = [
-            'Encounter ID' => 'id',
             'Encountered At' => fn (ClinicalEncounter $encounter) => $encounter->encountered_at?->format('Y-m-d H:i:s'),
             'Resident' => fn (ClinicalEncounter $encounter) => $encounter->resident?->formal_name ?? 'Unknown',
             'Barangay' => fn (ClinicalEncounter $encounter) => $encounter->barangay?->name ?? 'N/A',
@@ -81,20 +67,7 @@ class ClinicalEncounterController extends Controller
             'Source' => $request->input('source'),
         ];
 
-        ExportAudit::log('phn clinical encounters', $format, [
-            'model_type' => ClinicalEncounter::class,
-            'record_count' => $encounters->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("phn_clinical_encounters_{$timestamp}.csv", $columns, $encounters),
-            'xlsx' => TabularExport::xlsx("phn_clinical_encounters_{$timestamp}.xlsx", 'PHN Encounters', $columns, $encounters),
-            'pdf' => TabularExport::pdf("phn_clinical_encounters_{$timestamp}.pdf", 'PHN Clinical Encounter Log', $columns, $encounters, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'PHN Clinical Encounter Log', 'Clinical', 'phn_clinical_encounters', $columns, $encounters, $filters, 'Municipality-wide', ClinicalEncounter::class, array_intersect_key($columns, array_flip(['Encountered At', 'Resident', 'Barangay', 'Purok', 'Source', 'PHN', 'Disposition', 'Clinical Status'])));
     }
 
     public function create(Request $request): View
@@ -261,6 +234,14 @@ class ClinicalEncounterController extends Controller
             'clinicalEncounter' => $clinicalEncounter,
             'printedAt' => now(),
         ])->setPaper('a4')->download('phn-consultation-summary-'.$clinicalEncounter->id.'.pdf');
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok.barangay', 'attendedBy', 'triageRecord.recordedBy'])
+            ->latest('encountered_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

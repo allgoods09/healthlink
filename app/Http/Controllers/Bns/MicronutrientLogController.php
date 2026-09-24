@@ -8,16 +8,51 @@ use App\Http\Requests\Bns\StoreMicronutrientLogRequest;
 use App\Models\AuditLog;
 use App\Models\MicronutrientSupplementationLog;
 use App\Models\Resident;
+use App\Support\ExportDownload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class MicronutrientLogController extends Controller
 {
     use InteractsWithBnsScope;
 
     public function index(Request $request): View
+    {
+        $query = $this->listingQuery($request);
+
+        return view('bns.micronutrients.index', [
+            'logs' => $query->paginate(15)->withQueryString(),
+            'supplementTypes' => MicronutrientSupplementationLog::SUPPLEMENT_TYPES,
+            'recipientCategories' => MicronutrientSupplementationLog::RECIPIENT_CATEGORIES,
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Resident' => fn (MicronutrientSupplementationLog $log) => $log->resident?->formal_name ?? 'Unknown',
+            'Purok' => fn (MicronutrientSupplementationLog $log) => $log->resident?->household?->purok?->display_name ?? 'Unknown',
+            'Supplement' => fn (MicronutrientSupplementationLog $log) => $log->supplement_type_label,
+            'Recipient Category' => fn (MicronutrientSupplementationLog $log) => $log->recipient_category_label,
+            'Dose' => 'dose_description',
+            'Administered On' => fn (MicronutrientSupplementationLog $log) => $log->administered_on?->format('Y-m-d'),
+            'Distributed By' => fn (MicronutrientSupplementationLog $log) => $log->distributedBy?->name ?? 'Unknown',
+            'Remarks' => 'remarks',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Supplement Type' => MicronutrientSupplementationLog::SUPPLEMENT_TYPES[$request->input('supplement_type')] ?? null,
+            'Recipient Category' => MicronutrientSupplementationLog::RECIPIENT_CATEGORIES[$request->input('recipient_category')] ?? null,
+        ];
+
+        return ExportDownload::make($format, 'Micronutrient Supplementation Log', 'Nutrition', 'bns_micronutrients', $columns, $this->listingQuery($request)->get(), $filters, $this->bnsUser()->assignedBarangay?->name, MicronutrientSupplementationLog::class, array_intersect_key($columns, array_flip(['Resident', 'Purok', 'Supplement', 'Recipient Category', 'Dose', 'Administered On', 'Distributed By'])));
+    }
+
+    private function listingQuery(Request $request): Builder
     {
         $query = $this->bnsMicronutrientLogsQuery()
             ->with(['resident.household.purok', 'distributedBy'])
@@ -45,11 +80,7 @@ class MicronutrientLogController extends Controller
             $query->where('recipient_category', $request->string('recipient_category')->toString());
         }
 
-        return view('bns.micronutrients.index', [
-            'logs' => $query->paginate(15)->withQueryString(),
-            'supplementTypes' => MicronutrientSupplementationLog::SUPPLEMENT_TYPES,
-            'recipientCategories' => MicronutrientSupplementationLog::RECIPIENT_CATEGORIES,
-        ]);
+        return $query;
     }
 
     public function create(): View

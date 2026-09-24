@@ -74,6 +74,7 @@
                     <a href="{{ route('mho.residents.index') }}" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">Reset</a>
                 </div>
             </form>
+            <x-export-dropdown route="mho.residents.export" dataset="MHO Residents Directory" />
         </section>
     </div>
 

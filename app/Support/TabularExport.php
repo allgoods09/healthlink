@@ -6,6 +6,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Closure;
 use Illuminate\Http\Response;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -23,7 +24,13 @@ class TabularExport
             fputcsv($handle, array_keys($columns));
 
             foreach ($rows as $row) {
-                fputcsv($handle, self::mapRow($row, $columns));
+                fputcsv($handle, array_map(function (mixed $value): mixed {
+                    if (is_string($value) && !is_numeric(trim($value)) && preg_match('/^[\s]*[=+@\-\t\r]/u', $value)) {
+                        return "'".$value;
+                    }
+
+                    return $value;
+                }, self::mapRow($row, $columns)));
             }
 
             fclose($handle);
@@ -35,7 +42,7 @@ class TabularExport
     /**
      * Build an XLSX download for a tabular dataset.
      */
-    public static function xlsx(string $filename, string $sheetName, array $columns, iterable $rows): BinaryFileResponse
+    public static function xlsx(string $filename, string $sheetName, array $columns, iterable $rows, array $information = []): BinaryFileResponse
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -51,7 +58,8 @@ class TabularExport
 
         foreach ($rows as $row) {
             foreach (self::mapRow($row, $columns) as $index => $value) {
-                $sheet->setCellValue(Coordinate::stringFromColumnIndex($index + 1) . $rowNumber, (string) $value);
+                $type = is_int($value) || is_float($value) ? DataType::TYPE_NUMERIC : DataType::TYPE_STRING;
+                $sheet->setCellValueExplicit(Coordinate::stringFromColumnIndex($index + 1) . $rowNumber, $value === null ? '' : $value, $type);
             }
 
             $rowNumber++;
@@ -59,6 +67,19 @@ class TabularExport
 
         foreach (range(1, count($headers)) as $index) {
             $sheet->getColumnDimensionByColumn($index)->setAutoSize(true);
+        }
+
+        if ($information !== []) {
+            $info = $spreadsheet->createSheet();
+            $info->setTitle('Export Information');
+            $line = 1;
+            foreach ($information as $label => $value) {
+                $info->setCellValueExplicit("A{$line}", (string) $label, DataType::TYPE_STRING);
+                $info->setCellValueExplicit("B{$line}", (string) $value, DataType::TYPE_STRING);
+                $line++;
+            }
+            $info->getColumnDimension('A')->setAutoSize(true);
+            $info->getColumnDimension('B')->setAutoSize(true);
         }
 
         $writer = new Xlsx($spreadsheet);
@@ -76,7 +97,10 @@ class TabularExport
         string $title,
         array $columns,
         iterable $rows,
-        array $filters = []
+        array $filters = [],
+        array $information = [],
+        string $paper = 'a4',
+        string $orientation = 'landscape'
     ): Response {
         $mappedRows = [];
 
@@ -90,7 +114,8 @@ class TabularExport
             'rows' => $mappedRows,
             'filters' => array_filter($filters),
             'generatedAt' => now(),
-        ])->setPaper('a4', 'landscape');
+            'information' => $information,
+        ])->setPaper($paper, $orientation);
 
         return $pdf->download($filename);
     }

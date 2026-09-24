@@ -4,11 +4,8 @@ namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Secretary\Concerns\InteractsWithSecretaryScope;
-use App\Models\Purok;
 use App\Models\TriageRecord;
-use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,14 +17,7 @@ class TriageQueueController extends Controller
 
     public function index(Request $request): View
     {
-        $triageRecords = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok',
-                'household.purok',
-                'recordedBy.assignedPurok',
-                'consumedBy',
-            ])
-            ->latest('measured_at')
+        $triageRecords = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -43,15 +33,7 @@ class TriageQueueController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $triageRecords = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok',
-                'household.purok',
-                'recordedBy.assignedPurok',
-                'consumedBy',
-            ])
-            ->latest('measured_at')
-            ->get();
+        $triageRecords = $this->listingQuery($request)->get();
 
         $columns = [
             'Measured At' => fn (TriageRecord $triageRecord) => $triageRecord->measured_at?->format('Y-m-d H:i:s'),
@@ -71,25 +53,13 @@ class TriageQueueController extends Controller
 
         $filters = [
             'Search' => $request->input('search'),
-            'Purok' => Purok::query()->find($request->input('purok_id'))?->display_name,
+            'Purok' => $this->secretaryPuroksQuery()->find($request->input('purok_id'))?->display_name,
             'Status' => $request->input('status'),
-            'Recorded By' => User::query()->find($request->input('recorded_by_user_id'))?->name,
+            'Recorded By' => $this->secretaryFrontlineUsersQuery()->find($request->input('recorded_by_user_id'))?->name,
+            'From' => $request->input('date_from'),
+            'To' => $request->input('date_to'),
         ];
-
-        ExportAudit::log('secretary triage queue', $format, [
-            'model_type' => TriageRecord::class,
-            'record_count' => $triageRecords->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_triage_queue_{$timestamp}.csv", $columns, $triageRecords),
-            'xlsx' => TabularExport::xlsx("secretary_triage_queue_{$timestamp}.xlsx", 'Triage Queue', $columns, $triageRecords),
-            'pdf' => TabularExport::pdf("secretary_triage_queue_{$timestamp}.pdf", 'Secretary Pending Triage Queue', $columns, $triageRecords, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Secretary Triage Queue', 'Verification Pipeline', 'secretary_triage_queue', $columns, $triageRecords, $filters, $this->secretaryUser()->assignedBarangay?->name, TriageRecord::class, array_intersect_key($columns, array_flip(['Measured At', 'Resident', 'Household', 'Purok', 'Recorded By', 'Status', 'Blood Pressure', 'Temperature'])));
     }
 
     public function show(TriageRecord $triageRecord): View
@@ -106,6 +76,14 @@ class TriageQueueController extends Controller
         return view('secretary.triage.show', [
             'triageRecord' => $triageRecord,
         ]);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok', 'household.purok', 'recordedBy.assignedPurok', 'consumedBy'])
+            ->latest('measured_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

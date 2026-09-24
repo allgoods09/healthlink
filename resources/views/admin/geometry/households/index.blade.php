@@ -82,6 +82,7 @@
                         <a href="{{ route($routePrefix.'.households.index') }}" class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">Reset</a>
                     </div>
                 </form>
+                <x-export-dropdown :route="$routePrefix.'.households.export'" dataset="Household Registry" />
             </div>
         </aside>
 

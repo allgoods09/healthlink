@@ -88,8 +88,9 @@
 
         <div class="space-y-6">
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Pending Draft Packages</h3>
+                    <x-export-dropdown route="admin.oversight.field.export" dataset="Pending Draft Packages" :parameters="['dataset' => 'pending-drafts']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($recentPendingDrafts as $draft)
@@ -105,8 +106,9 @@
             </div>
 
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Pending Correction Requests</h3>
+                    <x-export-dropdown route="admin.oversight.field.export" dataset="Pending Correction Requests" :parameters="['dataset' => 'pending-requests']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($recentPendingUpdateRequests as $requestItem)
@@ -126,8 +128,9 @@
 
     <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Recently Reviewed Drafts</h3>
+                <x-export-dropdown route="admin.oversight.field.export" dataset="Recently Reviewed Drafts" :parameters="['dataset' => 'reviewed-drafts']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($recentlyReviewedDrafts as $draft)
@@ -143,8 +146,9 @@
         </div>
 
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Recently Reviewed Requests</h3>
+                <x-export-dropdown route="admin.oversight.field.export" dataset="Recently Reviewed Requests" :parameters="['dataset' => 'reviewed-requests']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($recentlyReviewedUpdateRequests as $requestItem)
@@ -160,4 +164,3 @@
         </div>
     </div>
 @endsection
-

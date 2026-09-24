@@ -8,11 +8,13 @@ use App\Http\Requests\Phn\UpdateFollowUpStatusRequest;
 use App\Models\AuditLog;
 use App\Models\Barangay;
 use App\Models\ClinicalEncounter;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class FollowUpController extends Controller
 {
@@ -20,10 +22,7 @@ class FollowUpController extends Controller
 
     public function index(Request $request): View
     {
-        $followUps = $this->filteredQuery($request)
-            ->with(['resident.household.purok.barangay', 'attendedBy'])
-            ->orderBy('follow_up_date')
-            ->latest('encountered_at')
+        $followUps = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -53,6 +52,38 @@ class FollowUpController extends Controller
         AuditLog::logMutation('updated', Auth::user(), $clinicalEncounter, $oldValues, $clinicalEncounter->fresh()->toArray());
 
         return back()->with('success', 'Follow-up status updated successfully.');
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Resident' => fn (ClinicalEncounter $encounter) => $encounter->resident?->formal_name ?? 'Unknown',
+            'Barangay' => fn (ClinicalEncounter $encounter) => $encounter->barangay?->name ?? 'Unknown',
+            'Purok' => fn (ClinicalEncounter $encounter) => $encounter->purok?->display_name ?? 'Unknown',
+            'Follow-Up Date' => fn (ClinicalEncounter $encounter) => $encounter->follow_up_date?->format('Y-m-d'),
+            'Follow-Up Status' => fn (ClinicalEncounter $encounter) => $encounter->follow_up_status_label,
+            'Encountered At' => fn (ClinicalEncounter $encounter) => $encounter->encountered_at?->format('Y-m-d H:i:s'),
+            'PHN' => fn (ClinicalEncounter $encounter) => $encounter->attendedBy?->name ?? 'Unknown',
+            'Disposition' => fn (ClinicalEncounter $encounter) => $encounter->disposition ?? 'N/A',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Barangay' => $this->phnBarangaysQuery()->find($request->integer('barangay_id'))?->name,
+            'Status' => $request->input('status') ?: 'Active',
+            'From' => $request->input('date_from'),
+            'To' => $request->input('date_to'),
+        ];
+
+        return ExportDownload::make($format, 'PHN Follow-Up Queue', 'Clinical', 'phn_follow_ups', $columns, $this->listingQuery($request)->get(), $filters, 'Municipality-wide', ClinicalEncounter::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok.barangay', 'attendedBy'])
+            ->orderBy('follow_up_date')
+            ->latest('encountered_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

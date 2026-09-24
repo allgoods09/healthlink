@@ -17,8 +17,7 @@ use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\TriageRecord;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -80,20 +79,25 @@ class MunicipalReportController extends Controller
             default => abort(404),
         };
 
-        $timestamp = now()->format('Y-m-d_His');
-
-        ExportAudit::log("municipal {$report} report", $format, [
-            'model_type' => Barangay::class,
-            'record_count' => $definition['rows']->count(),
-            'filters' => array_filter($definition['filters']),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("municipal_{$report}_{$timestamp}.csv", $definition['columns'], $definition['rows']),
-            'xlsx' => TabularExport::xlsx("municipal_{$report}_{$timestamp}.xlsx", $definition['title'], $definition['columns'], $definition['rows']),
-            'pdf' => TabularExport::pdf("municipal_{$report}_{$timestamp}.pdf", $definition['title'], $definition['columns'], $definition['rows'], $definition['filters']),
-            default => abort(404),
+        $pdfLabels = match ($report) {
+            'staffing' => ['Barangay', 'Active Puroks', 'Secretaries', 'BNS', 'BHW', 'Total Frontline Staff'],
+            'demographics' => ['Barangay', 'Active Households', 'Active Residents', 'Male', 'Female', 'Minors', 'Seniors'],
+            'nutrition' => ['Barangay', 'Active OPT+ Campaigns', 'Open Flags', 'Target Clients', 'Active Feeding Programs', 'Active Maternal Cases'],
+            'clinical' => ['Barangay', 'Pending Triage', 'Triage Logged', 'PHN Encounters', 'Due Follow-Ups', 'Active Escalations'],
         };
+
+        return ExportDownload::make(
+            $format,
+            $definition['title'],
+            'Municipal Reports',
+            "municipal_{$report}",
+            $definition['columns'],
+            $definition['rows'],
+            $definition['filters'],
+            $selectedBarangay?->name ?? 'Municipality-wide',
+            Barangay::class,
+            array_intersect_key($definition['columns'], array_flip($pdfLabels))
+        );
     }
 
     private function staffingReport(?Barangay $selectedBarangay): array

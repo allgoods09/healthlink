@@ -146,6 +146,7 @@
                         </a>
                     </div>
                 </form>
+                <x-export-dropdown route="admin.users.export" dataset="User Management Report" />
             </div>
         </aside>
 

@@ -120,6 +120,7 @@
                         </a>
                     </div>
                 </form>
+                <x-export-dropdown route="bns.maternal.export" dataset="Maternal Tracking Profiles" />
             </div>
             <div class="divide-y divide-slate-200">
                 @forelse($profiles as $profile)

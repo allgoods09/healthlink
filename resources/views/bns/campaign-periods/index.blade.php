@@ -57,6 +57,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="bns.campaign-periods.export" dataset="Nutrition Campaign Periods" />
         </div>
     </div>
 

@@ -7,8 +7,7 @@ use App\Http\Requests\Admin\Geometry\PurokStoreRequest;
 use App\Http\Requests\Admin\Geometry\PurokUpdateRequest;
 use App\Models\Barangay;
 use App\Models\Purok;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -23,10 +22,7 @@ class PurokGridController extends Controller
     {
         Gate::authorize('viewAny', Purok::class);
 
-        $puroks = $this->filteredQuery($request)
-                        ->withCount(['households', 'assignedUsers'])
-                        ->orderBy('barangay_id')
-                        ->orderBy('purok_number')
+        $puroks = $this->listingQuery($request)
                         ->paginate(15)
                         ->withQueryString();
 
@@ -42,11 +38,7 @@ class PurokGridController extends Controller
     {
         Gate::authorize('viewAny', Purok::class);
 
-        $puroks = $this->filteredQuery($request)
-            ->withCount(['households', 'assignedUsers'])
-            ->orderBy('barangay_id')
-            ->orderBy('purok_number')
-            ->get();
+        $puroks = $this->listingQuery($request)->get();
 
         $columns = [
             'Purok' => fn (Purok $purok) => $purok->display_name,
@@ -64,20 +56,7 @@ class PurokGridController extends Controller
             'Lifecycle' => $request->filled('lifecycle') ? ucfirst($request->lifecycle) : 'Current',
         ];
 
-        $timestamp = now()->format('Y-m-d_His');
-
-        ExportAudit::log('purok registry', $format, [
-            'model_type' => Purok::class,
-            'record_count' => $puroks->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("puroks_{$timestamp}.csv", $columns, $puroks),
-            'xlsx' => TabularExport::xlsx("puroks_{$timestamp}.xlsx", 'Puroks', $columns, $puroks),
-            'pdf' => TabularExport::pdf("puroks_{$timestamp}.pdf", 'Purok Registry', $columns, $puroks, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Purok Registry', 'Civil Registry', 'puroks', $columns, $puroks, $filters, 'Municipality-wide', Purok::class);
     }
 
     /**
@@ -274,6 +253,15 @@ class PurokGridController extends Controller
     /**
      * Build the filtered query used for listing and export.
      */
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->withCount(['households', 'assignedUsers'])
+            ->orderBy('barangay_id')
+            ->orderBy('purok_number')
+            ->orderBy('id');
+    }
+
     private function filteredQuery(Request $request): Builder
     {
         $query = Purok::query()->with('barangay');

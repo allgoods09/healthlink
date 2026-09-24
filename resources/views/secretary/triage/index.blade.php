@@ -65,6 +65,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="secretary.triage.export" dataset="Secretary Triage Queue" />
         </div>
     </div>
 

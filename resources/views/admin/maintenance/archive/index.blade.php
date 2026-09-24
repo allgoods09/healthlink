@@ -80,6 +80,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="admin.archive.export" dataset="Archived Records" />
         </div>
     </div>
 

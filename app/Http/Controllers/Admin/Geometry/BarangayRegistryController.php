@@ -8,8 +8,7 @@ use App\Http\Requests\Admin\Geometry\BarangayUpdateRequest;
 use App\Models\Barangay;
 use App\Models\BarangayOfficial;
 use App\Models\AuditLog;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,9 +24,7 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('viewAny', Barangay::class);
 
-        $barangays = $this->filteredQuery($request)
-                           ->withCount(['puroks', 'assignedUsers'])
-                           ->latest()
+        $barangays = $this->listingQuery($request)
                            ->paginate(15)
                            ->withQueryString();
 
@@ -41,10 +38,7 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('viewAny', Barangay::class);
 
-        $barangays = $this->filteredQuery($request)
-            ->withCount(['puroks', 'assignedUsers'])
-            ->latest()
-            ->get();
+        $barangays = $this->listingQuery($request)->get();
 
         $columns = [
             'Barangay' => 'name',
@@ -64,20 +58,18 @@ class BarangayRegistryController extends Controller
             'Lifecycle' => $request->filled('lifecycle') ? ucfirst($request->lifecycle) : 'Current',
         ];
 
-        $timestamp = now()->format('Y-m-d_His');
-
-        ExportAudit::log('barangay registry', $format, [
-            'model_type' => Barangay::class,
-            'record_count' => $barangays->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("barangays_{$timestamp}.csv", $columns, $barangays),
-            'xlsx' => TabularExport::xlsx("barangays_{$timestamp}.xlsx", 'Barangays', $columns, $barangays),
-            'pdf' => TabularExport::pdf("barangays_{$timestamp}.pdf", 'Barangay Registry', $columns, $barangays, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make(
+            $format,
+            'Barangay Registry',
+            'Civil Registry',
+            'barangays',
+            $columns,
+            $barangays,
+            $filters,
+            'Municipality-wide',
+            Barangay::class,
+            array_intersect_key($columns, array_flip(['Barangay', 'PSGC Code', 'Puroks', 'Assigned Users', 'Status']))
+        );
     }
 
     /**
@@ -255,6 +247,14 @@ class BarangayRegistryController extends Controller
         return redirect()
             ->route('admin.barangays.index')
             ->with('success', "Barangay {$barangay->name} restored successfully.");
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->withCount(['puroks', 'assignedUsers'])
+            ->latest()
+            ->orderByDesc('id');
     }
 
     /**

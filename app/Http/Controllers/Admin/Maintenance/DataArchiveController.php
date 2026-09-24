@@ -9,10 +9,13 @@ use App\Models\Household;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\User;
+use App\Support\ExportDownload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
 class DataArchiveController extends Controller
 {
@@ -23,6 +26,39 @@ class DataArchiveController extends Controller
     {
         Gate::authorize('viewAny', ArchivedRecord::class);
 
+        $archives = $this->listingQuery($request)->paginate(20)->withQueryString();
+
+        $tables = ['residents', 'households', 'users', 'barangays', 'puroks'];
+
+        return view('admin.maintenance.archive.index', compact('archives', 'tables'));
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        Gate::authorize('viewAny', ArchivedRecord::class);
+
+        $columns = [
+            'Record' => fn (ArchivedRecord $archive) => str_starts_with($archive->display_name, 'Archived Record #') ? 'Archived record' : $archive->display_name,
+            'Original Table' => fn (ArchivedRecord $archive) => ucfirst($archive->original_table),
+            'Archived By' => fn (ArchivedRecord $archive) => $archive->archivedBy?->name ?? 'Unknown',
+            'Reason' => 'archiving_reason',
+            'Status' => fn (ArchivedRecord $archive) => $archive->is_purged ? 'Purged' : 'Active',
+            'Archived At' => fn (ArchivedRecord $archive) => $archive->created_at?->format('Y-m-d H:i:s'),
+            'Purged By' => fn (ArchivedRecord $archive) => $archive->purgedBy?->name ?? 'N/A',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Table' => $request->input('table'),
+            'Purged' => $request->input('purged'),
+            'From' => $request->input('date_from'),
+            'To' => $request->input('date_to'),
+        ];
+
+        return ExportDownload::make($format, 'Archived Records', 'Maintenance', 'archived_records', $columns, $this->listingQuery($request)->get(), $filters, 'Municipality-wide', ArchivedRecord::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
         $query = ArchivedRecord::query()
             ->with(['archivedBy', 'purgedBy']);
 
@@ -53,13 +89,7 @@ class DataArchiveController extends Controller
             });
         }
 
-        $archives = $query->latest()
-                          ->paginate(20)
-                          ->withQueryString();
-
-        $tables = ['residents', 'households', 'users', 'barangays', 'puroks'];
-
-        return view('admin.maintenance.archive.index', compact('archives', 'tables'));
+        return $query->latest()->orderByDesc('id');
     }
 
     /**

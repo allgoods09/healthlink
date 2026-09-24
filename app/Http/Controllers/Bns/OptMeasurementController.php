@@ -8,16 +8,15 @@ use App\Http\Requests\Bns\StoreOptMeasurementRequest;
 use App\Models\AuditLog;
 use App\Models\NutritionCampaignPeriod;
 use App\Models\OptMeasurement;
-use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\Nutrition\GrowthAssessmentService;
-use App\Support\TabularExport;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class OptMeasurementController extends Controller
 {
@@ -25,42 +24,7 @@ class OptMeasurementController extends Controller
 
     public function index(Request $request): View
     {
-        $query = $this->bnsOptMeasurementsQuery()
-            ->with(['resident.household.purok', 'campaignPeriod', 'measuredBy'])
-            ->latest('measurement_date')
-            ->latest('id');
-
-        if ($request->filled('search')) {
-            $search = trim((string) $request->input('search'));
-            $query->where(function ($measurementQuery) use ($search): void {
-                $measurementQuery->where('remarks', 'like', "%{$search}%")
-                    ->orWhereHas('resident', function ($residentQuery) use ($search): void {
-                        $residentQuery->where('official_resident_code', 'like', "%{$search}%")
-                            ->orWhere('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->filled('campaign_period_id')) {
-            $query->where('campaign_period_id', $request->integer('campaign_period_id'));
-        }
-
-        if ($request->filled('purok_id')) {
-            $purokId = $request->integer('purok_id');
-            $query->whereHas('resident.household', function ($householdQuery) use ($purokId): void {
-                $householdQuery->where('purok_id', $purokId);
-            });
-        }
-
-        if ($request->filled('target_client')) {
-            $query->where(function ($measurementQuery): void {
-                $measurementQuery
-                    ->whereIn('weight_for_age_status', ['Severely Underweight', 'Underweight'])
-                    ->orWhereIn('height_for_age_status', ['Severely Stunted', 'Stunted'])
-                    ->orWhereIn('weight_for_length_height_status', ['Severely Wasted', 'Wasted']);
-            });
-        }
+        $query = $this->listingQuery($request);
 
         return view('bns.opt-measurements.index', [
             'measurements' => $query->paginate(15)->withQueryString(),
@@ -75,45 +39,7 @@ class OptMeasurementController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $query = $this->bnsOptMeasurementsQuery()
-            ->with(['resident.household.purok', 'campaignPeriod', 'measuredBy'])
-            ->latest('measurement_date')
-            ->latest('id');
-
-        if ($request->filled('search')) {
-            $search = trim((string) $request->input('search'));
-            $query->where(function ($measurementQuery) use ($search): void {
-                $measurementQuery->where('remarks', 'like', "%{$search}%")
-                    ->orWhereHas('resident', function ($residentQuery) use ($search): void {
-                        $residentQuery->where('official_resident_code', 'like', "%{$search}%")
-                            ->orWhere('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->filled('campaign_period_id')) {
-            $query->where('campaign_period_id', $request->integer('campaign_period_id'));
-        }
-
-        if ($request->filled('purok_id')) {
-            $purokId = $request->integer('purok_id');
-            $query->whereHas('resident.household', function ($householdQuery) use ($purokId): void {
-                $householdQuery->where('purok_id', $purokId);
-            });
-        }
-
-        if ($request->filled('target_client')) {
-            $query->where(function ($measurementQuery): void {
-                $measurementQuery
-                    ->whereIn('weight_for_age_status', ['Severely Underweight', 'Underweight'])
-                    ->orWhereIn('height_for_age_status', ['Severely Stunted', 'Stunted'])
-                    ->orWhereIn('weight_for_length_height_status', ['Severely Wasted', 'Wasted']);
-            });
-        }
-
-        $measurements = $query->get();
-        $timestamp = now()->format('Ymd_His');
+        $measurements = $this->listingQuery($request)->get();
         $columns = [
             'Resident Code' => fn (OptMeasurement $measurement) => $measurement->resident?->official_resident_code,
             'Resident' => fn (OptMeasurement $measurement) => $measurement->resident?->formal_name,
@@ -140,17 +66,49 @@ class OptMeasurementController extends Controller
             'Target Client Only' => $request->filled('target_client') ? 'Yes' : null,
         ];
 
-        ExportAudit::log('bns opt plus masterlist', $format, [
-            'barangay_id' => $this->assignedBarangayId(),
-            'record_count' => $measurements->count(),
-        ]);
+        return ExportDownload::make($format, 'OPT+ Masterlist', 'Nutrition', 'bns_opt_measurements', $columns, $measurements, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
+    }
 
-        return match ($format) {
-            'csv' => TabularExport::csv("bns_opt_measurements_{$timestamp}.csv", $columns, $measurements),
-            'xlsx' => TabularExport::xlsx("bns_opt_measurements_{$timestamp}.xlsx", 'OPT Measurements', $columns, $measurements),
-            'pdf' => TabularExport::pdf("bns_opt_measurements_{$timestamp}.pdf", 'OPT+ Masterlist', $columns, $measurements, $filters),
-            default => abort(404),
-        };
+    private function listingQuery(Request $request)
+    {
+        $query = $this->bnsOptMeasurementsQuery()
+            ->with(['resident.household.purok', 'campaignPeriod', 'measuredBy'])
+            ->latest('measurement_date')
+            ->latest('id');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($measurementQuery) use ($search): void {
+                $measurementQuery->where('remarks', 'like', "%{$search}%")
+                    ->orWhereHas('resident', function ($residentQuery) use ($search): void {
+                        $residentQuery->where('official_resident_code', 'like', "%{$search}%")
+                            ->orWhere('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($request->filled('campaign_period_id')) {
+            $query->where('campaign_period_id', $request->integer('campaign_period_id'));
+        }
+
+        if ($request->filled('purok_id')) {
+            $purokId = $request->integer('purok_id');
+            $query->whereHas('resident.household', function ($householdQuery) use ($purokId): void {
+                $householdQuery->where('purok_id', $purokId);
+            });
+        }
+
+        if ($request->filled('target_client')) {
+            $query->where(function ($measurementQuery): void {
+                $measurementQuery
+                    ->whereIn('weight_for_age_status', ['Severely Underweight', 'Underweight'])
+                    ->orWhereIn('height_for_age_status', ['Severely Stunted', 'Stunted'])
+                    ->orWhereIn('weight_for_length_height_status', ['Severely Wasted', 'Wasted']);
+            });
+        }
+
+        return $query;
     }
 
     public function create(Request $request): View

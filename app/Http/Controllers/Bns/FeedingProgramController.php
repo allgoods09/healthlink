@@ -15,16 +15,51 @@ use App\Models\FeedingProgram;
 use App\Models\FeedingProgramAttendance;
 use App\Models\FeedingProgramEnrollment;
 use App\Models\FeedingProgramProgressLog;
+use App\Support\ExportDownload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class FeedingProgramController extends Controller
 {
     use InteractsWithBnsScope;
 
     public function index(Request $request): View
+    {
+        $query = $this->listingQuery($request);
+
+        return view('bns.feeding-programs.index', [
+            'feedingPrograms' => $query->paginate(12)->withQueryString(),
+            'programStatuses' => FeedingProgram::STATUSES,
+            'activeProgramCount' => $this->bnsFeedingProgramsQuery()->where('program_status', FeedingProgram::STATUS_ACTIVE)->count(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Program' => 'name',
+            'Campaign' => fn (FeedingProgram $program) => $program->campaignPeriod?->name ?? 'None',
+            'Description' => 'description',
+            'Starts On' => fn (FeedingProgram $program) => $program->starts_on?->format('Y-m-d'),
+            'Ends On' => fn (FeedingProgram $program) => $program->ends_on?->format('Y-m-d') ?? 'Open-ended',
+            'Active Enrollments' => 'active_enrollments_count',
+            'Total Enrollments' => 'enrollments_count',
+            'Status' => fn (FeedingProgram $program) => $program->program_status_label,
+            'Created By' => fn (FeedingProgram $program) => $program->createdBy?->name ?? 'Unknown',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Status' => FeedingProgram::STATUSES[$request->input('program_status')] ?? null,
+        ];
+
+        return ExportDownload::make($format, 'Feeding Programs', 'Nutrition', 'bns_feeding_programs', $columns, $this->listingQuery($request)->get(), $filters, $this->bnsUser()->assignedBarangay?->name, FeedingProgram::class, array_intersect_key($columns, array_flip(['Program', 'Campaign', 'Starts On', 'Ends On', 'Active Enrollments', 'Total Enrollments', 'Status'])));
+    }
+
+    private function listingQuery(Request $request): Builder
     {
         $query = $this->bnsFeedingProgramsQuery()
             ->with(['campaignPeriod', 'createdBy'])
@@ -44,11 +79,7 @@ class FeedingProgramController extends Controller
             $query->where('program_status', $request->string('program_status')->toString());
         }
 
-        return view('bns.feeding-programs.index', [
-            'feedingPrograms' => $query->paginate(12)->withQueryString(),
-            'programStatuses' => FeedingProgram::STATUSES,
-            'activeProgramCount' => $this->bnsFeedingProgramsQuery()->where('program_status', FeedingProgram::STATUS_ACTIVE)->count(),
-        ]);
+        return $query;
     }
 
     public function create(): View

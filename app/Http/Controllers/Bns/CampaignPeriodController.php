@@ -8,16 +8,51 @@ use App\Http\Requests\Bns\StoreCampaignPeriodRequest;
 use App\Http\Requests\Bns\UpdateCampaignPeriodRequest;
 use App\Models\AuditLog;
 use App\Models\NutritionCampaignPeriod;
+use App\Support\ExportDownload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class CampaignPeriodController extends Controller
 {
     use InteractsWithBnsScope;
 
     public function index(Request $request): View
+    {
+        $query = $this->listingQuery($request);
+
+        return view('bns.campaign-periods.index', [
+            'campaignPeriods' => $query->paginate(12)->withQueryString(),
+            'campaignTypes' => NutritionCampaignPeriod::TYPES,
+            'activeCampaignCount' => $this->bnsCampaignPeriodsQuery()->active()->count(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Campaign' => 'name',
+            'Type' => fn (NutritionCampaignPeriod $period) => $period->campaign_type_label,
+            'Starts On' => fn (NutritionCampaignPeriod $period) => $period->starts_on?->format('Y-m-d'),
+            'Ends On' => fn (NutritionCampaignPeriod $period) => $period->ends_on?->format('Y-m-d') ?? 'Open-ended',
+            'OPT+ Measurements' => 'opt_measurements_count',
+            'Feeding Programs' => 'feeding_programs_count',
+            'Status' => fn (NutritionCampaignPeriod $period) => $period->is_active ? 'Active' : 'Inactive',
+            'Notes' => 'notes',
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Campaign Type' => NutritionCampaignPeriod::TYPES[$request->input('campaign_type')] ?? null,
+            'Status' => $request->filled('active') ? ($request->boolean('active') ? 'Active' : 'Inactive') : null,
+        ];
+
+        return ExportDownload::make($format, 'Nutrition Campaign Periods', 'Nutrition', 'bns_campaign_periods', $columns, $this->listingQuery($request)->get(), $filters, $this->bnsUser()->assignedBarangay?->name, NutritionCampaignPeriod::class, array_intersect_key($columns, array_flip(['Campaign', 'Type', 'Starts On', 'Ends On', 'OPT+ Measurements', 'Feeding Programs', 'Status'])));
+    }
+
+    private function listingQuery(Request $request): Builder
     {
         $query = $this->bnsCampaignPeriodsQuery()
             ->withCount(['optMeasurements', 'feedingPrograms'])
@@ -40,11 +75,7 @@ class CampaignPeriodController extends Controller
             $query->where('is_active', $request->boolean('active'));
         }
 
-        return view('bns.campaign-periods.index', [
-            'campaignPeriods' => $query->paginate(12)->withQueryString(),
-            'campaignTypes' => NutritionCampaignPeriod::TYPES,
-            'activeCampaignCount' => $this->bnsCampaignPeriodsQuery()->active()->count(),
-        ]);
+        return $query;
     }
 
     public function create(): View

@@ -706,6 +706,33 @@ function initializeFilterModals() {
             controlsArea.appendChild(liveSearch);
         }
 
+        const exportControl = originalParent?.querySelector('[data-export-control]');
+        if (exportControl instanceof HTMLElement) {
+            controlsArea.appendChild(exportControl);
+
+            if (liveSearch instanceof HTMLFormElement) {
+                const searchField = liveSearch.querySelector('input[type="search"]');
+                const exportButton = exportControl.querySelector('button');
+                const appliedSearch = new URLSearchParams(window.location.search).get('search') || '';
+
+                if (searchField instanceof HTMLInputElement && exportButton instanceof HTMLButtonElement) {
+                    const syncExportAvailability = () => {
+                        const isPending = searchField.value !== appliedSearch;
+                        exportButton.disabled = isPending;
+                        exportButton.title = isPending ? 'Wait for the search results to update before exporting' : '';
+                    };
+
+                    searchField.addEventListener('input', syncExportAvailability);
+                    exportControl.addEventListener('click', (event) => {
+                        if (searchField.value !== appliedSearch && event.target.closest('a')) {
+                            event.preventDefault();
+                        }
+                    });
+                    syncExportAvailability();
+                }
+            }
+        }
+
         if (!formHasVisibleFilterControls(form)) {
             if (existingSidebar instanceof HTMLElement) {
                 layout?.classList.add('filter-modal-layout');
@@ -722,6 +749,9 @@ function initializeFilterModals() {
         }
 
         controlsArea.appendChild(triggerArea);
+        if (exportControl instanceof HTMLElement) {
+            controlsArea.appendChild(exportControl);
+        }
 
         const activeSummary = buildActiveFilterSummary(form);
 

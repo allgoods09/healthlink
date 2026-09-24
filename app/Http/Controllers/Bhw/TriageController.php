@@ -9,11 +9,14 @@ use App\Http\Requests\Bhw\UpdateTriageRecordRequest;
 use App\Models\AuditLog;
 use App\Models\Resident;
 use App\Models\TriageRecord;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class TriageController extends Controller
 {
@@ -21,9 +24,34 @@ class TriageController extends Controller
 
     public function index(Request $request): View
     {
+        return view('bhw.triage.index', [
+            'triageRecords' => $this->listingQuery($request)->paginate(12)->withQueryString(),
+            'todayCount' => $this->bhwTriageRecordsQuery()->whereDate('measured_at', now()->toDateString())->count(),
+            'editableCount' => $this->bhwTriageRecordsQuery()->whereNull('consumed_at')->count(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Resident' => fn (TriageRecord $record) => $record->resident?->formal_name ?? 'Unknown',
+            'Purok' => fn (TriageRecord $record) => $record->resident?->household?->purok?->display_name ?? 'Unknown',
+            'Measured At' => fn (TriageRecord $record) => $record->measured_at?->format('Y-m-d H:i:s'),
+            'Status' => fn (TriageRecord $record) => $record->triage_status_label,
+            'Blood Pressure' => fn (TriageRecord $record) => $record->bp_systolic && $record->bp_diastolic ? "{$record->bp_systolic}/{$record->bp_diastolic}" : 'N/A',
+            'Temperature' => fn (TriageRecord $record) => $record->temperature_celsius ? "{$record->temperature_celsius} C" : 'N/A',
+            'Consumed By' => fn (TriageRecord $record) => $record->consumedBy?->name ?? 'Pending',
+        ];
+
+        return ExportDownload::make($format, 'BHW Triage Records', 'Field Records', 'bhw_triage', $columns, $this->listingQuery($request)->get(), ['Search' => $request->input('search'), 'Status' => $request->input('status')], $this->bhwUser()->assignedBarangay?->name, TriageRecord::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
         $query = $this->bhwTriageRecordsQuery()
             ->with(['resident.household.purok', 'consumedBy'])
-            ->latest('measured_at');
+            ->latest('measured_at')
+            ->latest('id');
 
         if ($request->filled('status')) {
             $status = $request->string('status')->toString();
@@ -46,11 +74,7 @@ class TriageController extends Controller
             });
         }
 
-        return view('bhw.triage.index', [
-            'triageRecords' => $query->paginate(12)->withQueryString(),
-            'todayCount' => $this->bhwTriageRecordsQuery()->whereDate('measured_at', now()->toDateString())->count(),
-            'editableCount' => $this->bhwTriageRecordsQuery()->whereNull('consumed_at')->count(),
-        ]);
+        return $query;
     }
 
     public function create(Request $request): View

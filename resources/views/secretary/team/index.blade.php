@@ -72,6 +72,7 @@
                         </a>
                     </div>
                 </form>
+                <x-export-dropdown route="secretary.team.export" dataset="Frontline User Roster" />
             </div>
         </aside>
 

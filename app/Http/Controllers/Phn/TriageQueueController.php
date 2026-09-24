@@ -8,8 +8,7 @@ use App\Models\Barangay;
 use App\Models\ClinicalEncounter;
 use App\Models\TriageRecord;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,15 +20,7 @@ class TriageQueueController extends Controller
 
     public function index(Request $request): View
     {
-        $triageRecords = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'household.purok.barangay',
-                'recordedBy.assignedPurok',
-                'consumedBy',
-                'clinicalEncounter',
-            ])
-            ->latest('measured_at')
+        $triageRecords = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -44,16 +35,7 @@ class TriageQueueController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $triageRecords = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'household.purok.barangay',
-                'recordedBy.assignedPurok',
-                'consumedBy',
-                'clinicalEncounter',
-            ])
-            ->latest('measured_at')
-            ->get();
+        $triageRecords = $this->listingQuery($request)->get();
 
         $columns = [
             'Measured At' => fn (TriageRecord $triageRecord) => $triageRecord->measured_at?->format('Y-m-d H:i:s'),
@@ -70,7 +52,7 @@ class TriageQueueController extends Controller
             'Respiratory Rate' => fn (TriageRecord $triageRecord) => $triageRecord->respiratory_rate ?: 'N/A',
             'Blood Glucose' => fn (TriageRecord $triageRecord) => $triageRecord->blood_glucose_mg_dl ? "{$triageRecord->blood_glucose_mg_dl} mg/dL" : 'N/A',
             'Consumed By' => fn (TriageRecord $triageRecord) => $triageRecord->consumedBy?->name ?? 'Pending PHN review',
-            'Linked Encounter' => fn (TriageRecord $triageRecord) => $triageRecord->clinicalEncounter?->id ? 'Encounter #'.$triageRecord->clinicalEncounter->id : 'None',
+            'Linked Encounter' => fn (TriageRecord $triageRecord) => $triageRecord->clinicalEncounter ? 'Yes' : 'No',
         ];
 
         $filters = [
@@ -80,20 +62,7 @@ class TriageQueueController extends Controller
             'Recorded By' => User::query()->find($request->input('recorded_by_user_id'))?->name,
         ];
 
-        ExportAudit::log('phn triage queue', $format, [
-            'model_type' => TriageRecord::class,
-            'record_count' => $triageRecords->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("phn_triage_queue_{$timestamp}.csv", $columns, $triageRecords),
-            'xlsx' => TabularExport::xlsx("phn_triage_queue_{$timestamp}.xlsx", 'PHN Triage Queue', $columns, $triageRecords),
-            'pdf' => TabularExport::pdf("phn_triage_queue_{$timestamp}.pdf", 'PHN Pending Triage Queue', $columns, $triageRecords, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'PHN Triage Queue', 'Clinical', 'phn_triage_queue', $columns, $triageRecords, $filters, 'Municipality-wide', TriageRecord::class, array_intersect_key($columns, array_flip(['Measured At', 'Resident', 'Barangay', 'Purok', 'Recorded By', 'Status', 'Blood Pressure', 'Temperature'])));
     }
 
     public function show(TriageRecord $triageRecord): View
@@ -113,6 +82,14 @@ class TriageQueueController extends Controller
         return view('phn.triage.show', [
             'triageRecord' => $triageRecord,
         ]);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok.barangay', 'household.purok.barangay', 'recordedBy.assignedPurok', 'consumedBy', 'clinicalEncounter'])
+            ->latest('measured_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

@@ -4,10 +4,8 @@ namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Secretary\Concerns\InteractsWithSecretaryScope;
-use App\Models\Purok;
 use App\Models\Resident;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -20,18 +18,11 @@ class DemographicReportController extends Controller
 
     public function index(Request $request): View
     {
-        $residents = $this->filteredResidentsQuery($request)
-            ->with(['household.purok', 'socioEconomicProfile'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+        $residents = $this->listingQuery($request)
             ->paginate(20)
             ->withQueryString();
 
-        $residentCollection = $this->filteredResidentsQuery($request)
-            ->with(['household.purok', 'socioEconomicProfile'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+        $residentCollection = $this->listingQuery($request)->get();
 
         return view('secretary.reports.demographics', [
             'summary' => $this->buildSummary($residentCollection),
@@ -43,13 +34,7 @@ class DemographicReportController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $residents = $this->filteredResidentsQuery($request)
-            ->with(['household.purok', 'socioEconomicProfile'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
-
-        $summary = $this->buildSummary($residents);
+        $residents = $this->listingQuery($request)->get();
 
         $columns = [
             'Resident' => fn (Resident $resident) => $resident->formal_name,
@@ -83,26 +68,33 @@ class DemographicReportController extends Controller
             'Availability' => $request->input('status'),
         ];
 
-        ExportAudit::log('secretary demographic roster', $format, [
-            'model_type' => Resident::class,
-            'record_count' => $residents->count(),
-            'filters' => array_filter($filters),
-        ]);
+        if ($request->input('dataset', 'roster') === 'breakdown') {
+            $breakdownColumns = [
+                'Purok' => 'purok',
+                'Households' => 'households',
+                'Residents' => 'residents',
+                'Active' => 'active',
+                'Deceased' => 'deceased',
+                'Relocated' => 'relocated',
+                'Minors' => 'minors',
+                'Seniors' => 'seniors',
+            ];
 
-        $timestamp = now()->format('Y-m-d_His');
+            return ExportDownload::make($format, 'Barangay Demographics by Purok', 'Demographics', 'secretary_demographics_by_purok', $breakdownColumns, $this->buildPurokBreakdown($residents)->values(), $filters, $this->secretaryUser()->assignedBarangay?->name, Resident::class);
+        }
 
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_demographics_{$timestamp}.csv", $columns, $residents),
-            'xlsx' => TabularExport::xlsx("secretary_demographics_{$timestamp}.xlsx", 'Secretary Demographics', $columns, $residents),
-            'pdf' => TabularExport::pdf("secretary_demographics_{$timestamp}.pdf", 'Barangay Demographic Roster', $columns, $residents, [
-                ...$filters,
-                'Residents in Result' => $summary['residents'],
-                'Households in Result' => $summary['households'],
-                'Seniors in Result' => $summary['seniors'],
-                'Minors in Result' => $summary['minors'],
-            ]),
-            default => abort(404),
-        };
+        abort_unless($request->input('dataset', 'roster') === 'roster', 404);
+
+        return ExportDownload::make($format, 'Barangay Demographic Roster', 'Demographics', 'secretary_demographic_roster', $columns, $residents, $filters, $this->secretaryUser()->assignedBarangay?->name, Resident::class, array_intersect_key($columns, array_flip(['Resident', 'Sex', 'Age', 'Purok', 'Household', 'Relationship', 'Civil Registry Status'])));
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredResidentsQuery($request)
+            ->with(['household.purok', 'socioEconomicProfile'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('id');
     }
 
     private function filteredResidentsQuery(Request $request): Builder

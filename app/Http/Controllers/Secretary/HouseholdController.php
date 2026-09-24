@@ -12,8 +12,8 @@ use App\Models\BarangayOfficial;
 use App\Models\Household;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RbiTemplatePdfGenerator;
-use App\Support\TabularExport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,11 +29,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('viewAny', Household::class);
 
-        $households = $this->filteredQuery($request)
-            ->with(['purok.barangay', 'headResident'])
-            ->withCount('residents')
-            ->orderBy('purok_id')
-            ->orderBy('household_no')
+        $households = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -58,12 +54,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('viewAny', Household::class);
 
-        $households = $this->filteredQuery($request)
-            ->with(['purok.barangay', 'headResident'])
-            ->withCount('residents')
-            ->orderBy('purok_id')
-            ->orderBy('household_no')
-            ->get();
+        $households = $this->listingQuery($request)->get();
 
         $columns = [
             'Household No.' => 'household_no',
@@ -83,22 +74,10 @@ class HouseholdController extends Controller
             'Purok' => $this->secretaryPuroksQuery()->find($request->input('purok_id'))?->display_name,
             'Status' => $request->input('status'),
             'Social Aid' => $request->input('social_aid'),
+            'Lifecycle' => $request->input('lifecycle') ?: 'Current',
         ];
 
-        ExportAudit::log('secretary household registry', $format, [
-            'model_type' => Household::class,
-            'record_count' => $households->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_households_{$timestamp}.csv", $columns, $households),
-            'xlsx' => TabularExport::xlsx("secretary_households_{$timestamp}.xlsx", 'Secretary Households', $columns, $households),
-            'pdf' => TabularExport::pdf("secretary_households_{$timestamp}.pdf", 'Barangay Household Registry', $columns, $households, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Barangay Household Registry', 'Civil Registry', 'secretary_households', $columns, $households, $filters, $this->secretaryUser()->assignedBarangay?->name, Household::class, array_intersect_key($columns, array_flip(['Household No.', 'Purok', 'Address', 'Head of Household', 'Residents', 'Social Aid', 'Status'])));
     }
 
     public function pdf(
@@ -276,6 +255,16 @@ class HouseholdController extends Controller
             'success',
             "Household #{$household->household_no} has been ".($newStatus ? 'activated' : 'marked inactive').'.'
         );
+    }
+
+    private function listingQuery(Request $request)
+    {
+        return $this->filteredQuery($request)
+            ->with(['purok.barangay', 'headResident'])
+            ->withCount('residents')
+            ->orderBy('purok_id')
+            ->orderBy('household_no')
+            ->orderBy('id');
     }
 
     private function filteredQuery(Request $request)

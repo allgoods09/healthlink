@@ -45,6 +45,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="bns.micronutrients.export" dataset="Micronutrient Supplementation Log" />
         </div>
     </div>
 

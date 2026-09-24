@@ -7,7 +7,7 @@ use App\Http\Controllers\Mho\Concerns\InteractsWithMhoScope;
 use App\Models\Barangay;
 use App\Models\ClinicalEncounter;
 use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -20,15 +20,7 @@ class EscalationController extends Controller
 
     public function index(Request $request): View
     {
-        $encounters = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'attendedBy',
-                'mhoReview.reviewedBy',
-                'triageRecord.recordedBy',
-            ])
-            ->latest('escalated_at')
-            ->latest('encountered_at')
+        $encounters = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -43,19 +35,9 @@ class EscalationController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $encounters = $this->filteredQuery($request)
-            ->with([
-                'resident.household.purok.barangay',
-                'attendedBy',
-                'mhoReview.reviewedBy',
-                'triageRecord.recordedBy',
-            ])
-            ->latest('escalated_at')
-            ->latest('encountered_at')
-            ->get();
+        $encounters = $this->listingQuery($request)->get();
 
         $columns = [
-            'Encounter ID' => 'id',
             'Resident' => fn (ClinicalEncounter $encounter) => $encounter->resident?->formal_name ?? 'Unknown',
             'Barangay' => fn (ClinicalEncounter $encounter) => $encounter->barangay?->name ?? 'N/A',
             'Purok' => fn (ClinicalEncounter $encounter) => $encounter->purok?->display_name ?? 'N/A',
@@ -72,22 +54,11 @@ class EscalationController extends Controller
             'Search' => $request->input('search'),
             'Barangay' => Barangay::query()->find($request->input('barangay_id'))?->name,
             'Status' => $request->input('status', 'pending'),
+            'From' => $request->input('date_from'),
+            'To' => $request->input('date_to'),
         ];
 
-        ExportAudit::log('mho escalation queue', $format, [
-            'model_type' => ClinicalEncounter::class,
-            'record_count' => $encounters->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("mho_escalations_{$timestamp}.csv", $columns, $encounters),
-            'xlsx' => TabularExport::xlsx("mho_escalations_{$timestamp}.xlsx", 'MHO Escalations', $columns, $encounters),
-            'pdf' => TabularExport::pdf("mho_escalations_{$timestamp}.pdf", 'MHO Escalation Queue', $columns, $encounters, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'MHO Escalation Queue', 'Clinical', 'mho_escalations', $columns, $encounters, $filters, 'Municipality-wide', ClinicalEncounter::class, array_intersect_key($columns, array_flip(['Resident', 'Barangay', 'Purok', 'Escalated At', 'PHN', 'Clinical Status', 'MHO Reviewed At', 'Final Disposition'])));
     }
 
     public function show(ClinicalEncounter $clinicalEncounter): View
@@ -139,6 +110,15 @@ class EscalationController extends Controller
             'clinicalEncounter' => $clinicalEncounter,
             'printedAt' => now(),
         ])->setPaper('a4')->download('mho-consultation-summary-'.$clinicalEncounter->id.'.pdf');
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok.barangay', 'attendedBy', 'mhoReview.reviewedBy', 'triageRecord.recordedBy'])
+            ->latest('escalated_at')
+            ->latest('encountered_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

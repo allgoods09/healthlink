@@ -254,6 +254,18 @@ class BnsNutritionWorkflowTest extends TestCase
         $response->assertOk();
         $response->assertSee('Lopez, Maria');
         $response->assertDontSee('Reyes, Paolo');
+        $response->assertSee('Excel (.xlsx)');
+
+        $csv = $this->actingAs($bns)
+            ->get(route('bns.watchlist.export', ['format' => 'csv']))
+            ->assertOk()->streamedContent();
+        $this->assertStringContainsString('Lopez, Maria', $csv);
+        $this->assertStringNotContainsString('Reyes, Paolo', $csv);
+
+        $measurements = $this->actingAs($bns)
+            ->get(route('bns.opt-measurements.export', ['format' => 'csv']))
+            ->assertOk()->streamedContent();
+        $this->assertCount(4, explode("\n", trim($measurements)));
     }
 
     public function test_bns_can_manage_feeding_program_enrollment_attendance_and_progress(): void

@@ -130,6 +130,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="admin.backups.export" dataset="Backup Inventory" />
         </div>
     </div>
 

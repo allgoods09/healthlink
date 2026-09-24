@@ -6,8 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Secretary\Concerns\InteractsWithSecretaryScope;
 use App\Models\AuditLog;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -22,8 +21,7 @@ class ActivityFeedController extends Controller
     {
         Gate::authorize('viewAny', AuditLog::class);
 
-        $logs = $this->filteredQuery($request)
-            ->latest()
+        $logs = $this->listingQuery($request)
             ->paginate(25)
             ->withQueryString();
 
@@ -59,15 +57,13 @@ class ActivityFeedController extends Controller
     {
         Gate::authorize('viewAny', AuditLog::class);
 
-        $logs = $this->filteredQuery($request)->latest()->get();
+        $logs = $this->listingQuery($request)->get();
 
         $columns = [
-            'ID' => 'id',
             'User' => fn (AuditLog $log) => $log->actor_name,
             'Event Type' => fn (AuditLog $log) => $log->event_type_label,
             'Description' => 'event_description',
-            'Model' => fn (AuditLog $log) => $log->model_type ? class_basename($log->model_type) : 'N/A',
-            'IP Address' => fn (AuditLog $log) => $log->ip_address ?? 'N/A',
+            'Record Type' => fn (AuditLog $log) => $log->model_type ? class_basename($log->model_type) : 'N/A',
             'Timestamp' => fn (AuditLog $log) => $log->created_at?->format('Y-m-d H:i:s'),
         ];
 
@@ -80,20 +76,12 @@ class ActivityFeedController extends Controller
         ];
 
         $format = $request->string('format', 'csv')->toString();
-        $timestamp = now()->format('Y-m-d_His');
+        return ExportDownload::make($format, 'Barangay Activity Feed', 'Verification Pipeline', 'secretary_activity', $columns, $logs, $filters, $this->secretaryUser()->assignedBarangay?->name, AuditLog::class);
+    }
 
-        ExportAudit::log('secretary activity feed', $format, [
-            'model_type' => AuditLog::class,
-            'record_count' => $logs->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_activity_{$timestamp}.csv", $columns, $logs),
-            'xlsx' => TabularExport::xlsx("secretary_activity_{$timestamp}.xlsx", 'Secretary Activity', $columns, $logs),
-            'pdf' => TabularExport::pdf("secretary_activity_{$timestamp}.pdf", 'Barangay Activity Feed', $columns, $logs, $filters),
-            default => abort(404),
-        };
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)->latest()->orderByDesc('id');
     }
 
     private function filteredQuery(Request $request): Builder

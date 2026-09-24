@@ -7,16 +7,43 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Bhw\UpdateCommunityCampaignAssignmentRequest;
 use App\Models\AuditLog;
 use App\Models\CommunityCampaignAssignment;
+use App\Support\ExportDownload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class CampaignTaskController extends Controller
 {
     use InteractsWithBhwScope;
 
     public function index(Request $request): View
+    {
+        return view('bhw.campaigns.index', [
+            'assignments' => $this->listingQuery($request)->paginate(12)->withQueryString(),
+            'dueTodayCount' => $this->bhwCampaignAssignmentsQuery()
+                ->whereHas('campaign', fn ($campaignQuery) => $campaignQuery->whereDate('scheduled_for', now()->toDateString()))
+                ->count(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Campaign' => fn (CommunityCampaignAssignment $assignment) => $assignment->campaign?->title ?? 'Untitled',
+            'Type' => fn (CommunityCampaignAssignment $assignment) => $assignment->campaign?->campaign_type_label ?? 'Unknown',
+            'Scheduled For' => fn (CommunityCampaignAssignment $assignment) => $assignment->campaign?->scheduled_for?->format('Y-m-d'),
+            'Target' => fn (CommunityCampaignAssignment $assignment) => $assignment->target_label,
+            'Status' => fn (CommunityCampaignAssignment $assignment) => $assignment->assignment_status_label,
+            'Completed At' => fn (CommunityCampaignAssignment $assignment) => $assignment->completed_at?->format('Y-m-d H:i:s'),
+        ];
+
+        return ExportDownload::make($format, 'BHW Campaign Tasks', 'Community Campaigns', 'bhw_campaign_tasks', $columns, $this->listingQuery($request)->get(), ['Status' => $request->input('status'), 'Due Today' => $request->boolean('due_today') ? 'Yes' : null], $this->bhwUser()->assignedBarangay?->name, CommunityCampaignAssignment::class);
+    }
+
+    private function listingQuery(Request $request): Builder
     {
         $query = $this->bhwCampaignAssignmentsQuery()
             ->with(['campaign.assignedPurok', 'resident.household.purok', 'household.purok'])
@@ -30,12 +57,7 @@ class CampaignTaskController extends Controller
             $query->whereHas('campaign', fn ($campaignQuery) => $campaignQuery->whereDate('scheduled_for', now()->toDateString()));
         }
 
-        return view('bhw.campaigns.index', [
-            'assignments' => $query->paginate(12)->withQueryString(),
-            'dueTodayCount' => $this->bhwCampaignAssignmentsQuery()
-                ->whereHas('campaign', fn ($campaignQuery) => $campaignQuery->whereDate('scheduled_for', now()->toDateString()))
-                ->count(),
-        ]);
+        return $query;
     }
 
     public function show(CommunityCampaignAssignment $assignment): View

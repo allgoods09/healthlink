@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Admin\Security;
 use App\Http\Controllers\Controller;
 use App\Models\SyncLog;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -21,8 +20,7 @@ class SyncLogController extends Controller
     {
         Gate::authorize('viewAny', SyncLog::class);
 
-        $logs = $this->filteredQuery($request)
-                      ->latest()
+        $logs = $this->listingQuery($request)
                       ->paginate(25)
                       ->withQueryString();
 
@@ -90,17 +88,15 @@ class SyncLogController extends Controller
     {
         Gate::authorize('viewAny', SyncLog::class);
 
-        $logs = $this->filteredQuery($request)->latest()->get();
+        $logs = $this->listingQuery($request)->get();
 
         $columns = [
-            'ID' => 'id',
             'BHW' => fn (SyncLog $log) => $log->user?->name ?? 'Unknown',
             'Device' => fn (SyncLog $log) => $log->device_name ?? 'Unknown',
             'Records Synced' => 'records_synced',
             'Payload Size' => fn (SyncLog $log) => $log->formatted_payload_size,
             'Duration' => fn (SyncLog $log) => $log->formatted_duration,
             'Status' => fn (SyncLog $log) => ucfirst($log->status),
-            'Error' => fn (SyncLog $log) => $log->error_message ?: 'N/A',
             'Timestamp' => fn (SyncLog $log) => $log->created_at?->format('Y-m-d H:i:s'),
         ];
 
@@ -112,21 +108,9 @@ class SyncLogController extends Controller
             'Date To' => $request->date_to,
         ];
 
-        $timestamp = now()->format('Y-m-d_His');
         $format = $request->string('format', 'csv')->toString();
 
-        ExportAudit::log('sync logs', $format, [
-            'model_type' => SyncLog::class,
-            'record_count' => $logs->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("sync_logs_{$timestamp}.csv", $columns, $logs),
-            'xlsx' => TabularExport::xlsx("sync_logs_{$timestamp}.xlsx", 'Sync Logs', $columns, $logs),
-            'pdf' => TabularExport::pdf("sync_logs_{$timestamp}.pdf", 'Synchronization Report', $columns, $logs, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Synchronization Report', 'Security', 'sync_logs', $columns, $logs, $filters, 'Municipality-wide', SyncLog::class);
     }
 
     /**
@@ -168,6 +152,11 @@ class SyncLogController extends Controller
     /**
      * Build the filtered sync log query.
      */
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)->latest()->orderByDesc('id');
+    }
+
     private function filteredQuery(Request $request): Builder
     {
         $query = SyncLog::query()->with('user');

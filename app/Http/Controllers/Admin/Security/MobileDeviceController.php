@@ -4,8 +4,7 @@ namespace App\Http\Controllers\Admin\Security;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -40,7 +39,6 @@ class MobileDeviceController extends Controller
 
         $devices = $this->deviceInventory($request);
         $format = $request->string('format', 'csv')->toString();
-        $timestamp = now()->format('Y-m-d_His');
 
         $columns = [
             'BHW' => fn (array $device) => $device['user']->name,
@@ -55,18 +53,7 @@ class MobileDeviceController extends Controller
             'Search' => $request->string('search')->toString(),
         ];
 
-        ExportAudit::log('mobile device inventory', $format, [
-            'model_type' => User::class,
-            'record_count' => $devices->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("mobile_devices_{$timestamp}.csv", $columns, $devices),
-            'xlsx' => TabularExport::xlsx("mobile_devices_{$timestamp}.xlsx", 'Mobile Devices', $columns, $devices),
-            'pdf' => TabularExport::pdf("mobile_devices_{$timestamp}.pdf", 'Mobile Device Inventory', $columns, $devices, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Mobile Device Inventory', 'Security', 'mobile_devices', $columns, $devices, $filters, 'Municipality-wide', User::class);
     }
 
     /**

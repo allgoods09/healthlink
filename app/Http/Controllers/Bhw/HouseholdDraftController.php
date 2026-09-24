@@ -10,12 +10,15 @@ use App\Models\AuditLog;
 use App\Models\Household;
 use App\Models\HouseholdDraft;
 use App\Models\ResidentDraft;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class HouseholdDraftController extends Controller
 {
@@ -23,10 +26,33 @@ class HouseholdDraftController extends Controller
 
     public function index(Request $request): View
     {
+        return view('bhw.drafts.index', [
+            'drafts' => $this->listingQuery($request)->paginate(12)->withQueryString(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Reference' => 'draft_reference_code',
+            'Purok' => fn (HouseholdDraft $draft) => $draft->purok?->display_name ?? 'Unassigned',
+            'Address' => 'household_address',
+            'Residents' => 'resident_drafts_count',
+            'Status' => fn (HouseholdDraft $draft) => $draft->draft_status_label,
+            'Submitted At' => fn (HouseholdDraft $draft) => $draft->created_at?->format('Y-m-d H:i:s'),
+            'Reviewed By' => fn (HouseholdDraft $draft) => $draft->reviewedBy?->name ?? 'Pending',
+        ];
+
+        return ExportDownload::make($format, 'BHW Field Drafts', 'Field Records', 'bhw_field_drafts', $columns, $this->listingQuery($request)->get(), ['Search' => $request->input('search'), 'Status' => $request->input('status')], $this->bhwUser()->assignedBarangay?->name, HouseholdDraft::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
         $query = $this->bhwOwnHouseholdDraftsQuery()
             ->with(['purok', 'reviewedBy'])
             ->withCount('residentDrafts')
-            ->latest();
+            ->latest()
+            ->orderByDesc('id');
 
         if ($request->filled('status')) {
             $query->where('draft_status', $request->string('status')->toString());
@@ -40,9 +66,7 @@ class HouseholdDraftController extends Controller
             });
         }
 
-        return view('bhw.drafts.index', [
-            'drafts' => $query->paginate(12)->withQueryString(),
-        ]);
+        return $query;
     }
 
     public function create(): View

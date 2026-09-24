@@ -9,8 +9,7 @@ use App\Models\AuditLog;
 use App\Models\BarangayCertificate;
 use App\Models\Household;
 use App\Models\Resident;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -28,9 +27,7 @@ class CertificateController extends Controller
     {
         Gate::authorize('viewAny', BarangayCertificate::class);
 
-        $certificates = $this->filteredQuery($request)
-            ->with(['resident.household.purok', 'household.headResident', 'household.purok', 'issuedBy'])
-            ->latest('issued_at')
+        $certificates = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -44,10 +41,7 @@ class CertificateController extends Controller
     {
         Gate::authorize('viewAny', BarangayCertificate::class);
 
-        $certificates = $this->filteredQuery($request)
-            ->with(['resident.household.purok', 'household.headResident', 'household.purok', 'issuedBy'])
-            ->latest('issued_at')
-            ->get();
+        $certificates = $this->listingQuery($request)->get();
 
         $columns = [
             'Certificate No.' => 'certificate_no',
@@ -79,20 +73,7 @@ class CertificateController extends Controller
             'Date To' => $request->input('date_to'),
         ];
 
-        ExportAudit::log('barangay certificates', $format, [
-            'model_type' => BarangayCertificate::class,
-            'record_count' => $certificates->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_certificates_{$timestamp}.csv", $columns, $certificates),
-            'xlsx' => TabularExport::xlsx("secretary_certificates_{$timestamp}.xlsx", 'Secretary Certificates', $columns, $certificates),
-            'pdf' => TabularExport::pdf("secretary_certificates_{$timestamp}.pdf", 'Barangay Certificate Log', $columns, $certificates, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Barangay Certificate Log', 'Certificates', 'secretary_certificates', $columns, $certificates, $filters, $this->secretaryUser()->assignedBarangay?->name, BarangayCertificate::class, array_intersect_key($columns, array_flip(['Certificate No.', 'Type', 'Recipient Type', 'Issued To', 'Purok', 'Issued At', 'Issued By'])));
     }
 
     public function create(): View
@@ -157,6 +138,14 @@ class CertificateController extends Controller
         return Pdf::loadView('secretary.certificates.pdf', [
             'certificate' => $certificate,
         ])->setPaper('a4')->download($certificate->certificate_no.'.pdf');
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['resident.household.purok', 'household.headResident', 'household.purok', 'issuedBy'])
+            ->latest('issued_at')
+            ->latest('id');
     }
 
     private function filteredQuery(Request $request): Builder

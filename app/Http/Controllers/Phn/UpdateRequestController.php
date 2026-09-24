@@ -10,12 +10,15 @@ use App\Models\AuditLog;
 use App\Models\Household;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class UpdateRequestController extends Controller
 {
@@ -23,9 +26,35 @@ class UpdateRequestController extends Controller
 
     public function index(Request $request): View
     {
+        return view('bhw.update-requests.index', [
+            'routePrefix' => 'phn',
+            'pageTitle' => 'PHN Correction Requests - HealthLink',
+            'pageHeader' => 'Correction Requests',
+            'pageSubheader' => 'Route barangay registry corrections back to the Secretary queue from the municipal clinical workspace.',
+            'updateRequests' => $this->listingQuery($request)->paginate(12)->withQueryString(),
+        ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $columns = [
+            'Subject Type' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->subject_label,
+            'Subject' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->subject_name,
+            'Reason' => 'request_reason',
+            'Status' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->request_status_label,
+            'Submitted At' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->created_at?->format('Y-m-d H:i:s'),
+            'Reviewed By' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->reviewedBy?->name ?? 'Pending',
+        ];
+
+        return ExportDownload::make($format, 'PHN Correction Requests', 'Clinical', 'phn_correction_requests', $columns, $this->listingQuery($request)->get(), ['Status' => $request->input('status'), 'Subject Type' => $request->input('subject_type')], 'Own submitted requests', ProfileUpdateRequest::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
         $query = $this->phnOwnProfileUpdateRequestsQuery()
             ->with(['resident.household.purok', 'household.purok', 'reviewedBy'])
-            ->latest();
+            ->latest()
+            ->orderByDesc('id');
 
         if ($request->filled('status')) {
             $query->where('request_status', $request->string('status')->toString());
@@ -35,13 +64,7 @@ class UpdateRequestController extends Controller
             $query->where('subject_type', $request->string('subject_type')->toString());
         }
 
-        return view('bhw.update-requests.index', [
-            'routePrefix' => 'phn',
-            'pageTitle' => 'PHN Correction Requests - HealthLink',
-            'pageHeader' => 'Correction Requests',
-            'pageSubheader' => 'Route barangay registry corrections back to the Secretary queue from the municipal clinical workspace.',
-            'updateRequests' => $query->paginate(12)->withQueryString(),
-        ]);
+        return $query;
     }
 
     public function createResident(Request $request): View

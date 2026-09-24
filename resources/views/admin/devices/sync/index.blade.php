@@ -9,6 +9,7 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
+        @unless($routePrefix === 'admin')
         <a href="{{ route($routePrefix.'.sync-logs.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
             CSV
         </a>
@@ -18,6 +19,7 @@
         <a href="{{ route($routePrefix.'.sync-logs.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
             PDF
         </a>
+        @endunless
         @if($canClearOld ?? true)
             <x-destructive-confirm-modal
                 :action="route($routePrefix.'.sync-logs.clear-old')"
@@ -107,6 +109,9 @@
                     </a>
                 </div>
             </form>
+            @if($routePrefix === 'admin')
+                <x-export-dropdown route="admin.sync-logs.export" dataset="Synchronization Report" />
+            @endif
         </div>
     </div>
 

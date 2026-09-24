@@ -8,11 +8,9 @@ use App\Http\Requests\Secretary\ApproveHouseholdDraftRequest;
 use App\Http\Requests\Secretary\ReviewDecisionRequest;
 use App\Models\AuditLog;
 use App\Models\HouseholdDraft;
-use App\Models\Purok;
-use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
 use App\Support\SecretaryPipelineProcessor;
-use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,10 +24,7 @@ class FieldDraftController extends Controller
 
     public function index(Request $request): View
     {
-        $drafts = $this->filteredQuery($request)
-            ->with(['purok', 'submittedBy', 'reviewedBy', 'approvedHousehold'])
-            ->withCount('residentDrafts')
-            ->latest()
+        $drafts = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -41,11 +36,7 @@ class FieldDraftController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $drafts = $this->filteredQuery($request)
-            ->with(['purok', 'submittedBy', 'reviewedBy', 'approvedHousehold'])
-            ->withCount('residentDrafts')
-            ->latest()
-            ->get();
+        $drafts = $this->listingQuery($request)->get();
 
         $columns = [
             'Reference' => 'draft_reference_code',
@@ -61,24 +52,11 @@ class FieldDraftController extends Controller
 
         $filters = [
             'Search' => $request->input('search'),
-            'Purok' => Purok::query()->find($request->input('purok_id'))?->display_name,
+            'Purok' => $this->secretaryPuroksQuery()->find($request->input('purok_id'))?->display_name,
             'Status' => $request->input('status'),
         ];
 
-        ExportAudit::log('secretary field drafts', $format, [
-            'model_type' => HouseholdDraft::class,
-            'record_count' => $drafts->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_field_drafts_{$timestamp}.csv", $columns, $drafts),
-            'xlsx' => TabularExport::xlsx("secretary_field_drafts_{$timestamp}.xlsx", 'Field Drafts', $columns, $drafts),
-            'pdf' => TabularExport::pdf("secretary_field_drafts_{$timestamp}.pdf", 'Secretary Field Draft Queue', $columns, $drafts, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Secretary Field Draft Queue', 'Verification Pipeline', 'secretary_field_drafts', $columns, $drafts, $filters, $this->secretaryUser()->assignedBarangay?->name, HouseholdDraft::class, array_intersect_key($columns, array_flip(['Reference', 'Purok', 'Address', 'Residents', 'Status', 'Submitted By', 'Submitted At'])));
     }
 
     public function show(HouseholdDraft $householdDraft): View
@@ -162,6 +140,15 @@ class FieldDraftController extends Controller
         $roleNotificationService->notifyFieldDraftReviewed($householdDraft->fresh('submittedBy'), false, Auth::user());
 
         return back()->with('success', "Field draft {$householdDraft->draft_reference_code} has been rejected.");
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['purok', 'submittedBy', 'reviewedBy', 'approvedHousehold'])
+            ->withCount('residentDrafts')
+            ->latest()
+            ->orderByDesc('id');
     }
 
     private function filteredQuery(Request $request): Builder

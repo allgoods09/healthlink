@@ -10,10 +10,9 @@ use App\Models\AuditLog;
 use App\Models\Household;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
-use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
 use App\Support\SecretaryPipelineProcessor;
-use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,14 +26,7 @@ class UpdateRequestController extends Controller
 
     public function index(Request $request): View
     {
-        $updateRequests = $this->filteredQuery($request)
-            ->with([
-                'submittedBy.assignedPurok',
-                'reviewedBy',
-                'resident.household.purok',
-                'household.purok',
-            ])
-            ->latest()
+        $updateRequests = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -46,15 +38,7 @@ class UpdateRequestController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        $updateRequests = $this->filteredQuery($request)
-            ->with([
-                'submittedBy.assignedPurok',
-                'reviewedBy',
-                'resident.household.purok',
-                'household.purok',
-            ])
-            ->latest()
-            ->get();
+        $updateRequests = $this->listingQuery($request)->get();
 
         $columns = [
             'Subject Type' => fn (ProfileUpdateRequest $updateRequest) => $updateRequest->subject_label,
@@ -72,20 +56,7 @@ class UpdateRequestController extends Controller
             'Status' => $request->input('status'),
         ];
 
-        ExportAudit::log('secretary update requests', $format, [
-            'model_type' => ProfileUpdateRequest::class,
-            'record_count' => $updateRequests->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_update_requests_{$timestamp}.csv", $columns, $updateRequests),
-            'xlsx' => TabularExport::xlsx("secretary_update_requests_{$timestamp}.xlsx", 'Update Requests', $columns, $updateRequests),
-            'pdf' => TabularExport::pdf("secretary_update_requests_{$timestamp}.pdf", 'Secretary Correction Request Queue', $columns, $updateRequests, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Secretary Correction Request Queue', 'Verification Pipeline', 'secretary_update_requests', $columns, $updateRequests, $filters, $this->secretaryUser()->assignedBarangay?->name, ProfileUpdateRequest::class, array_intersect_key($columns, array_flip(['Subject Type', 'Subject', 'Submitted By', 'Status', 'Reason', 'Submitted At'])));
     }
 
     public function show(ProfileUpdateRequest $profileUpdateRequest): View
@@ -181,6 +152,14 @@ class UpdateRequestController extends Controller
         $roleNotificationService->notifyProfileUpdateReviewed($profileUpdateRequest->fresh('submittedBy'), false, Auth::user());
 
         return back()->with('success', "{$profileUpdateRequest->subject_label} correction request has been rejected.");
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['submittedBy.assignedPurok', 'reviewedBy', 'resident.household.purok', 'household.purok'])
+            ->latest()
+            ->orderByDesc('id');
     }
 
     private function filteredQuery(Request $request): Builder

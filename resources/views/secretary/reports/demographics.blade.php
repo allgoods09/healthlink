@@ -4,20 +4,6 @@
 @section('header', 'Local Demographic Export')
 @section('subheader', 'Generate filtered civil roster reports such as seniors in a specific purok, then export them as CSV, Excel, or PDF.')
 
-@section('actions')
-    <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.reports.demographics.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="inline-flex items-center rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
-            CSV
-        </a>
-        <a href="{{ route('secretary.reports.demographics.export', array_merge(request()->query(), ['format' => 'xlsx'])) }}" class="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-            Excel
-        </a>
-        <a href="{{ route('secretary.reports.demographics.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
-            PDF
-        </a>
-    </div>
-@endsection
-
 @section('content')
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-5">
@@ -127,9 +113,12 @@
     </div>
 
     <div class="mt-8 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h3 class="text-lg font-semibold text-slate-900">Purok Breakdown</h3>
-            <p class="text-sm text-slate-500">Filtered demographic density by purok under the current report view.</p>
+        <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">Purok Breakdown</h3>
+                <p class="text-sm text-slate-500">Filtered demographic density by purok under the current report view.</p>
+            </div>
+            <x-export-dropdown route="secretary.reports.demographics.export" dataset="Barangay Demographics by Purok" :parameters="['dataset' => 'breakdown']" />
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200">
@@ -168,9 +157,12 @@
     </div>
 
     <div class="mt-8 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h3 class="text-lg font-semibold text-slate-900">Filtered Roster</h3>
-            <p class="text-sm text-slate-500">Export-ready resident list based on the current demographic filter set.</p>
+        <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">Filtered Roster</h3>
+                <p class="text-sm text-slate-500">Export-ready resident list based on the current demographic filter set.</p>
+            </div>
+            <x-export-dropdown route="secretary.reports.demographics.export" dataset="Barangay Demographic Roster" :parameters="['dataset' => 'roster']" />
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200">

@@ -96,8 +96,9 @@
 
         <div class="space-y-6">
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Open Nutrition Flags</h3>
+                    <x-export-dropdown route="admin.oversight.nutrition.export" dataset="Open Nutrition Flags" :parameters="['dataset' => 'open-flags']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($openFlags as $flag)
@@ -113,8 +114,9 @@
             </div>
 
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Maternal Surveillance Snapshot</h3>
+                    <x-export-dropdown route="admin.oversight.nutrition.export" dataset="Maternal Surveillance Snapshot" :parameters="['dataset' => 'maternal-profiles']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($maternalProfiles as $profile)
@@ -133,8 +135,9 @@
 
     <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Campaign Periods</h3>
+                <x-export-dropdown route="admin.oversight.nutrition.export" dataset="Nutrition Campaign Periods" :parameters="['dataset' => 'campaigns']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($recentCampaigns as $campaign)
@@ -151,8 +154,9 @@
         </div>
 
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Feeding Programs</h3>
+                <x-export-dropdown route="admin.oversight.nutrition.export" dataset="Nutrition Feeding Programs" :parameters="['dataset' => 'feeding-programs']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($feedingPrograms as $program)
@@ -169,4 +173,3 @@
         </div>
     </div>
 @endsection
-

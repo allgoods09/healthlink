@@ -9,15 +9,6 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
-            CSV
-        </a>
-        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'xlsx'])) }}" class="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-            Excel
-        </a>
-        <a href="{{ route($routePrefix.'.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
-            PDF
-        </a>
         {{-- @if($canClearOld ?? true)
             <x-destructive-confirm-modal
                 :action="route($routePrefix.'.clear-old')"
@@ -95,6 +86,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown :route="$routePrefix.'.export'" :dataset="$routePrefix === 'admin.audit' ? 'Audit Trail Report' : 'Barangay Activity Feed'" />
         </div>
     </div>
 

@@ -97,8 +97,9 @@
 
         <div class="space-y-6">
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Pending Triage Queue</h3>
+                    <x-export-dropdown route="admin.oversight.clinical.export" dataset="Pending Triage Queue" :parameters="['dataset' => 'pending-triage']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($pendingTriages as $triage)
@@ -114,8 +115,9 @@
             </div>
 
             <div class="rounded-xl bg-white shadow-sm">
-                <div class="border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                     <h3 class="text-lg font-semibold text-gray-900">Active Escalations</h3>
+                    <x-export-dropdown route="admin.oversight.clinical.export" dataset="Active Escalations" :parameters="['dataset' => 'active-escalations']" />
                 </div>
                 <div class="divide-y divide-gray-200">
                     @forelse($activeEscalations as $encounter)
@@ -134,8 +136,9 @@
 
     <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Overdue Follow-Ups</h3>
+                <x-export-dropdown route="admin.oversight.clinical.export" dataset="Overdue Follow-Ups" :parameters="['dataset' => 'due-follow-ups']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($dueFollowUps as $encounter)
@@ -151,8 +154,9 @@
         </div>
 
         <div class="rounded-xl bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Recent MHO Reviews</h3>
+                <x-export-dropdown route="admin.oversight.clinical.export" dataset="Recent MHO Reviews" :parameters="['dataset' => 'mho-reviews']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($recentMhoReviews as $review)

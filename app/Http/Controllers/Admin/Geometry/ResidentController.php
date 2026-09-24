@@ -15,8 +15,8 @@ use App\Models\Resident;
 use App\Models\ResidentSocioEconomicProfile;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RbiTemplatePdfGenerator;
-use App\Support\TabularExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -35,10 +35,7 @@ class ResidentController extends Controller
     {
         Gate::authorize('viewAny', Resident::class);
 
-        $query = $this->filteredQuery($request);
-
-        $residents = $query->with(['household.purok.barangay', 'socioEconomicProfile'])
-            ->latest('last_name')
+        $residents = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -57,14 +54,9 @@ class ResidentController extends Controller
     {
         Gate::authorize('viewAny', Resident::class);
 
-        $residents = $this->filteredQuery($request)
-            ->with(['household.purok.barangay', 'socioEconomicProfile'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+        $residents = $this->listingQuery($request)->get();
 
         $columns = [
-            'PhilSys ID' => fn (Resident $resident) => $resident->philsys_card_no ?: 'N/A',
             'Resident' => fn (Resident $resident) => $resident->formal_name,
             'Sex' => 'sex',
             'Birth Date' => fn (Resident $resident) => optional($resident->birth_date)?->format('Y-m-d'),
@@ -86,6 +78,8 @@ class ResidentController extends Controller
             'Household' => Household::find($request->input('household_id'))?->household_no,
             'Sex' => $request->input('sex'),
             'Status' => $request->input('status'),
+            'Age Group' => $request->input('age_group'),
+            'Lifecycle' => $request->input('lifecycle') ?: 'Current',
             'Civil Status' => match ($request->input('resident_status')) {
                 Resident::STATUS_ACTIVE => 'Active Resident',
                 Resident::STATUS_DECEASED => 'Deceased',
@@ -94,18 +88,7 @@ class ResidentController extends Controller
             },
         ];
 
-        ExportAudit::log('resident registry', $format, [
-            'model_type' => Resident::class,
-            'record_count' => $residents->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv('residents.csv', $columns, $residents),
-            'xlsx' => TabularExport::xlsx('residents.xlsx', 'Residents', $columns, $residents),
-            'pdf' => TabularExport::pdf('residents.pdf', 'Resident Registry', $columns, $residents, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Resident Registry', 'Civil Registry', 'residents', $columns, $residents, $filters, 'Municipality-wide', Resident::class, array_intersect_key($columns, array_flip(['Resident', 'Sex', 'Age', 'Barangay', 'Purok', 'Household', 'Availability', 'Civil Status'])));
     }
 
     /**
@@ -358,6 +341,14 @@ class ResidentController extends Controller
     /**
      * Build the resident listing query.
      */
+    private function listingQuery(Request $request)
+    {
+        return $this->filteredQuery($request)
+            ->with(['household.purok.barangay', 'socioEconomicProfile'])
+            ->latest('last_name')
+            ->orderByDesc('id');
+    }
+
     private function filteredQuery(Request $request)
     {
         $query = Resident::query();

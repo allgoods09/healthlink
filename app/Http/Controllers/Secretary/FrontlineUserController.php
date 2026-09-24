@@ -5,11 +5,9 @@ namespace App\Http\Controllers\Secretary;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Secretary\Concerns\InteractsWithSecretaryScope;
 use App\Models\AuditLog;
-use App\Models\Purok;
 use App\Models\User;
-use App\Support\ExportAudit;
+use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
-use App\Support\TabularExport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,9 +25,7 @@ class FrontlineUserController extends Controller
     {
         Gate::authorize('viewAny', User::class);
 
-        $users = $this->filteredQuery($request)
-            ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay'])
-            ->latest()
+        $users = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -43,10 +39,7 @@ class FrontlineUserController extends Controller
     {
         Gate::authorize('viewAny', User::class);
 
-        $users = $this->filteredQuery($request)
-            ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay'])
-            ->latest()
-            ->get();
+        $users = $this->listingQuery($request)->get();
 
         $columns = [
             'Name' => 'display_name',
@@ -63,25 +56,12 @@ class FrontlineUserController extends Controller
         $filters = [
             'Search' => $request->string('search')->toString(),
             'Role' => $request->filled('role') ? strtoupper($request->string('role')->toString()) : null,
-            'Purok' => Purok::find($request->integer('purok_id'))?->display_name,
+            'Purok' => $this->secretaryPuroksQuery()->find($request->integer('purok_id'))?->display_name,
             'Approval' => $request->filled('approval_status') ? ucfirst($request->string('approval_status')->toString()) : null,
             'Status' => $request->filled('status') ? ucfirst($request->string('status')->toString()) : null,
         ];
 
-        ExportAudit::log('secretary frontline roster', $format, [
-            'model_type' => User::class,
-            'record_count' => $users->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_frontline_users_{$timestamp}.csv", $columns, $users),
-            'xlsx' => TabularExport::xlsx("secretary_frontline_users_{$timestamp}.xlsx", 'Frontline Users', $columns, $users),
-            'pdf' => TabularExport::pdf("secretary_frontline_users_{$timestamp}.pdf", 'Frontline User Roster', $columns, $users, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Frontline User Roster', 'Frontline Team', 'secretary_frontline_users', $columns, $users, $filters, $this->secretaryUser()->assignedBarangay?->name, User::class, array_intersect_key($columns, array_flip(['Name', 'Role', 'Assigned Barangay', 'Assigned Purok', 'Approval Status', 'Status', 'Joined'])));
     }
 
     public function create(): View
@@ -339,6 +319,14 @@ class FrontlineUserController extends Controller
         AuditLog::logMutation('updated', Auth::user(), $user, $oldValues, $user->fresh()->toArray());
 
         return back()->with('success', "{$user->name}'s email has been marked as verified.");
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay'])
+            ->latest()
+            ->orderByDesc('id');
     }
 
     private function filteredQuery(Request $request): Builder

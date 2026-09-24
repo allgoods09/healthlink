@@ -129,6 +129,7 @@ Route::middleware(['auth', 'no-cache'])->group(function () {
         ->controller(NotificationController::class)
         ->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::get('/export/{format}', 'export')->name('export');
             Route::post('/read-all', 'markAllRead')->name('read-all');
             Route::post('/{notificationId}/open', 'open')->name('open');
         });
@@ -151,6 +152,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{campaignPeriod}/edit', 'edit')->name('edit');
                 Route::put('/{campaignPeriod}', 'update')->name('update');
             });
@@ -181,6 +183,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{feedingProgram}', 'show')->name('show');
                 Route::get('/{feedingProgram}/edit', 'edit')->name('edit');
                 Route::put('/{feedingProgram}', 'update')->name('update');
@@ -195,6 +198,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
             ->controller(BnsMaternalTrackingController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::post('/profile', 'upsertProfile')->name('profile.store');
                 Route::get('/{resident}', 'show')->name('show');
                 Route::put('/{resident}/profile', 'upsertProfile')->name('profile.update');
@@ -209,6 +213,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
+                Route::get('/export/{format}', 'export')->name('export');
             });
     });
 
@@ -235,6 +240,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
             ->controller(BhwResidentController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{resident}', 'show')->name('show');
             });
 
@@ -243,6 +249,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
             ->controller(BhwHouseholdController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{household}', 'show')->name('show');
             });
 
@@ -253,6 +260,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{householdDraft}', 'show')->name('show');
                 Route::get('/{householdDraft}/edit', 'edit')->name('edit');
                 Route::put('/{householdDraft}', 'update')->name('update');
@@ -263,6 +271,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
             ->controller(BhwUpdateRequestController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/residents/create', 'createResident')->name('create-resident');
                 Route::post('/residents', 'storeResident')->name('store-resident');
                 Route::get('/households/create', 'createHousehold')->name('create-household');
@@ -277,6 +286,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{triageRecord}', 'show')->name('show');
                 Route::get('/{triageRecord}/edit', 'edit')->name('edit');
                 Route::put('/{triageRecord}', 'update')->name('update');
@@ -296,6 +306,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
             ->controller(BhwCampaignTaskController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{assignment}', 'show')->name('show');
                 Route::patch('/{assignment}', 'update')->name('update');
             });
@@ -498,6 +509,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:phn', 'no-cache'])
             ->controller(PhnFollowUpController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::patch('/{clinicalEncounter}', 'update')->name('update');
             });
 
@@ -506,6 +518,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:phn', 'no-cache'])
             ->controller(PhnResidentController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{resident}', 'show')->name('show');
             });
 
@@ -514,6 +527,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:phn', 'no-cache'])
             ->controller(PhnUpdateRequestController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/residents/create', 'createResident')->name('create-resident');
                 Route::post('/residents', 'storeResident')->name('store-resident');
                 Route::get('/households/create', 'createHousehold')->name('create-household');
@@ -557,6 +571,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:mho', 'no-cache'])
             ->controller(MhoResidentController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
+                Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{resident}', 'show')->name('show');
             });
     });
@@ -709,8 +724,11 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
          ->name('oversight.')
          ->group(function () {
             Route::get('/field-operations', FieldOperationsMonitorController::class)->name('field');
+            Route::get('/field-operations/export/{dataset}/{format}', [FieldOperationsMonitorController::class, 'export'])->name('field.export');
             Route::get('/nutrition', NutritionOversightController::class)->name('nutrition');
+            Route::get('/nutrition/export/{dataset}/{format}', [NutritionOversightController::class, 'export'])->name('nutrition.export');
             Route::get('/clinical', ClinicalOversightController::class)->name('clinical');
+            Route::get('/clinical/export/{dataset}/{format}', [ClinicalOversightController::class, 'export'])->name('clinical.export');
          });
 
     Route::prefix('reports')
@@ -792,6 +810,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
          ->controller(BackupController::class)
          ->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::get('/export/{format}', 'export')->name('export');
             Route::post('/generate', 'generate')->name('generate');
             Route::get('/{backup}', 'show')->name('show');
             Route::post('/{backup}/verify', 'verify')->name('verify');
@@ -806,6 +825,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
          ->controller(DataArchiveController::class)
          ->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::get('/export/{format}', 'export')->name('export');
             Route::get('/create', 'create')->name('create');
             Route::get('/search', 'search')->name('search');
             Route::post('/', 'store')->name('store');

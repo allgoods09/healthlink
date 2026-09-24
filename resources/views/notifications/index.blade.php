@@ -31,6 +31,7 @@
         >
             Unread Only
         </a>
+        <x-export-dropdown route="notifications.export" dataset="My Notifications" />
     </div>
 
     <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">

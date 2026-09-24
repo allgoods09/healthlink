@@ -51,6 +51,9 @@
                     <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Search</button>
                     <a href="{{ route($routePrefix.'.devices.index') }}" class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">Reset</a>
                 </form>
+                @if($routePrefix === 'admin')
+                    <x-export-dropdown route="admin.devices.export" dataset="Mobile Device Inventory" />
+                @endif
             </div>
         </div>
 

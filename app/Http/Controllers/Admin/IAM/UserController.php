@@ -8,8 +8,7 @@ use App\Http\Requests\Admin\IAM\UserUpdateRequest;
 use App\Models\Barangay;
 use App\Models\Purok;
 use App\Models\User;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -25,9 +24,7 @@ class UserController extends Controller
     {
         Gate::authorize('viewAny', User::class);
 
-        $users = $this->filteredQuery($request)
-                       ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay', 'requestedPurok'])
-                       ->latest()
+        $users = $this->listingQuery($request)
                        ->paginate(15)
                        ->withQueryString();
 
@@ -61,10 +58,7 @@ class UserController extends Controller
     {
         Gate::authorize('viewAny', User::class);
 
-        $users = $this->filteredQuery($request)
-            ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay', 'requestedPurok'])
-            ->latest()
-            ->get();
+        $users = $this->listingQuery($request)->get();
 
         $columns = [
             'Name' => 'display_name',
@@ -91,20 +85,7 @@ class UserController extends Controller
             'Lifecycle' => $request->filled('lifecycle') ? ucfirst($request->lifecycle) : 'Current',
         ];
 
-        $timestamp = now()->format('Y-m-d_His');
-
-        ExportAudit::log('user registry', $format, [
-            'model_type' => User::class,
-            'record_count' => $users->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("users_{$timestamp}.csv", $columns, $users),
-            'xlsx' => TabularExport::xlsx("users_{$timestamp}.xlsx", 'Users', $columns, $users),
-            'pdf' => TabularExport::pdf("users_{$timestamp}.pdf", 'User Management Report', $columns, $users, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'User Management Report', 'User Management', 'users', $columns, $users, $filters, 'Municipality-wide', User::class, array_intersect_key($columns, array_flip(['Name', 'Role', 'Approval Queue', 'Assignment', 'Approval', 'Status', 'Joined'])));
     }
 
     /**
@@ -289,6 +270,14 @@ class UserController extends Controller
     /**
      * Build the filtered user query for listings and exports.
      */
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['assignedBarangay', 'assignedPurok', 'requestedBarangay', 'requestedPurok'])
+            ->latest()
+            ->orderByDesc('id');
+    }
+
     private function filteredQuery(Request $request): Builder
     {
         $query = User::query();

@@ -75,6 +75,7 @@
                     </a>
                 </div>
             </form>
+            <x-export-dropdown route="bns.watchlist.export" dataset="Target Client List / Malnutrition Watchlist" />
         </div>
     </div>
 

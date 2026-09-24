@@ -8,10 +8,12 @@ use App\Models\Barangay;
 use App\Models\ClinicalEncounter;
 use App\Models\Purok;
 use App\Models\Resident;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class ResidentController extends Controller
 {
@@ -21,14 +23,7 @@ class ResidentController extends Controller
     {
         Gate::authorize('viewAny', Resident::class);
 
-        $residents = $this->filteredQuery($request)
-            ->with([
-                'household.purok.barangay',
-                'socioEconomicProfile',
-                'latestOptMeasurement.campaignPeriod',
-            ])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+        $residents = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -64,6 +59,41 @@ class ResidentController extends Controller
             'latestTriage' => $resident->triageRecords->first(),
             'latestPhilpenAssessment' => $resident->latestPhilpenRiskAssessment,
         ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        Gate::authorize('viewAny', Resident::class);
+
+        $columns = [
+            'Resident Code' => 'official_resident_code',
+            'Resident' => fn (Resident $resident) => $resident->formal_name,
+            'Sex' => 'sex',
+            'Age' => 'age',
+            'Barangay' => fn (Resident $resident) => $resident->household?->purok?->barangay?->name,
+            'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
+            'Household' => fn (Resident $resident) => $resident->household?->household_no,
+            'Residency Status' => fn (Resident $resident) => $resident->resident_status_label,
+        ];
+        $filters = [
+            'Search' => $request->input('search'),
+            'Barangay' => $this->phnBarangaysQuery()->find($request->integer('barangay_id'))?->name,
+            'Purok' => $this->phnPuroksQuery()->find($request->integer('purok_id'))?->display_name,
+            'Sex' => $request->input('sex'),
+            'Residency Status' => $request->input('resident_status'),
+            'Availability' => $request->input('is_active'),
+        ];
+
+        return ExportDownload::make($format, 'PHN Residents Directory', 'Clinical', 'phn_residents', $columns, $this->listingQuery($request)->get(), $filters, 'Municipality-wide', Resident::class);
+    }
+
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->with(['household.purok.barangay', 'socioEconomicProfile', 'latestOptMeasurement.campaignPeriod'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('id');
     }
 
     private function filteredQuery(Request $request): Builder

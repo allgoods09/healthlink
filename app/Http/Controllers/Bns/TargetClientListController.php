@@ -6,12 +6,11 @@ use App\Http\Controllers\Bns\Concerns\InteractsWithBnsScope;
 use App\Http\Controllers\Controller;
 use App\Models\NutritionCampaignPeriod;
 use App\Models\OptMeasurement;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class TargetClientListController extends Controller
 {
@@ -44,7 +43,6 @@ class TargetClientListController extends Controller
     public function export(Request $request, string $format): Response
     {
         $watchlist = $this->watchlistQuery($request)->get();
-        $timestamp = now()->format('Ymd_His');
         $columns = [
             'Resident Code' => fn (OptMeasurement $measurement) => $measurement->resident?->official_resident_code,
             'Resident' => fn (OptMeasurement $measurement) => $measurement->resident?->formal_name,
@@ -65,17 +63,7 @@ class TargetClientListController extends Controller
             'Purok' => optional($this->bnsPuroksQuery()->find($request->integer('purok_id')))->display_name,
         ];
 
-        ExportAudit::log('bns target client list', $format, [
-            'barangay_id' => $this->assignedBarangayId(),
-            'record_count' => $watchlist->count(),
-        ]);
-
-        return match ($format) {
-            'csv' => TabularExport::csv("bns_target_client_list_{$timestamp}.csv", $columns, $watchlist),
-            'xlsx' => TabularExport::xlsx("bns_target_client_list_{$timestamp}.xlsx", 'Target Client List', $columns, $watchlist),
-            'pdf' => TabularExport::pdf("bns_target_client_list_{$timestamp}.pdf", 'Target Client List / Malnutrition Watchlist', $columns, $watchlist, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Target Client List / Malnutrition Watchlist', 'Nutrition', 'bns_target_client_list', $columns, $watchlist, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client Reasons'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
     }
 
     private function watchlistQuery(Request $request): Builder

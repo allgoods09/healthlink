@@ -9,8 +9,7 @@ use App\Http\Requests\Admin\Geometry\PurokUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\Barangay;
 use App\Models\Purok;
-use App\Support\ExportAudit;
-use App\Support\TabularExport;
+use App\Support\ExportDownload;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,9 +26,7 @@ class PurokController extends Controller
     {
         Gate::authorize('viewAny', Purok::class);
 
-        $puroks = $this->filteredQuery($request)
-            ->withCount(['households', 'assignedUsers'])
-            ->orderBy('purok_number')
+        $puroks = $this->listingQuery($request)
             ->paginate(15)
             ->withQueryString();
 
@@ -49,10 +46,7 @@ class PurokController extends Controller
     {
         Gate::authorize('viewAny', Purok::class);
 
-        $puroks = $this->filteredQuery($request)
-            ->withCount(['households', 'assignedUsers'])
-            ->orderBy('purok_number')
-            ->get();
+        $puroks = $this->listingQuery($request)->get();
 
         $columns = [
             'Purok' => fn (Purok $purok) => $purok->display_name,
@@ -66,22 +60,10 @@ class PurokController extends Controller
             'Search' => $request->string('search')->toString(),
             'Barangay' => $this->secretaryUser()->assignedBarangay?->name,
             'Status' => $request->filled('status') ? ucfirst($request->status) : null,
+            'Lifecycle' => $request->input('lifecycle') ?: 'Current',
         ];
 
-        ExportAudit::log('secretary purok registry', $format, [
-            'model_type' => Purok::class,
-            'record_count' => $puroks->count(),
-            'filters' => array_filter($filters),
-        ]);
-
-        $timestamp = now()->format('Y-m-d_His');
-
-        return match ($format) {
-            'csv' => TabularExport::csv("secretary_puroks_{$timestamp}.csv", $columns, $puroks),
-            'xlsx' => TabularExport::xlsx("secretary_puroks_{$timestamp}.xlsx", 'Secretary Puroks', $columns, $puroks),
-            'pdf' => TabularExport::pdf("secretary_puroks_{$timestamp}.pdf", 'Barangay Purok Registry', $columns, $puroks, $filters),
-            default => abort(404),
-        };
+        return ExportDownload::make($format, 'Barangay Purok Registry', 'Civil Registry', 'secretary_puroks', $columns, $puroks, $filters, $this->secretaryUser()->assignedBarangay?->name, Purok::class);
     }
 
     public function create(): View
@@ -198,9 +180,23 @@ class PurokController extends Controller
         );
     }
 
+    private function listingQuery(Request $request): Builder
+    {
+        return $this->filteredQuery($request)
+            ->withCount(['households', 'assignedUsers'])
+            ->orderBy('purok_number')
+            ->orderBy('id');
+    }
+
     private function filteredQuery(Request $request): Builder
     {
         $query = $this->secretaryPuroksQuery();
+
+        if ($request->input('lifecycle') === 'all') {
+            $query->withTrashed();
+        } elseif ($request->input('lifecycle') === 'deleted') {
+            $query->onlyTrashed();
+        }
 
         if ($request->filled('status')) {
             $query->where('is_active', $request->input('status') === 'active');

@@ -46,13 +46,23 @@
         tr:nth-child(even) td {
             background: #f9fafb;
         }
+
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        td { overflow-wrap: anywhere; }
     </style>
 </head>
 <body>
     <h1>{{ $title }}</h1>
-    <div class="meta">
-        Generated at {{ $generatedAt->format('F j, Y g:i A') }}
-    </div>
+    @if(!empty($information))
+        <div class="meta">
+            @foreach($information as $label => $value)
+                <div><strong>{{ $label }}:</strong> {{ $value }}</div>
+            @endforeach
+        </div>
+    @else
+        <div class="meta">Generated at {{ $generatedAt->format('F j, Y g:i A') }}</div>
+    @endif
 
     @if(!empty($filters))
         <div class="filters">
