@@ -25,6 +25,13 @@ class BnsNutritionWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Exercise retained maintenance compatibility, not the normal user-facing workflow.
+        config(['opt.legacy_writes_enabled' => true]);
+    }
+
     public function test_bns_can_create_campaign_period_and_only_one_active_period_per_type_is_allowed(): void
     {
         [$bns, $barangay] = $this->bnsContext();
@@ -57,7 +64,7 @@ class BnsNutritionWorkflowTest extends TestCase
         $duplicateResponse->assertSessionHasErrors('is_active');
     }
 
-    public function test_bns_can_log_opt_measurement_with_who_statuses_and_close_open_flag(): void
+    public function test_legacy_measurement_retains_reference_statuses_without_implicitly_closing_flag(): void
     {
         [$bns, $barangay, $purok] = $this->bnsContext();
         $campaignPeriod = NutritionCampaignPeriod::query()->create([
@@ -110,9 +117,9 @@ class BnsNutritionWorkflowTest extends TestCase
         $this->assertSame('Stunted', $measurement->height_for_age_status);
         $this->assertSame('Severely Wasted', $measurement->weight_for_length_height_status);
         $this->assertTrue($measurement->is_target_client);
-        $this->assertSame(ChildNutritionAssessmentFlag::STATUS_CLOSED, $flag->flag_status);
-        $this->assertSame($measurement->id, $flag->resolved_measurement_id);
-        $this->assertSame($bns->id, $flag->closed_by_user_id);
+        $this->assertSame(ChildNutritionAssessmentFlag::STATUS_OPEN, $flag->flag_status);
+        $this->assertNull($flag->resolved_measurement_id);
+        $this->assertNull($flag->closed_by_user_id);
     }
 
     public function test_bns_blocks_duplicate_opt_measurement_for_same_child_date_and_campaign(): void
@@ -340,8 +347,8 @@ class BnsNutritionWorkflowTest extends TestCase
             'id' => $enrollment->id,
             'feeding_program_id' => $feedingProgram->id,
             'resident_id' => $child->id,
-            'baseline_weight_kg' => 10.40,
-            'baseline_nutritional_status' => 'Wasted',
+            'baseline_weight_kg' => null,
+            'baseline_nutritional_status' => null,
             'is_active' => true,
         ]);
 

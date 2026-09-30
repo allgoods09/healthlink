@@ -81,7 +81,7 @@ class CampaignPeriodController extends Controller
     public function create(): View
     {
         return view('bns.campaign-periods.create', [
-            'campaignTypes' => NutritionCampaignPeriod::TYPES,
+            'campaignTypes' => config('opt.legacy_writes_enabled') ? NutritionCampaignPeriod::TYPES : array_diff_key(NutritionCampaignPeriod::TYPES, [NutritionCampaignPeriod::TYPE_OPT_PLUS => true]),
         ]);
     }
 
@@ -104,6 +104,7 @@ class CampaignPeriodController extends Controller
     public function edit(NutritionCampaignPeriod $campaignPeriod): View
     {
         $this->ensureCampaignPeriodBelongsToBarangay($campaignPeriod);
+        abort_if($campaignPeriod->campaign_type === NutritionCampaignPeriod::TYPE_OPT_PLUS && ! config('opt.legacy_writes_enabled'), 410, 'Legacy OPT campaigns are read-only.');
 
         return view('bns.campaign-periods.edit', [
             'campaignPeriod' => $campaignPeriod,

@@ -254,7 +254,7 @@ Importance Level:	High
 Primary Actor:	BHW
 Use Case Type:	Essential, Detailed
 Scenario:	During community work, a BHW identifies a child who should receive a formal nutrition assessment from the BNS.
-Brief Description:	This use case creates an open nutrition referral with the BHW's stated reason. The referral remains visible to the BNS until an official OPT+ measurement is recorded and linked as its resolution.
+Brief Description:	This use case creates an open nutrition referral with the BHW's stated reason. It remains visible until the BNS explicitly reviews and resolves that specific flag with a resolution note. Recording an OPT+ measurement alone does not close referrals.
 Trigger:	The BHW selects Flag for Nutrition Assessment for an eligible child.
 Normal Flow of Events:
 1. The BHW selects an eligible child from the accessible resident records.
@@ -262,7 +262,7 @@ Normal Flow of Events:
 3. The BHW records the reason for requesting assessment and submits the referral.
 4. The system creates an open flag with the submitting BHW, time, and barangay scope.
 5. The system notifies the assigned BNS and displays the child among open referrals on the BNS dashboard.
-6. When the BNS records the corresponding official OPT+ measurement, the system stores the resolver and measurement, records closed_at, and changes the referral to closed.
+6. After reviewing the flag, the BNS explicitly records a resolution note. The system stores the resolver and closed_at and closes only the selected flag; an appropriate accessible measurement may be linked as supporting information.
 Sub Flows:	The BHW may review the referral later to see whether it is still open or has already been resolved.
 Alternative/Exceptional Flows:	The system may block another open referral for the same child when one already requires action. This referral action does not authorize the BHW to enter an official OPT+ measurement.
 
@@ -373,25 +373,25 @@ Normal Flow of Events:
 7. The file is returned to the Secretary, and the export event is added to the audit trail.
 Alternative/Exceptional Flows:	If no records match the request or the selected format is unsupported, the system does not create a misleading or invalid output file.
 
-Use Case Name:	BNS OPT+ Campaign and Growth Assessment
+Use Case Name:	BNS OPT+ Cycles and Measurement Records
 ID:	UC-21
 Importance Level:	High
 Primary Actor:	BNS
 Use Case Type:	Essential, Detailed
-Scenario:	A BNS records the growth measurements of an eligible child during an authorized OPT+ campaign period.
-Brief Description:	This use case preserves each measurement as part of the child's nutrition history and derives applicable status classifications from the available WHO references. The latest result also supports the BNS watchlist and may resolve an open BHW referral.
-Trigger:	The BNS selects Record Measurement within an OPT+ campaign.
+Scenario:	A BNS creates a January or July OPT+ cycle for the assigned barangay and records new measurements against its captured eligible-child masterlist.
+Brief Description:	HealthLink reuses registered child and household information to remove repeated demographic encoding. Each cycle preserves its eligible roster and demographic snapshots, while the BNS adds measurement date, weight, height/length and posture. Internal growth classifications remain reference information; the eventual official workbook will calculate its own official results.
+Trigger:	The BNS opens OPT+ and creates or selects a cycle.
 Normal Flow of Events:
-1. The BNS creates or selects an OPT+ period belonging to the assigned barangay.
-2. The BNS searches for and selects a verified child who is eligible for measurement in that period.
-3. The BNS records the measurement date, weight, height or length, measurement posture, and relevant remarks.
-4. The system validates the values, calculates the child's age in months, and retrieves the applicable reference coverage.
-5. The system calculates the supported weight-for-age, height-for-age, and weight-for-length or height z-scores and corresponding statuses.
-6. A new OptMeasurement is stored without replacing the child's earlier measurement history.
-7. The system updates the latest-status watchlist and closes a matching open BHW referral by linking it to the measurement.
-8. The BNS may include the authorized campaign results in an audited CSV, XLSX, or PDF export.
-Sub Flows:	The BNS may update permitted campaign details or status. Watchlist decisions use the child's latest available measurement while prior measurements remain in history.
-Alternative/Exceptional Flows:	The system rejects a duplicate child-campaign-date entry, an age outside 0-71 months, multiple active periods of the same type, or a measurement for which reference coverage is unavailable. It does not guess a nutrition classification.
+1. The BNS selects the year, January/July round and a fixed reference date; the cycle title is generated automatically.
+2. The system atomically captures active verified barangay children born on or before that reference date who have not reached their fifth birthday. Entries initially appear as Unmeasured.
+3. The BNS searches or filters the captured masterlist and opens a child's entry. Existing demographic information is displayed without requiring repeat entry.
+4. The BNS records the measurement date, weight, height or length, posture and optional remarks.
+5. The system validates and retains raw measurements in OptMeasurement, linked to the cycle entry. The child becomes Measured independently of demographic readiness.
+6. Internal WHO-reference classifications are calculated when available. An unavailable internal assessment is recorded without discarding otherwise valid measurements.
+7. The BNS explicitly completes the cycle. Completion with unmeasured children requires confirmation and a note, and the completed cycle becomes read-only.
+8. The BNS may export the complete or explicitly filtered Internal OPT+ Dataset as CSV, XLSX or PDF. This is not the official e-OPT submission workbook; template integration remains pending the accepted official .xlsx.
+Sub Flows:	The BNS can correct active-cycle measurements with auditing, confirm a reusable caregiver/IP profile, or explicitly correct that cycle's caregiver/IP snapshot with a reason. A completed cycle can be reopened with an audit reason; its identity and reference date remain fixed.
+Alternative/Exceptional Flows:	Duplicate barangay-year-round cycles and unauthorized access are blocked. Current profile edits, birthdays, moves and registrations do not silently recapture a roster. Ambiguous legacy campaigns remain history rather than being mapped to invented rounds.
 
 Use Case Name:	BNS Feeding Program Management
 ID:	UC-22
@@ -403,13 +403,13 @@ Brief Description:	This use case connects a scoped feeding program with verified
 Trigger:	The BNS creates a feeding program or opens an existing program in the assigned barangay.
 Normal Flow of Events:
 1. The BNS records the program name, schedule, scope, status, and other required program details.
-2. The BNS selects an eligible verified child from the nutrition watchlist or through the permitted manual enrollment process.
+2. The BNS selects an eligible verified child using the feeding module's separate 0-71 month policy. An OPT measurement or watchlist classification is not required.
 3. The system validates the child and creates an enrollment linked to the program.
 4. On feeding dates, the BNS records the child's attendance according to the available attendance options.
 5. At appropriate intervals, the BNS adds weight or progress information and notes relevant observations.
 6. The BNS updates the enrollment or program status as participation and implementation change.
 7. The system preserves earlier attendance and progress entries rather than replacing the program history.
-Sub Flows:	A borderline child or another child found eligible during field work may be enrolled manually after the BNS confirms the verified resident and program scope.
+Sub Flows:	The BNS may explicitly copy a dated accessible OPT reference into a feeding baseline instead of entering manual values. The system retains its source and copied values; no silent OPT baseline copying occurs.
 Alternative/Exceptional Flows:	The system rejects a child from another barangay and any enrollment, attendance, or progress entry that is incomplete, inconsistent, or unrelated to the selected program.
 
 Use Case Name:	Maternal, Infant Feeding, and Micronutrient Surveillance

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\ArchivedRecord;
-use App\Models\AuditLog;
 use App\Models\Barangay;
 use App\Models\Household;
 use App\Models\Purok;
@@ -170,7 +169,7 @@ class AdminWorkflowRegressionTest extends TestCase
         $response->assertOk();
         $this->assertDatabaseHas('audit_logs', [
             'event_type' => 'exported',
-            'event_description' => 'Exported user registry as CSV',
+            'event_description' => 'Exported User Management Report as CSV',
         ]);
     }
 }

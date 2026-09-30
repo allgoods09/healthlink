@@ -16,7 +16,7 @@ class StoreCampaignPeriodRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'campaign_type' => ['required', 'string', 'in:' . implode(',', array_keys(NutritionCampaignPeriod::TYPES))],
+            'campaign_type' => ['required', 'string', 'in:'.implode(',', array_keys(NutritionCampaignPeriod::TYPES))],
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'is_active' => ['nullable', 'boolean'],
@@ -27,6 +27,9 @@ class StoreCampaignPeriodRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator): void {
+            if ($this->input('campaign_type') === NutritionCampaignPeriod::TYPE_OPT_PLUS && ! config('opt.legacy_writes_enabled')) {
+                $validator->errors()->add('campaign_type', 'Create an OPT+ cycle instead of a generic OPT campaign.');
+            }
             if (! $this->boolean('is_active')) {
                 return;
             }

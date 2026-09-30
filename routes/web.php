@@ -17,18 +17,11 @@ use App\Http\Controllers\Admin\Mobile\MobileReleaseController;
 use App\Http\Controllers\Admin\Oversight\ClinicalOversightController;
 use App\Http\Controllers\Admin\Oversight\FieldOperationsMonitorController;
 use App\Http\Controllers\Admin\Oversight\NutritionOversightController;
-use App\Http\Controllers\Admin\Reports\MunicipalReportController;
 use App\Http\Controllers\Admin\RateLimitController;
+use App\Http\Controllers\Admin\Reports\MunicipalReportController;
 use App\Http\Controllers\Admin\Security\AuditTrailController;
 use App\Http\Controllers\Admin\Security\MobileDeviceController;
 use App\Http\Controllers\Admin\Security\SyncLogController;
-use App\Http\Controllers\Bns\CampaignPeriodController as BnsCampaignPeriodController;
-use App\Http\Controllers\Bns\DashboardController as BnsDashboardController;
-use App\Http\Controllers\Bns\FeedingProgramController as BnsFeedingProgramController;
-use App\Http\Controllers\Bns\MaternalTrackingController as BnsMaternalTrackingController;
-use App\Http\Controllers\Bns\MicronutrientLogController as BnsMicronutrientLogController;
-use App\Http\Controllers\Bns\OptMeasurementController as BnsOptMeasurementController;
-use App\Http\Controllers\Bns\TargetClientListController as BnsTargetClientListController;
 use App\Http\Controllers\Bhw\CampaignTaskController as BhwCampaignTaskController;
 use App\Http\Controllers\Bhw\DashboardController as BhwDashboardController;
 use App\Http\Controllers\Bhw\HouseholdController as BhwHouseholdController;
@@ -38,18 +31,26 @@ use App\Http\Controllers\Bhw\NutritionFlagController as BhwNutritionFlagControll
 use App\Http\Controllers\Bhw\ResidentController as BhwResidentController;
 use App\Http\Controllers\Bhw\TriageController as BhwTriageController;
 use App\Http\Controllers\Bhw\UpdateRequestController as BhwUpdateRequestController;
+use App\Http\Controllers\Bns\CampaignPeriodController as BnsCampaignPeriodController;
+use App\Http\Controllers\Bns\DashboardController as BnsDashboardController;
+use App\Http\Controllers\Bns\FeedingProgramController as BnsFeedingProgramController;
+use App\Http\Controllers\Bns\MaternalTrackingController as BnsMaternalTrackingController;
+use App\Http\Controllers\Bns\MicronutrientLogController as BnsMicronutrientLogController;
+use App\Http\Controllers\Bns\OptCycleController;
+use App\Http\Controllers\Bns\OptMeasurementController as BnsOptMeasurementController;
+use App\Http\Controllers\Bns\TargetClientListController as BnsTargetClientListController;
 use App\Http\Controllers\Mho\ClinicalReviewController as MhoClinicalReviewController;
 use App\Http\Controllers\Mho\DashboardController as MhoDashboardController;
 use App\Http\Controllers\Mho\EscalationController as MhoEscalationController;
 use App\Http\Controllers\Mho\ResidentController as MhoResidentController;
+use App\Http\Controllers\Mobile\BhwReleaseController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Phn\ClinicalEncounterController as PhnClinicalEncounterController;
 use App\Http\Controllers\Phn\DashboardController as PhnDashboardController;
 use App\Http\Controllers\Phn\FollowUpController as PhnFollowUpController;
 use App\Http\Controllers\Phn\ResidentController as PhnResidentController;
 use App\Http\Controllers\Phn\TriageQueueController as PhnTriageQueueController;
 use App\Http\Controllers\Phn\UpdateRequestController as PhnUpdateRequestController;
-use App\Http\Controllers\Mobile\BhwReleaseController;
-use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Secretary\ActivityFeedController as SecretaryActivityFeedController;
 use App\Http\Controllers\Secretary\CertificateController as SecretaryCertificateController;
@@ -64,6 +65,8 @@ use App\Http\Controllers\Secretary\ResidentController as SecretaryResidentContro
 use App\Http\Controllers\Secretary\TriageQueueController as SecretaryTriageQueueController;
 use App\Http\Controllers\Secretary\UpdateRequestController as SecretaryUpdateRequestController;
 use App\Http\Controllers\Secretary\UserPasswordController as SecretaryUserPasswordController;
+use App\Http\Middleware\EnsureLegacyOptWritesEnabled;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 // =============================================
@@ -92,7 +95,7 @@ Route::get('/dashboard', function () {
             return redirect()->route('verification.notice');
         }
 
-        if ($user->approval_status === \App\Models\User::APPROVAL_PENDING) {
+        if ($user->approval_status === User::APPROVAL_PENDING) {
             return redirect()->route('registration.pending');
         }
 
@@ -145,6 +148,22 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
     ->group(function () {
         Route::get('/dashboard', BnsDashboardController::class)->name('dashboard');
 
+        Route::prefix('opt-cycles')->name('opt-cycles.')->controller(OptCycleController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/export/{format}', 'exportHistory')->name('export-history');
+            Route::get('/{optCycle}', 'show')->name('show');
+            Route::get('/{optCycle}/export/{format}', 'export')->name('export');
+            Route::post('/{optCycle}/complete', 'complete')->name('complete');
+            Route::post('/{optCycle}/reopen', 'reopen')->name('reopen');
+            Route::get('/{optCycle}/entries/{entry}', 'entry')->name('entry');
+            Route::get('/{optCycle}/entries/{entry}/historical-information', 'historicalInformation')->name('historical-information');
+            Route::put('/{optCycle}/entries/{entry}/historical-information', 'correctHistoricalInformation')->name('historical-information.update');
+            Route::put('/{optCycle}/entries/{entry}/measurement', 'measure')->name('measure');
+            Route::put('/{optCycle}/entries/{entry}/caregiver', 'caregiver')->name('caregiver');
+        });
+
         Route::prefix('campaign-periods')
             ->name('campaign-periods.')
             ->controller(BnsCampaignPeriodController::class)
@@ -163,7 +182,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
             ->group(function () {
                 Route::get('/', 'index')->name('index');
                 Route::get('/create', 'create')->name('create');
-                Route::post('/', 'store')->name('store');
+                Route::post('/', 'store')->middleware(EnsureLegacyOptWritesEnabled::class)->name('store');
                 Route::get('/export/{format}', 'export')->name('export');
                 Route::get('/{optMeasurement}', 'show')->name('show');
             });
@@ -174,6 +193,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:bns', 'no-cache'])
             ->group(function () {
                 Route::get('/', 'index')->name('index');
                 Route::get('/export/{format}', 'export')->name('export');
+                Route::post('/flags/{flag}/resolve', 'resolve')->name('resolve');
             });
 
         Route::prefix('feeding-programs')

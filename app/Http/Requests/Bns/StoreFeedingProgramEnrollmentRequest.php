@@ -4,7 +4,6 @@ namespace App\Http\Requests\Bns;
 
 use App\Models\FeedingProgram;
 use App\Models\FeedingProgramEnrollment;
-use App\Models\OptMeasurement;
 use App\Models\Resident;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,6 +22,7 @@ class StoreFeedingProgramEnrollmentRequest extends FormRequest
             'enrolled_on' => ['required', 'date', 'before_or_equal:today'],
             'baseline_weight_kg' => ['nullable', 'numeric', 'min:0.5', 'max:60'],
             'baseline_nutritional_status' => ['nullable', 'string', 'max:255'],
+            'use_latest_opt_baseline' => ['nullable', 'boolean'],
             'completion_notes' => ['nullable', 'string', 'max:1500'],
         ];
     }
@@ -40,11 +40,13 @@ class StoreFeedingProgramEnrollmentRequest extends FormRequest
 
             if (! $resident || (int) $resident->household?->purok?->barangay_id !== (int) $this->user()->assigned_barangay_id) {
                 $validator->errors()->add('resident_id', 'Select a verified resident from your assigned barangay.');
+
                 return;
             }
 
             if (! $resident->birth_date) {
                 $validator->errors()->add('resident_id', 'This resident is missing a birth date and cannot be enrolled yet.');
+
                 return;
             }
 

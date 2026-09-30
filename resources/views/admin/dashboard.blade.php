@@ -81,12 +81,13 @@
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-tubigon/70">Nutrition Oversight</p>
                     <h3 class="mt-2 text-lg font-semibold text-gray-900">OPT+, Feeding, Maternal Tracking</h3>
+                    <p class="mt-2 text-xs text-gray-500">Latest captured cycles: {{ $optCycleSummary['measured'] }} / {{ $optCycleSummary['eligible'] }} measured, {{ $optCycleSummary['unmeasured'] }} unmeasured ({{ $optCycleSummary['coverage'] }}%).</p>
                 </div>
                 <a href="{{ route('admin.oversight.nutrition') }}" class="text-sm font-medium text-tubigon hover:text-tubigon-hover">Open</a>
             </div>
             <div class="mt-5 grid grid-cols-2 gap-4">
                 <div class="rounded-lg bg-slate-50 px-4 py-4">
-                    <p class="text-sm text-gray-500">OPT+ Campaigns</p>
+                    <p class="text-sm text-gray-500">OPT+ Cycles In Progress</p>
                     <p class="mt-2 text-2xl font-semibold text-gray-900">{{ number_format($activeOptCampaignCount) }}</p>
                 </div>
                 <div class="rounded-lg bg-slate-50 px-4 py-4">

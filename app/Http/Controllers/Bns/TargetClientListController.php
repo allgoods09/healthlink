@@ -4,17 +4,39 @@ namespace App\Http\Controllers\Bns;
 
 use App\Http\Controllers\Bns\Concerns\InteractsWithBnsScope;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
+use App\Models\ChildNutritionAssessmentFlag;
 use App\Models\NutritionCampaignPeriod;
 use App\Models\OptMeasurement;
 use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
 class TargetClientListController extends Controller
 {
     use InteractsWithBnsScope;
+
+    public function resolve(Request $request, ChildNutritionAssessmentFlag $flag)
+    {
+        $this->ensureAssessmentFlagBelongsToBarangay($flag);
+        $data = $request->validate(['resolution_note' => ['required', 'string', 'max:1500'], 'resolved_measurement_id' => ['nullable', 'integer']]);
+        DB::transaction(function () use ($request, $flag, $data): void {
+            $flag = ChildNutritionAssessmentFlag::query()->lockForUpdate()->findOrFail($flag->id);
+            abort_unless($flag->flag_status === ChildNutritionAssessmentFlag::STATUS_OPEN, 409);
+            $measurement = empty($data['resolved_measurement_id']) ? null : $this->bnsOptMeasurementsQuery()
+                ->where('resident_id', $flag->resident_id)->findOrFail($data['resolved_measurement_id']);
+            $old = $flag->toArray();
+            $flag->update(['flag_status' => ChildNutritionAssessmentFlag::STATUS_CLOSED, 'closed_at' => now(),
+                'closed_by_user_id' => $request->user()->id, 'resolved_measurement_id' => $measurement?->id,
+                'resolution_note' => $data['resolution_note']]);
+            AuditLog::logMutation('updated', $request->user(), $flag, $old, $flag->toArray());
+        });
+
+        return back()->with('success', 'Selected nutrition flag explicitly resolved. Other flags were not changed.');
+    }
 
     public function index(Request $request): View
     {
@@ -63,7 +85,7 @@ class TargetClientListController extends Controller
             'Purok' => optional($this->bnsPuroksQuery()->find($request->integer('purok_id')))->display_name,
         ];
 
-        return ExportDownload::make($format, 'Target Client List / Malnutrition Watchlist', 'Nutrition', 'bns_target_client_list', $columns, $watchlist, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client Reasons'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
+        return ExportDownload::make($format, 'Nutrition Reference / Watchlist', 'Nutrition', 'bns_target_client_list', $columns, $watchlist, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client Reasons'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
     }
 
     private function watchlistQuery(Request $request): Builder

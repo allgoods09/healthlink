@@ -10,6 +10,7 @@ class OptMeasurement extends Model
     use HasFactory;
 
     public const POSTURE_STANDING = 'standing';
+
     public const POSTURE_RECUMBENT = 'recumbent';
 
     protected $fillable = [
@@ -30,6 +31,10 @@ class OptMeasurement extends Model
         'weight_for_length_height_z_score',
         'weight_for_length_height_status',
         'remarks',
+        'opt_cycle_entry_id',
+        'assessment_source',
+        'assessment_version',
+        'assessment_error',
     ];
 
     protected $casts = [
@@ -38,20 +43,9 @@ class OptMeasurement extends Model
         'updated_at' => 'datetime',
     ];
 
-    protected static function booted(): void
+    public function cycleEntry()
     {
-        static::created(function (OptMeasurement $measurement): void {
-            ChildNutritionAssessmentFlag::query()
-                ->where('resident_id', $measurement->resident_id)
-                ->where('flag_status', ChildNutritionAssessmentFlag::STATUS_OPEN)
-                ->update([
-                    'flag_status' => ChildNutritionAssessmentFlag::STATUS_CLOSED,
-                    'closed_at' => now(),
-                    'closed_by_user_id' => $measurement->measured_by_user_id,
-                    'resolved_measurement_id' => $measurement->id,
-                    'updated_at' => now(),
-                ]);
-        });
+        return $this->belongsTo(OptCycleEntry::class, 'opt_cycle_entry_id');
     }
 
     public function resident()

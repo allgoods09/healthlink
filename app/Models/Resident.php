@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\AuditLog;
-use Carbon\CarbonInterface;
 
 class Resident extends Model
 {
@@ -87,7 +86,9 @@ class Resident extends Model
     }
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_DECEASED = 'deceased';
+
     public const STATUS_RELOCATED = 'relocated';
 
     // =============================================
@@ -154,6 +155,11 @@ class Resident extends Model
     public function optMeasurements()
     {
         return $this->hasMany(OptMeasurement::class);
+    }
+
+    public function childNutritionProfile()
+    {
+        return $this->hasOne(ChildNutritionProfile::class);
     }
 
     public function latestOptMeasurement()
@@ -251,9 +257,9 @@ class Resident extends Model
     public function scopeSearch($query, $search)
     {
         return $query->where('first_name', 'LIKE', "%{$search}%")
-                     ->orWhere('last_name', 'LIKE', "%{$search}%")
-                     ->orWhere('middle_name', 'LIKE', "%{$search}%")
-                     ->orWhere('philsys_card_no', 'LIKE', "%{$search}%");
+            ->orWhere('last_name', 'LIKE', "%{$search}%")
+            ->orWhere('middle_name', 'LIKE', "%{$search}%")
+            ->orWhere('philsys_card_no', 'LIKE', "%{$search}%");
     }
 
     /**
@@ -279,7 +285,7 @@ class Resident extends Model
     {
         $minDate = now()->subYears($max)->startOfDay();
         $maxDate = now()->subYears($min)->endOfDay();
-        
+
         return $query->whereBetween('birth_date', [$minDate, $maxDate]);
     }
 
@@ -361,11 +367,12 @@ class Resident extends Model
      */
     public function getAgeInMonthsAttribute(): int
     {
-        if (!$this->birth_date) {
+        if (! $this->birth_date) {
             return 0;
         }
-        
+
         $diff = now()->diff($this->birth_date);
+
         return ($diff->y * 12) + $diff->m;
     }
 
@@ -384,7 +391,7 @@ class Resident extends Model
     public function getAgeGroupAttribute(): string
     {
         $age = $this->age;
-        
+
         if ($age < 1) {
             return 'Infant';
         } elseif ($age < 5) {

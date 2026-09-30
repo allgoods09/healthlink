@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -131,21 +132,6 @@ class FeedingProgramController extends Controller
             ]);
         }
 
-        $enrolledResidentIds = $enrollments->pluck('resident_id')->all();
-
-        $watchlistSuggestions = $this->bnsOptMeasurementsQuery()
-            ->with(['resident.household.purok', 'campaignPeriod'])
-            ->whereIn('id', $this->latestOptMeasurementIdsSubquery())
-            ->where(function ($query): void {
-                $query->whereIn('weight_for_age_status', ['Severely Underweight', 'Underweight'])
-                    ->orWhereIn('height_for_age_status', ['Severely Stunted', 'Stunted'])
-                    ->orWhereIn('weight_for_length_height_status', ['Severely Wasted', 'Wasted']);
-            })
-            ->whereNotIn('resident_id', $enrolledResidentIds)
-            ->latest('measurement_date')
-            ->limit(8)
-            ->get();
-
         return view('bns.feeding-programs.show', [
             'feedingProgram' => $feedingProgram,
             'enrollments' => $enrollments,
@@ -156,7 +142,6 @@ class FeedingProgramController extends Controller
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get(),
-            'watchlistSuggestions' => $watchlistSuggestions,
         ]);
     }
 
@@ -193,7 +178,15 @@ class FeedingProgramController extends Controller
             ->with('latestOptMeasurement')
             ->findOrFail($request->integer('resident_id'));
 
-        $latestMeasurement = $resident->latestOptMeasurement;
+        $latestMeasurement = $request->boolean('use_latest_opt_baseline')
+            ? $this->bnsOptMeasurementsQuery()->where('resident_id', $resident->id)->latest('measurement_date')->latest('id')->first()
+            : null;
+        if ($request->boolean('use_latest_opt_baseline') && ! $latestMeasurement) {
+            throw ValidationException::withMessages(['use_latest_opt_baseline' => 'No accessible OPT reference exists for this child. Enter a baseline manually or leave it blank.']);
+        }
+        if ($latestMeasurement && ($request->filled('baseline_weight_kg') || $request->filled('baseline_nutritional_status'))) {
+            throw ValidationException::withMessages(['use_latest_opt_baseline' => 'Choose either manual baseline values or explicit OPT reference copying, not both.']);
+        }
 
         $enrollment = FeedingProgramEnrollment::query()->create([
             'feeding_program_id' => $feedingProgram->id,
@@ -206,6 +199,14 @@ class FeedingProgramController extends Controller
             'baseline_nutritional_status' => $request->filled('baseline_nutritional_status')
                 ? $request->input('baseline_nutritional_status')
                 : ($latestMeasurement ? implode(', ', $latestMeasurement->target_client_reasons) ?: $latestMeasurement->weight_for_length_height_status : null),
+            'baseline_opt_measurement_id' => $latestMeasurement?->id,
+            'baseline_provenance' => $latestMeasurement ? [
+                'source' => 'explicit_opt_reference_copy', 'measurement_id' => $latestMeasurement->id,
+                'measurement_date' => $latestMeasurement->measurement_date->toDateString(),
+                'weight_kg' => $latestMeasurement->weight_kg, 'internal_status' => $latestMeasurement->weight_for_length_height_status,
+                'target_client_reasons' => $latestMeasurement->target_client_reasons,
+                'copied_at' => now()->toIso8601String(), 'copied_by_user_id' => Auth::id(),
+            ] : ['source' => 'manual_or_unspecified', 'recorded_at' => now()->toIso8601String()],
             'is_active' => true,
             'completion_notes' => $request->input('completion_notes'),
         ]);

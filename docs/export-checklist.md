@@ -27,7 +27,7 @@ Legend: `[x]` implemented and covered by a focused test; `[ ]` pending. A page w
 - [x] Field Operations Oversight: pending corrections
 - [x] Field Operations Oversight: reviewed drafts
 - [x] Field Operations Oversight: reviewed corrections
-- [x] Nutrition Oversight: campaigns
+- [x] Nutrition Oversight: OPT+ cycle progress (legacy dataset route key retained)
 - [x] Nutrition Oversight: open flags
 - [x] Nutrition Oversight: feeding programs
 - [x] Nutrition Oversight: active maternal profiles
@@ -62,8 +62,10 @@ Legend: `[x]` implemented and covered by a focused test; `[ ]` pending. A page w
 ## BNS
 
 - [x] Campaign Periods
-- [x] OPT+ Measurements
-- [x] TCL / Watchlist
+- [x] OPT+ Cycle History
+- [x] Internal OPT+ Cycle Dataset (search, purok, measurement/readiness filters, explicit sorting)
+- [x] Legacy OPT+ Measurement History (internal reference)
+- [x] Nutrition Reference / Watchlist
 - [x] Feeding Programs
 - [x] Maternal Tracking (primary filtered listing)
 - [x] Micronutrients

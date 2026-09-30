@@ -11,9 +11,9 @@ use App\Models\ClinicalEncounter;
 use App\Models\FeedingProgram;
 use App\Models\Household;
 use App\Models\HouseholdDraft;
-use App\Models\MhoClinicalReview;
 use App\Models\MaternalNutritionProfile;
-use App\Models\NutritionCampaignPeriod;
+use App\Models\MhoClinicalReview;
+use App\Models\OptCycle;
 use App\Models\OptMeasurement;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Purok;
@@ -21,6 +21,7 @@ use App\Models\Resident;
 use App\Models\SyncLog;
 use App\Models\TriageRecord;
 use App\Models\User;
+use App\Support\Nutrition\OptCycleReporting;
 use App\Support\RateLimitState;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -111,7 +112,7 @@ class DashboardController extends Controller
             $alerts->push([
                 'severity' => 'info',
                 'title' => 'Blocked rate-limit keys are active',
-                'description' => count($blockedRateLimits)." tracked throttle key(s) are currently blocked.",
+                'description' => count($blockedRateLimits).' tracked throttle key(s) are currently blocked.',
                 'action_label' => 'Review rate limits',
                 'action_url' => route('admin.rate-limits.index'),
             ]);
@@ -218,10 +219,8 @@ class DashboardController extends Controller
             'overdueFollowUpCount' => ClinicalEncounter::query()->dueFollowUp()->count(),
             'unresolvedMhoEscalationCount' => ClinicalEncounter::query()->activeEscalations()->count(),
             'pendingTriageCount' => TriageRecord::query()->pending()->whereNull('consumed_at')->count(),
-            'activeOptCampaignCount' => NutritionCampaignPeriod::query()
-                ->where('campaign_type', NutritionCampaignPeriod::TYPE_OPT_PLUS)
-                ->active()
-                ->count(),
+            'activeOptCampaignCount' => OptCycle::query()->active()->count(),
+            'optCycleSummary' => OptCycleReporting::latestSummary(),
             'activeFeedingProgramCount' => FeedingProgram::query()
                 ->whereIn('program_status', [FeedingProgram::STATUS_PLANNED, FeedingProgram::STATUS_ACTIVE])
                 ->count(),
@@ -261,8 +260,8 @@ class DashboardController extends Controller
                     select max(m2.measurement_date)
                     from opt_measurements as m2
                     where m2.resident_id = opt_measurements.resident_id'
-                . ($barangayId ? ' and m2.barangay_id = ?' : '')
-                . '
+                .($barangayId ? ' and m2.barangay_id = ?' : '')
+                .'
                 )',
                 $barangayId ? [$barangayId] : []
             )

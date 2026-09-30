@@ -66,12 +66,13 @@ class OptMeasurementController extends Controller
             'Target Client Only' => $request->filled('target_client') ? 'Yes' : null,
         ];
 
-        return ExportDownload::make($format, 'OPT+ Masterlist', 'Nutrition', 'bns_opt_measurements', $columns, $measurements, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
+        return ExportDownload::make($format, 'Legacy OPT+ Measurement History (Internal Reference)', 'Nutrition', 'bns_opt_measurements', $columns, $measurements, $filters, $this->bnsUser()->assignedBarangay?->name, OptMeasurement::class, array_intersect_key($columns, array_flip(['Resident Code', 'Resident', 'Purok', 'Campaign', 'Measurement Date', 'WFA Status', 'HFA Status', 'WFH/L Status', 'Target Client'])), 'landscape', ['barangay_id' => $this->assignedBarangayId()]);
     }
 
     private function listingQuery(Request $request)
     {
         $query = $this->bnsOptMeasurementsQuery()
+            ->whereNull('opt_cycle_entry_id')
             ->with(['resident.household.purok', 'campaignPeriod', 'measuredBy'])
             ->latest('measurement_date')
             ->latest('id');
@@ -111,8 +112,11 @@ class OptMeasurementController extends Controller
         return $query;
     }
 
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
+        if (! config('opt.legacy_writes_enabled')) {
+            return redirect()->route('bns.opt-cycles.index')->with('info', 'Record new OPT+ measurements within a captured cycle.');
+        }
         $selectedResident = null;
 
         if ($request->filled('resident_id')) {
@@ -143,6 +147,7 @@ class OptMeasurementController extends Controller
 
     public function store(StoreOptMeasurementRequest $request, GrowthAssessmentService $growthAssessment): RedirectResponse
     {
+        abort_unless(config('opt.legacy_writes_enabled'), 410, 'Legacy OPT writes are retired. Use OPT+ Cycles.');
         $resident = $this->bnsOptEligibleChildrenQuery()
             ->with('household.purok')
             ->findOrFail($request->integer('resident_id'));
@@ -188,9 +193,14 @@ class OptMeasurementController extends Controller
             ->with('success', 'OPT+ measurement logged successfully.');
     }
 
-    public function show(OptMeasurement $optMeasurement): View
+    public function show(OptMeasurement $optMeasurement): View|RedirectResponse
     {
         $this->ensureOptMeasurementBelongsToBarangay($optMeasurement);
+        if ($optMeasurement->opt_cycle_entry_id) {
+            $entry = $optMeasurement->cycleEntry;
+
+            return redirect()->route('bns.opt-cycles.entry', [$entry->opt_cycle_id, $entry]);
+        }
 
         $optMeasurement->load(['resident.household.purok', 'campaignPeriod', 'measuredBy']);
 

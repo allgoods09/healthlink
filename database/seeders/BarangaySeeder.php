@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Barangay;
+use Illuminate\Database\Seeder;
 
 class BarangaySeeder extends Seeder
 {
@@ -46,14 +46,14 @@ class BarangaySeeder extends Seeder
             'Tinangnan',
             'Ubojan',
             'Ubay Island',
-            'Villanueva'
+            'Villanueva',
         ];
 
         foreach ($barangays as $index => $name) {
             // Generate PSGC code (simplified - you might want to use actual PSGC codes)
             $psgcCode = $this->generatePsgcCode($index + 1);
-            
-            Barangay::updateOrCreate(
+
+            Barangay::firstOrCreate(
                 ['name' => $name],
                 [
                     'psgc_code' => $psgcCode,
@@ -69,13 +69,14 @@ class BarangaySeeder extends Seeder
     /**
      * Generate a simplified PSGC code for Tubigon barangays.
      * Format: 071242XXX (where XXX is the barangay number)
-     * 
+     *
      * Note: You should replace this with actual PSGC codes from PSA
      */
     private function generatePsgcCode(int $number): string
     {
         // Pad the number to 3 digits (e.g., 1 → 001, 34 → 034)
         $paddedNumber = str_pad($number, 3, '0', STR_PAD_LEFT);
-        return '071242' . $paddedNumber;
+
+        return '071242'.$paddedNumber;
     }
 }

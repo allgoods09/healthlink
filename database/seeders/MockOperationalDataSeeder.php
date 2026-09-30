@@ -19,6 +19,7 @@ use App\Models\MaternalNutritionHistory;
 use App\Models\MaternalNutritionProfile;
 use App\Models\MicronutrientSupplementationLog;
 use App\Models\NutritionCampaignPeriod;
+use App\Models\OptCycle;
 use App\Models\OptMeasurement;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Purok;
@@ -27,6 +28,8 @@ use App\Models\ResidentDraft;
 use App\Models\ResidentSocioEconomicProfile;
 use App\Models\TriageRecord;
 use App\Models\User;
+use App\Support\Nutrition\OptCycleRules;
+use App\Support\Nutrition\OptCycleWorkflow;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
@@ -547,20 +550,11 @@ class MockOperationalDataSeeder extends Seeder
 
         $year = now()->year;
 
-        $optCampaign = NutritionCampaignPeriod::query()->updateOrCreate(
-            [
-                'barangay_id' => $barangay->id,
-                'name' => "OPT+ {$year} Q3",
-            ],
-            [
-                'created_by_user_id' => $bns->id,
-                'campaign_type' => NutritionCampaignPeriod::TYPE_OPT_PLUS,
-                'starts_on' => now()->startOfQuarter()->toDateString(),
-                'ends_on' => now()->endOfQuarter()->toDateString(),
-                'is_active' => true,
-                'notes' => "Tubigon OPT+ campaign period for {$barangay->name}.",
-            ]
-        );
+        $round = now()->month >= 7 ? 'july' : 'january';
+        $workflow = app(OptCycleWorkflow::class);
+        $optCycle = OptCycle::query()->where('barangay_id', $barangay->id)->where('year', $year)->where('round', $round)->first()
+            ?? $workflow->create($bns, ['year' => $year, 'round' => $round,
+                'reference_date' => now()->startOfYear()->addMonths(OptCycleRules::ROUND_MONTHS[$round] - 1)->toDateString()]);
 
         $feedingCycle = NutritionCampaignPeriod::query()->updateOrCreate(
             [
@@ -577,44 +571,19 @@ class MockOperationalDataSeeder extends Seeder
             ]
         );
 
-        $measurementProfiles = [
-            ['z1' => -0.400, 's1' => 'Normal', 'z2' => -0.250, 's2' => 'Normal', 'z3' => -0.300, 's3' => 'Normal'],
-            ['z1' => -2.200, 's1' => 'Underweight', 'z2' => -2.100, 's2' => 'Stunted', 'z3' => -2.300, 's3' => 'Wasted'],
-            ['z1' => -3.100, 's1' => 'Severely Underweight', 'z2' => -3.000, 's2' => 'Severely Stunted', 'z3' => -3.200, 's3' => 'Severely Wasted'],
-            ['z1' => 0.150, 's1' => 'Normal', 'z2' => 0.100, 's2' => 'Normal', 'z3' => 0.200, 's3' => 'Normal'],
-            ['z1' => 1.800, 's1' => 'Overweight', 'z2' => 2.100, 's2' => 'Tall', 'z3' => 2.300, 's3' => 'Overweight'],
-        ];
-
-        $measuredChildren = $underFiveResidents->take(5)->values();
-
-        foreach ($measuredChildren as $index => $child) {
-            $measurementDate = now()->subDays(20 - $index);
-            $ageInMonths = Carbon::parse($child->birth_date)->diffInMonths($measurementDate);
-            $profile = $measurementProfiles[$index % count($measurementProfiles)];
-
-            OptMeasurement::query()->updateOrCreate(
-                [
-                    'resident_id' => $child->id,
-                    'campaign_period_id' => $optCampaign->id,
-                    'measurement_date' => $measurementDate->toDateString(),
-                ],
-                [
-                    'barangay_id' => $barangay->id,
-                    'measured_by_user_id' => $bns->id,
-                    'age_in_months' => $ageInMonths,
-                    'sex_snapshot' => $child->sex,
-                    'weight_kg' => 8.50 + $index,
-                    'height_cm' => 72.00 + ($index * 4),
-                    'measurement_posture' => $ageInMonths < 24 ? OptMeasurement::POSTURE_RECUMBENT : OptMeasurement::POSTURE_STANDING,
-                    'weight_for_age_z_score' => $profile['z1'],
-                    'weight_for_age_status' => $profile['s1'],
-                    'height_for_age_z_score' => $profile['z2'],
-                    'height_for_age_status' => $profile['s2'],
-                    'weight_for_length_height_z_score' => $profile['z3'],
-                    'weight_for_length_height_status' => $profile['s3'],
-                    'remarks' => 'Recorded during barangay OPT+ measurement day in Tubigon.',
-                ]
-            );
+        $entries = $optCycle->entries()->with('resident')->orderBy('id')->limit(5)->get();
+        $measuredChildren = $entries->pluck('resident')->filter()->values();
+        foreach ($entries as $index => $entry) {
+            if ($optCycle->status !== OptCycle::IN_PROGRESS || $entry->measurement) {
+                continue;
+            }
+            $measurementDate = now()->subDays(20 - $index)->max($entry->birth_date);
+            $workflow->measure($bns, $optCycle, $entry, [
+                'measurement_date' => $measurementDate->toDateString(), 'weight_kg' => 8.50 + $index,
+                'height_cm' => 72.00 + ($index * 4),
+                'measurement_posture' => $entry->reference_age < 24 ? OptMeasurement::POSTURE_RECUMBENT : OptMeasurement::POSTURE_STANDING,
+                'remarks' => 'Demo measurement; internal assessment only.',
+            ]);
         }
 
         $flaggedChild = $underFiveResidents->skip(5)->first() ?? $underFiveResidents->last();
@@ -650,13 +619,13 @@ class MockOperationalDataSeeder extends Seeder
             ]
         );
 
-        $targetChild = $measuredChildren->get(1) ?? $measuredChildren->first();
+        $targetChild = $measuredChildren->get(1) ?? $measuredChildren->first() ?? $underFiveResidents->first();
         $targetMeasurement = OptMeasurement::query()
             ->where('resident_id', $targetChild->id)
             ->latest('measurement_date')
             ->first();
 
-        $enrollment = FeedingProgramEnrollment::query()->updateOrCreate(
+        $enrollment = FeedingProgramEnrollment::query()->firstOrCreate(
             [
                 'feeding_program_id' => $feedingProgram->id,
                 'resident_id' => $targetChild->id,
@@ -666,6 +635,8 @@ class MockOperationalDataSeeder extends Seeder
                 'enrolled_on' => now()->subDays(5)->toDateString(),
                 'baseline_weight_kg' => $targetMeasurement?->weight_kg,
                 'baseline_nutritional_status' => $targetMeasurement?->weight_for_age_status,
+                'baseline_opt_measurement_id' => $targetMeasurement?->id,
+                'baseline_provenance' => ['source' => 'demo_seed_reference', 'measurement_date' => $targetMeasurement?->measurement_date?->toDateString()],
                 'is_active' => true,
                 'completion_notes' => null,
             ]

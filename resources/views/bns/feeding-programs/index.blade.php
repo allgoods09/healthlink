@@ -19,7 +19,7 @@
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:col-span-2">
             <p class="text-sm text-slate-500">Enrollment Scope</p>
             <p class="mt-2 text-sm leading-6 text-slate-700">
-                BNS may manually enroll any verified child aged 0 to 71 months, even outside the TCL, while the latest watchlist remains the primary recommendation pool for follow-up feeding support.
+                BNS may enroll verified children aged 0 to 71 months under this module's existing policy. OPT measurements and watchlist classifications are not prerequisites for enrollment.
             </p>
         </div>
     </div>

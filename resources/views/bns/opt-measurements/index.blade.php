@@ -1,8 +1,8 @@
 @extends('layouts.portal')
 
 @section('title', 'BNS OPT+ Measurements - HealthLink')
-@section('header', 'OPT+ Measurements')
-@section('subheader', 'Official anthropometric measurements logged against verified child profiles using embedded WHO child growth standards.')
+@section('header', 'Legacy OPT+ Measurement History')
+@section('subheader', 'Preserved legacy records and internal growth references. Historical eligible totals are unknown; new work belongs to OPT+ Cycles.')
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
@@ -15,17 +15,17 @@
         <a href="{{ route('bns.opt-measurements.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
             PDF
         </a>
-        <a href="{{ route('bns.opt-measurements.create') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
-            Log Measurement
+        <a href="{{ route('bns.opt-cycles.index') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+            Open OPT+ Cycles
         </a>
     </div>
 @endsection
 
 @section('content')
     <div class="mb-6 rounded-[24px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 shadow-sm">
-        <p class="font-semibold">Official OPT+ scope</p>
+        <p class="font-semibold">Legacy records are preserved</p>
         <p class="mt-1 text-blue-800">
-            This phase validates official OPT+ measurements for verified children aged 0 to 59 months. Duplicate entries for the same child, date, and campaign period are blocked automatically.
+            These records have not been assigned guessed January/July rounds. Their demographic labels may come from current resident profiles because the old workflow did not snapshot them.
         </p>
     </div>
 
@@ -57,7 +57,7 @@
                 <div class="flex items-end">
                     <label class="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <input type="checkbox" name="target_client" value="1" @checked(request()->filled('target_client')) class="rounded border-slate-300 text-tubigon shadow-sm focus:ring-tubigon">
-                        <span class="text-sm text-slate-700">TCL only</span>
+                        <span class="text-sm text-slate-700">Undernutrition references only</span>
                     </label>
                 </div>
                 <div class="flex items-end gap-2">
@@ -69,7 +69,7 @@
                     </a>
                 </div>
             </form>
-            <x-export-dropdown route="bns.opt-measurements.export" dataset="OPT+ Masterlist" />
+            <x-export-dropdown route="bns.opt-measurements.export" dataset="Legacy OPT+ Measurement History (Internal Reference)" />
         </div>
     </div>
 

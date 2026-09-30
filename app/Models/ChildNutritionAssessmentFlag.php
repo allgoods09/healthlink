@@ -10,6 +10,7 @@ class ChildNutritionAssessmentFlag extends Model
     use HasFactory;
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_CLOSED = 'closed';
 
     protected $fillable = [
@@ -23,6 +24,7 @@ class ChildNutritionAssessmentFlag extends Model
         'flag_reason',
         'flagged_at',
         'closed_at',
+        'resolution_note',
     ];
 
     protected $casts = [

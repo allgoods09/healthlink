@@ -2,12 +2,12 @@
 
 @section('title', 'OPT+ Measurement Detail - HealthLink')
 @section('header', 'OPT+ Measurement Detail')
-@section('subheader', 'Official WHO-based nutritional assessment saved under the verified resident pool.')
+@section('subheader', 'Preserved measurement with internal/reference classifications, not verified official e-OPT workbook results.')
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('bns.opt-measurements.create', ['resident_id' => $measurement->resident_id]) }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
-            Log Follow-up
+        <a href="{{ route('bns.opt-cycles.index') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+            Open OPT+ Cycles
         </a>
         <a href="{{ route('bns.opt-measurements.index') }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
             Back to Measurements
@@ -64,7 +64,7 @@
         <aside class="space-y-6">
             <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-6 py-4">
-                    <h3 class="text-lg font-semibold text-slate-900">Computed Nutritional Status</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Internal Reference Assessment</h3>
                 </div>
                 <div class="space-y-4 p-6">
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -87,18 +87,18 @@
 
             <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-6 py-4">
-                    <h3 class="text-lg font-semibold text-slate-900">Target Client Result</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Nutrition Watchlist Reference</h3>
                 </div>
                 <div class="p-6">
                     @if($measurement->is_target_client)
                         <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            <p class="font-semibold">This child is on the Target Client List.</p>
+                            <p class="font-semibold">This reading indicates an internal undernutrition reference.</p>
                             <p class="mt-2">{{ implode(', ', $measurement->target_client_reasons) }}</p>
                         </div>
                     @else
                         <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                            <p class="font-semibold">No undernutrition TCL trigger from this measurement.</p>
-                            <p class="mt-1 text-emerald-800">The child is not currently flagged for underweight, stunting, or wasting based on this official entry.</p>
+                            <p class="font-semibold">No internal undernutrition classification from this measurement.</p>
+                            <p class="mt-1 text-emerald-800">This saved internal/reference assessment does not classify underweight, stunting, or wasting. Referral flags are resolved separately.</p>
                         </div>
                     @endif
 

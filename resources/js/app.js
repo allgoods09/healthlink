@@ -1,8 +1,11 @@
 
 
 import Alpine from 'alpinejs';
+import { optCaregiverField, optMeasurementForm } from './opt-entry';
 
 window.Alpine = Alpine;
+window.optCaregiverField = optCaregiverField;
+window.optMeasurementForm = optMeasurementForm;
 window.searchableRecordSelect = (config = {}) => ({
     options: Array.isArray(config.options) ? config.options : [],
     selectedValue: config.selected === undefined || config.selected === null ? '' : String(config.selected),

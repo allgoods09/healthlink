@@ -7,7 +7,7 @@
     <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
         <p class="font-semibold uppercase tracking-[0.18em] text-emerald-800">Read-Only Oversight</p>
         <p class="mt-2 leading-6">
-            This municipal monitor surfaces barangay nutrition risk, OPT+ campaign movement, feeding activity, and maternal surveillance without replacing the BNS workflow.
+            This municipal monitor surfaces OPT+ cycle coverage, internal nutrition reference information, independent feeding activity, and maternal surveillance without replacing the BNS workflow.
         </p>
     </div>
 
@@ -31,11 +31,11 @@
 
     <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-6">
         <div class="rounded-xl bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-gray-500">Active Campaigns</p>
-            <p class="mt-2 text-3xl font-semibold text-gray-900">{{ number_format($activeCampaignCount) }}</p>
+            <p class="text-sm font-medium text-gray-500">Latest Cycle Coverage</p>
+            <p class="mt-2 text-3xl font-semibold text-gray-900">{{ $cycleSummary['coverage'] }}%</p>
         </div>
         <div class="rounded-xl bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-gray-500">OPT+ Cycles</p>
+            <p class="text-sm font-medium text-gray-500">OPT+ Cycles In Progress</p>
             <p class="mt-2 text-3xl font-semibold text-gray-900">{{ number_format($activeOptCampaignCount) }}</p>
         </div>
         <div class="rounded-xl bg-white p-5 shadow-sm">
@@ -43,7 +43,7 @@
             <p class="mt-2 text-3xl font-semibold text-emerald-700">{{ number_format($openNutritionFlagCount) }}</p>
         </div>
         <div class="rounded-xl bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-gray-500">Target Clients</p>
+            <p class="text-sm font-medium text-gray-500">Internal Reference Cases</p>
             <p class="mt-2 text-3xl font-semibold text-amber-600">{{ number_format($targetClientCount) }}</p>
         </div>
         <div class="rounded-xl bg-white p-5 shadow-sm">
@@ -136,19 +136,19 @@
     <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="rounded-xl bg-white shadow-sm">
             <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
-                <h3 class="text-lg font-semibold text-gray-900">Campaign Periods</h3>
-                <x-export-dropdown route="admin.oversight.nutrition.export" dataset="Nutrition Campaign Periods" :parameters="['dataset' => 'campaigns']" />
+                <h3 class="text-lg font-semibold text-gray-900">OPT+ Cycle Progress</h3>
+                <x-export-dropdown route="admin.oversight.nutrition.export" dataset="OPT+ Cycle Progress" :parameters="['dataset' => 'campaigns']" />
             </div>
             <div class="divide-y divide-gray-200">
                 @forelse($recentCampaigns as $campaign)
                     <div class="px-6 py-4">
-                        <p class="text-sm font-semibold text-gray-900">{{ $campaign->name }}</p>
-                        <p class="mt-1 text-sm text-gray-500">{{ $campaign->barangay?->name ?? 'Unknown barangay' }} · {{ $campaign->campaign_type_label }}</p>
-                        <p class="mt-2 text-sm text-gray-600">{{ $campaign->starts_on?->format('M d, Y') }} to {{ $campaign->ends_on?->format('M d, Y') }}</p>
-                        <p class="mt-2 text-xs uppercase tracking-[0.18em] text-gray-400">{{ $campaign->opt_measurements_count }} measurements · {{ $campaign->feeding_programs_count }} feeding program(s)</p>
+                        <p class="text-sm font-semibold text-gray-900">{{ $campaign->title }}</p>
+                        <p class="mt-1 text-sm text-gray-500">{{ $campaign->barangay?->name ?? 'Unknown barangay' }} · {{ $campaign->status === 'completed' ? 'Completed' : 'In Progress' }}</p>
+                        <p class="mt-2 text-sm text-gray-600">Reference date: {{ $campaign->reference_date->format('M d, Y') }}</p>
+                        <p class="mt-2 text-xs text-gray-500">{{ $campaign->entries_count }} eligible · {{ $campaign->measured_count }} measured · {{ $campaign->unmeasured_count }} unmeasured · {{ $campaign->coverage }}% coverage</p>
                     </div>
                 @empty
-                    <div class="px-6 py-10 text-center text-sm text-gray-500">No nutrition campaign periods found in this scope.</div>
+                    <div class="px-6 py-10 text-center text-sm text-gray-500">No captured OPT+ cycles in this scope. Legacy measurements remain preserved separately.</div>
                 @endforelse
             </div>
         </div>

@@ -8,9 +8,10 @@ use App\Models\ChildNutritionAssessmentFlag;
 use App\Models\FeedingProgram;
 use App\Models\FeedingProgramEnrollment;
 use App\Models\MaternalNutritionProfile;
-use App\Models\NutritionCampaignPeriod;
+use App\Models\OptCycle;
 use App\Models\OptMeasurement;
 use App\Support\ExportDownload;
+use App\Support\Nutrition\OptCycleReporting;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -61,9 +62,9 @@ class NutritionOversightController extends Controller
             'selectedBarangay' => $barangayId ? Barangay::find($barangayId) : null,
             'activeCampaignCount' => (clone $campaignsQuery)->active()->count(),
             'activeOptCampaignCount' => (clone $campaignsQuery)
-                ->where('campaign_type', NutritionCampaignPeriod::TYPE_OPT_PLUS)
                 ->active()
                 ->count(),
+            'cycleSummary' => OptCycleReporting::latestSummary($barangayId ?: null),
             'openNutritionFlagCount' => (clone $openFlagsQuery)->count(),
             'targetClientCount' => $this->targetClientQuery($barangayId ?: null)->count(),
             'activeFeedingProgramCount' => (clone $feedingProgramsQuery)
@@ -89,16 +90,13 @@ class NutritionOversightController extends Controller
     {
         $definitions = [
             'campaigns' => [
-                'title' => 'Nutrition Campaign Periods',
-                'model' => NutritionCampaignPeriod::class,
+                'title' => 'OPT+ Cycle Progress',
+                'model' => OptCycle::class,
                 'columns' => [
-                    'Campaign' => 'name',
-                    'Barangay' => fn (NutritionCampaignPeriod $item) => $item->barangay?->name,
-                    'Type' => fn (NutritionCampaignPeriod $item) => $item->campaign_type_label,
-                    'Starts On' => fn (NutritionCampaignPeriod $item) => $item->starts_on?->format('Y-m-d'),
-                    'Ends On' => fn (NutritionCampaignPeriod $item) => $item->ends_on?->format('Y-m-d'),
-                    'OPT+ Measurements' => 'opt_measurements_count',
-                    'Feeding Programs' => 'feeding_programs_count',
+                    'Cycle' => 'title', 'Barangay' => fn (OptCycle $item) => $item->barangay?->name,
+                    'Reference Date' => fn (OptCycle $item) => $item->reference_date->format('Y-m-d'),
+                    'Eligible Children' => 'entries_count', 'Measured' => 'measured_count', 'Unmeasured' => 'unmeasured_count',
+                    'Coverage (%)' => 'coverage', 'Status' => fn (OptCycle $item) => $item->status === OptCycle::COMPLETED ? 'Completed' : 'In Progress',
                 ],
             ],
             'open-flags' => [
@@ -150,9 +148,8 @@ class NutritionOversightController extends Controller
 
     private function campaignsQuery(int $barangayId): Builder
     {
-        return NutritionCampaignPeriod::query()
-            ->with(['barangay', 'createdBy'])
-            ->withCount(['optMeasurements', 'feedingPrograms'])
+        return OptCycle::query()
+            ->with('barangay')->withProgress()
             ->when($barangayId, fn (Builder $query) => $query->where('barangay_id', $barangayId));
     }
 
@@ -186,7 +183,7 @@ class NutritionOversightController extends Controller
     private function panelQuery(int $barangayId, string $dataset): Builder
     {
         return match ($dataset) {
-            'campaigns' => $this->campaignsQuery($barangayId)->latest('starts_on')->latest('id'),
+            'campaigns' => $this->campaignsQuery($barangayId)->latest('reference_date')->latest('id'),
             'open-flags' => $this->openFlagsQuery($barangayId)->latest('flagged_at')->latest('id'),
             'feeding-programs' => $this->feedingProgramsQuery($barangayId)->latest('starts_on')->latest('id'),
             'maternal-profiles' => $this->maternalProfilesQuery($barangayId)->latest('last_status_updated_at')->latest('id'),
@@ -206,8 +203,8 @@ class NutritionOversightController extends Controller
                     select max(m2.measurement_date)
                     from opt_measurements as m2
                     where m2.resident_id = opt_measurements.resident_id'
-                . ($barangayId ? ' and m2.barangay_id = ?' : '')
-                . '
+                .($barangayId ? ' and m2.barangay_id = ?' : '')
+                .'
                 )',
                 $barangayId ? [$barangayId] : []
             )

@@ -10,8 +10,7 @@ class GrowthAssessmentService
 {
     public function __construct(
         private readonly GrowthStandardsRepository $standards,
-    ) {
-    }
+    ) {}
 
     public function assess(
         Resident $resident,
@@ -25,7 +24,7 @@ class GrowthAssessmentService
         }
 
         $sex = $this->normalizeSex($resident->sex);
-        $ageInMonths = $resident->birth_date->startOfDay()->diffInMonths($measurementDate->copy()->startOfDay());
+        $ageInMonths = OptCycleRules::ageMonths($resident->birth_date, $measurementDate);
         [$convertedLengthHeightCm, $basis] = $this->normalizeLengthHeightByAge(
             $ageInMonths,
             $lengthHeightCm,

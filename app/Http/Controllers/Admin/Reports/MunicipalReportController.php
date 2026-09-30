@@ -11,13 +11,14 @@ use App\Models\FeedingProgramEnrollment;
 use App\Models\Household;
 use App\Models\MaternalNutritionProfile;
 use App\Models\MhoClinicalReview;
-use App\Models\NutritionCampaignPeriod;
+use App\Models\OptCycle;
 use App\Models\OptMeasurement;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Models\TriageRecord;
 use App\Models\User;
 use App\Support\ExportDownload;
+use App\Support\Nutrition\OptCycleReporting;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -82,7 +83,7 @@ class MunicipalReportController extends Controller
         $pdfLabels = match ($report) {
             'staffing' => ['Barangay', 'Active Puroks', 'Secretaries', 'BNS', 'BHW', 'Total Frontline Staff'],
             'demographics' => ['Barangay', 'Active Households', 'Active Residents', 'Male', 'Female', 'Minors', 'Seniors'],
-            'nutrition' => ['Barangay', 'Active OPT+ Campaigns', 'Open Flags', 'Target Clients', 'Active Feeding Programs', 'Active Maternal Cases'],
+            'nutrition' => ['Barangay', 'OPT+ Cycles In Progress', 'Eligible (Latest Cycle)', 'Measured (Latest Cycle)', 'Unmeasured (Latest Cycle)', 'Coverage (%)', 'Active Feeding Programs'],
             'clinical' => ['Barangay', 'Pending Triage', 'Triage Logged', 'PHN Encounters', 'Due Follow-Ups', 'Active Escalations'],
         };
 
@@ -218,13 +219,16 @@ class MunicipalReportController extends Controller
     private function nutritionReport(?Barangay $selectedBarangay): array
     {
         $rows = $this->reportBarangays($selectedBarangay)->map(function (Barangay $barangay): array {
+            $cycleSummary = OptCycleReporting::latestSummary($barangay->id);
+
             return [
                 'barangay_name' => $barangay->name,
-                'active_opt_campaign_count' => NutritionCampaignPeriod::query()
+                'active_opt_campaign_count' => OptCycle::query()
                     ->where('barangay_id', $barangay->id)
-                    ->where('campaign_type', NutritionCampaignPeriod::TYPE_OPT_PLUS)
                     ->active()
                     ->count(),
+                'opt_eligible_count' => $cycleSummary['eligible'], 'opt_measured_count' => $cycleSummary['measured'],
+                'opt_unmeasured_count' => $cycleSummary['unmeasured'], 'opt_coverage' => $cycleSummary['coverage'],
                 'open_flag_count' => ChildNutritionAssessmentFlag::query()
                     ->where('barangay_id', $barangay->id)
                     ->where('flag_status', ChildNutritionAssessmentFlag::STATUS_OPEN)
@@ -264,9 +268,11 @@ class MunicipalReportController extends Controller
             'description' => 'Live nutrition pressure points covering OPT+, watchlists, feeding programs, and maternal surveillance.',
             'columns' => [
                 'Barangay' => 'barangay_name',
-                'Active OPT+ Campaigns' => 'active_opt_campaign_count',
+                'OPT+ Cycles In Progress' => 'active_opt_campaign_count',
+                'Eligible (Latest Cycle)' => 'opt_eligible_count', 'Measured (Latest Cycle)' => 'opt_measured_count',
+                'Unmeasured (Latest Cycle)' => 'opt_unmeasured_count', 'Coverage (%)' => 'opt_coverage',
                 'Open Flags' => 'open_flag_count',
-                'Target Clients' => 'target_client_count',
+                'Internal Reference Cases' => 'target_client_count',
                 'Active Feeding Programs' => 'active_feeding_program_count',
                 'Active Feeding Enrollments' => 'active_feeding_enrollment_count',
                 'Pregnant Cases' => 'pregnant_case_count',
@@ -395,8 +401,8 @@ class MunicipalReportController extends Controller
                     select max(m2.measurement_date)
                     from opt_measurements as m2
                     where m2.resident_id = opt_measurements.resident_id'
-                . ($barangayId ? ' and m2.barangay_id = ?' : '')
-                . '
+                .($barangayId ? ' and m2.barangay_id = ?' : '')
+                .'
                 )',
                 $barangayId ? [$barangayId] : []
             )

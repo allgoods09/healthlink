@@ -18,9 +18,12 @@ class FeedingProgramEnrollment extends Model
         'baseline_nutritional_status',
         'is_active',
         'completion_notes',
+        'baseline_opt_measurement_id',
+        'baseline_provenance',
     ];
 
     protected $casts = [
+        'baseline_provenance' => 'array',
         'enrolled_on' => 'date',
         'is_active' => 'boolean',
         'created_at' => 'datetime',

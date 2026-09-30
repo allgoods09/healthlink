@@ -40,17 +40,22 @@
             [
                 'label' => 'Nutrition',
                 'items' => [
-                    ['label' => 'Campaign Periods', 'href' => route('bns.campaign-periods.index'), 'active' => request()->routeIs('bns.campaign-periods.*'), 'icon' => 'sync'],
-                    ['label' => 'OPT+ Measurements', 'href' => route('bns.opt-measurements.index'), 'active' => request()->routeIs('bns.opt-measurements.*'), 'icon' => 'metrics'],
-                    ['label' => 'TCL / Watchlist', 'href' => route('bns.watchlist.index'), 'active' => request()->routeIs('bns.watchlist.*'), 'icon' => 'audit'],
+                    ['label' => 'OPT+', 'href' => route('bns.opt-cycles.index'), 'active' => request()->routeIs('bns.opt-cycles.*'), 'icon' => 'metrics'],
                 ],
             ],
             [
-                'label' => 'Next Modules',
+                'label' => 'Nutrition Services',
                 'items' => [
                     ['label' => 'Feeding Programs', 'href' => route('bns.feeding-programs.index'), 'active' => request()->routeIs('bns.feeding-programs.*'), 'icon' => 'household'],
                     ['label' => 'Maternal Tracking', 'href' => route('bns.maternal.index'), 'active' => request()->routeIs('bns.maternal.*'), 'icon' => 'resident'],
                     ['label' => 'Micronutrients', 'href' => route('bns.micronutrients.index'), 'active' => request()->routeIs('bns.micronutrients.*'), 'icon' => 'devices'],
+                ],
+            ],
+            [
+                'label' => 'Reference Records',
+                'items' => [
+                    ['label' => 'Nutrition Reference / Flags', 'href' => route('bns.watchlist.index'), 'active' => request()->routeIs('bns.watchlist.*'), 'icon' => 'audit'],
+                    ['label' => 'Legacy OPT History', 'href' => route('bns.opt-measurements.index'), 'active' => request()->routeIs('bns.opt-measurements.*'), 'icon' => 'sync'],
                 ],
             ],
         ],

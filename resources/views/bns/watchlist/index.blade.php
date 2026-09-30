@@ -1,8 +1,8 @@
 @extends('layouts.portal')
 
 @section('title', 'BNS Target Client List - HealthLink')
-@section('header', 'TCL / Malnutrition Watchlist')
-@section('subheader', 'Latest official undernutrition cases based on verified resident profiles and OPT+ measurements, with open BHW handoff flags shown alongside them.')
+@section('header', 'Nutrition Reference / Watchlist')
+@section('subheader', 'Internal reference classifications and BHW assessment flags. This is not a required OPT-to-feeding step or an official e-OPT result.')
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
@@ -15,8 +15,8 @@
         <a href="{{ route('bns.watchlist.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="inline-flex items-center rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
             PDF
         </a>
-        <a href="{{ route('bns.opt-measurements.create') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
-            Log OPT+ Measurement
+        <a href="{{ route('bns.opt-cycles.index') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+            Open OPT+ Cycles
         </a>
     </div>
 @endsection
@@ -75,7 +75,7 @@
                     </a>
                 </div>
             </form>
-            <x-export-dropdown route="bns.watchlist.export" dataset="Target Client List / Malnutrition Watchlist" />
+            <x-export-dropdown route="bns.watchlist.export" dataset="Nutrition Reference / Watchlist" />
         </div>
     </div>
 
@@ -121,7 +121,6 @@
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
                                     <a href="{{ route('bns.opt-measurements.show', $measurement) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
-                                    <a href="{{ route('bns.opt-measurements.create', ['resident_id' => $measurement->resident_id]) }}" class="text-indigo-600 hover:text-indigo-800">Follow-up</a>
                                 </div>
                             </td>
                         </tr>
@@ -145,7 +144,7 @@
         <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Open BHW Assessment Flags</h3>
-                <p class="text-sm text-slate-500">Children flagged from the field before an official BNS OPT+ assessment is logged.</p>
+                <p class="text-sm text-slate-500">Review and resolve a specific flag explicitly. Recording a measurement does not resolve it automatically.</p>
             </div>
             <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">Handoff Queue</span>
         </div>
@@ -158,6 +157,10 @@
                         · flagged {{ $flag->flagged_at?->diffForHumans() }}
                     </p>
                     <p class="mt-2 text-sm text-slate-600">{{ $flag->flag_reason ?: 'No field note was recorded.' }}</p>
+                    <form method="POST" action="{{ route('bns.watchlist.resolve', $flag) }}" class="mt-3 flex flex-wrap items-end gap-3">@csrf
+                        <label class="text-sm text-slate-600">Resolution Note<input name="resolution_note" required maxlength="1500" class="mt-1 block rounded-xl border-slate-300" placeholder="Action taken / reason resolved"></label>
+                        <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm">Resolve This Flag</button>
+                    </form>
                 </div>
             @empty
                 <div class="px-6 py-8 text-sm text-slate-500">No open BHW assessment flags are waiting right now.</div>

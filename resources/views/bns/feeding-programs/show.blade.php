@@ -94,6 +94,7 @@
                                     <td class="px-6 py-4 text-sm text-slate-600">
                                         <p>{{ $enrollment->baseline_weight_kg ? $enrollment->baseline_weight_kg.' kg' : 'No baseline weight' }}</p>
                                         <p class="mt-1 text-xs text-slate-400">{{ $enrollment->baseline_nutritional_status ?: 'No baseline status noted' }}</p>
+                                        @if(data_get($enrollment->baseline_provenance, 'source') === 'explicit_opt_reference_copy')<p class="mt-1 text-xs text-slate-500">Explicit OPT reference copy: {{ data_get($enrollment->baseline_provenance, 'measurement_date') }}</p>@endif
                                     </td>
                                     <td class="px-6 py-4 text-sm text-slate-600">
                                         <p>{{ number_format($enrollment->attendances_count) }} attendance log(s)</p>
@@ -120,25 +121,6 @@
                 </div>
             </div>
 
-            @if($watchlistSuggestions->isNotEmpty())
-                <div class="rounded-[28px] border border-amber-200 bg-amber-50 shadow-sm">
-                    <div class="border-b border-amber-200 px-6 py-5">
-                        <h3 class="text-lg font-semibold text-amber-900">Suggested TCL Enrollments</h3>
-                        <p class="mt-1 text-sm text-amber-800">Latest target-client cases not yet inside this feeding batch.</p>
-                    </div>
-                    <div class="divide-y divide-amber-200">
-                        @foreach($watchlistSuggestions as $suggestion)
-                            <div class="px-6 py-4">
-                                <p class="text-sm font-semibold text-amber-900">{{ $suggestion->resident?->formal_name ?? 'Unknown resident' }}</p>
-                                <p class="mt-1 text-sm text-amber-800">
-                                    {{ $suggestion->resident?->household?->purok?->display_name ?? 'Unknown purok' }}
-                                    · {{ implode(', ', $suggestion->target_client_reasons) }}
-                                </p>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
         </section>
 
         <aside class="space-y-6">
@@ -175,6 +157,7 @@
                                 <input type="text" name="baseline_nutritional_status" id="baseline_nutritional_status" value="{{ old('baseline_nutritional_status') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
                             </div>
                         </div>
+                        <label class="flex items-start gap-2 text-sm text-slate-600"><input type="checkbox" name="use_latest_opt_baseline" value="1" @checked(old('use_latest_opt_baseline')) class="mt-1 rounded border-slate-300">Explicitly copy this child's latest accessible OPT reference into the baseline instead of entering manual values. Its measurement date and source will be retained. OPT is not required.</label>
                         <div>
                             <label for="completion_notes" class="block text-sm font-medium text-slate-700">Enrollment Notes</label>
                             <textarea name="completion_notes" id="completion_notes" rows="3" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">{{ old('completion_notes') }}</textarea>
