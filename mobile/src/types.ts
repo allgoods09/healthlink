@@ -1,4 +1,5 @@
 export type SyncStatus = 'synced' | 'pending_create' | 'pending_update';
+export type VerificationStatus = 'submitted' | 'rejected' | 'approved';
 export type MobileToastLevel = 'info' | 'success' | 'warning' | 'error';
 
 export type MobileToast = {
@@ -67,6 +68,8 @@ export type HouseholdRecord = {
   is_active: boolean;
   resident_count?: number;
   sync_status: SyncStatus;
+  verification_status?: VerificationStatus;
+  verification_notes?: string | null;
   updated_at?: string | null;
 };
 
@@ -97,6 +100,8 @@ export type ResidentRecord = {
   latest_risk_assessment_date?: string | null;
   latest_risk_assessment_sync_status?: SyncStatus | null;
   sync_status: SyncStatus;
+  verification_status?: VerificationStatus;
+  verification_notes?: string | null;
   updated_at?: string | null;
 };
 
@@ -199,7 +204,7 @@ export type BootstrapPayload = {
   };
   assignment: MobileAssignment;
   households: Array<{
-    id: number;
+    id: number | null;
     mobile_uuid: string | null;
     purok_id: number;
     purok_display_name: string | null;
@@ -207,13 +212,16 @@ export type BootstrapPayload = {
     household_address: string;
     is_social_aid_beneficiary: boolean;
     is_active: boolean;
-    resident_count: number;
+    resident_count?: number;
+    verification_status?: VerificationStatus;
+    verification_notes?: string | null;
+    local_revision?: number;
     updated_at: string | null;
   }>;
   residents: Array<{
-    id: number;
+    id: number | null;
     mobile_uuid: string | null;
-    household_id: number;
+    household_id: number | null;
     household_mobile_uuid: string | null;
     philsys_card_no: string | null;
     last_name: string;
@@ -230,6 +238,9 @@ export type BootstrapPayload = {
     email_address: string | null;
     relationship_to_head: string;
     is_active: boolean;
+    verification_status?: VerificationStatus;
+    verification_notes?: string | null;
+    local_revision?: number;
     updated_at: string | null;
   }>;
   field_visits: Array<{
@@ -345,9 +356,11 @@ export type MobileReleaseCheck = {
 };
 
 export type SyncResolvedRecord = {
-  id: number;
+  id: number | null;
   mobile_uuid: string | null;
-  operation: 'created' | 'updated';
+  operation: 'created' | 'updated' | 'submitted' | 'unchanged';
+  verification_status?: VerificationStatus;
+  verification_notes?: string | null;
   household_id?: number;
   resident_id?: number;
   updated_at?: string | null;

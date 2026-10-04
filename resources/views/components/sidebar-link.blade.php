@@ -5,6 +5,7 @@
     'scheme' => 'light',
     'disabled' => false,
     'badge' => null,
+    'navigationSkeleton' => null,
 ])
 
 @php
@@ -54,7 +55,7 @@
         @endif
     </div>
 @else
-    <a href="{{ $href }}" class="{{ $classes }}">
+    <a href="{{ $href }}" class="{{ $classes }}" @if($active) aria-current="page" @endif @if($navigationSkeleton) data-navigation-skeleton="{{ $navigationSkeleton }}" @endif>
         <div class="flex items-center min-w-0">
             <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {!! $iconHtml !!}

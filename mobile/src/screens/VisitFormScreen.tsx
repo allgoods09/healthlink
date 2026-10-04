@@ -24,6 +24,7 @@ import {
   formatFriendlyDate,
   formatFriendlyTime,
 } from '../lib/format';
+import { findHouseholdByReference } from '../lib/householdIdentity';
 import {
   getHouseholdByLocalId,
   getHouseholds,
@@ -33,11 +34,14 @@ import {
 import { AppTheme } from '../theme';
 import { HouseholdRecord, VisitPhoto } from '../types';
 
+import { useLocalEditor } from '../lib/useLocalEditor';
+
 export function VisitFormScreen({ route, navigation }: any) {
+  useLocalEditor();
   const theme = useAppTheme();
   const styles = useThemedStyles(createStyles);
   const cameraRef = useRef<CameraView | null>(null);
-  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
+  const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [permission, requestPermission] = useCameraPermissions();
@@ -90,16 +94,10 @@ export function VisitFormScreen({ route, navigation }: any) {
       setNotes(existing.notes ?? '');
       setPhotos(existing.photos ?? []);
 
-      if (existing.household_server_id || existing.household_mobile_uuid) {
-        const existingHousehold = (await getHouseholds()).find(
-          (household) =>
-            household.server_id === existing.household_server_id ||
-            household.mobile_uuid === existing.household_mobile_uuid
-        );
+      const existingHousehold = findHouseholdByReference(await getHouseholds(), existing);
 
-        if (existingHousehold) {
-          setSelectedHousehold(existingHousehold);
-        }
+      if (existingHousehold) {
+        setSelectedHousehold(existingHousehold);
       }
     }
 
@@ -258,7 +256,7 @@ export function VisitFormScreen({ route, navigation }: any) {
       visited_at: visitedAt.toISOString(),
       notes,
       photos,
-    });
+    }, user?.id);
     bumpDataVersion();
     navigation.goBack();
   }

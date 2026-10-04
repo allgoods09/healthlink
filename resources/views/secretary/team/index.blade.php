@@ -5,9 +5,9 @@
 @section('subheader', 'Approve BHW and BNS self-registrations, create frontline accounts directly, assign puroks, and keep local access scoped to your barangay.')
 
 @section('actions')
-    <a href="{{ route('secretary.team.create') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+    <x-record-action :href="route('secretary.team.create')" variant="add">
         Add Frontline User
-    </a>
+    </x-record-action>
 @endsection
 
 @section('content')
@@ -17,7 +17,7 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-tubigon">Filters</h2>
             </div>
             <div class="p-5">
-                <form method="GET" action="{{ route('secretary.team.index') }}" class="space-y-4">
+                <form method="GET" action="{{ route('secretary.team.index') }}" class="space-y-4" data-live-results-form="secretary-team-index">
                     <div>
                         <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                         <input type="text" name="search" id="search" value="{{ request('search') }}" placeholder="Name or email" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -77,7 +77,7 @@
         </aside>
 
         <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" data-live-results="secretary-team-index">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -125,24 +125,8 @@
                             <td class="px-6 py-4 text-sm text-slate-600">{{ $frontlineUser->created_at->format('M d, Y') }}</td>
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
-                                    <a href="{{ route('secretary.team.show', $frontlineUser) }}" class="text-tubigon hover:text-tubigon-hover">View</a>
-                                    <a href="{{ route('secretary.team.edit', $frontlineUser) }}" class="text-indigo-600 hover:text-indigo-800">Manage</a>
-                                    <a href="{{ route('secretary.team.password.edit', $frontlineUser) }}" class="text-amber-700 hover:text-amber-900">Password</a>
+                                    <x-record-action :href="route('secretary.team.show', $frontlineUser)" size="compact">View</x-record-action>
 
-                                    @if($frontlineUser->approval_status === \App\Models\User::APPROVAL_PENDING)
-                                        <form action="{{ route('secretary.team.approve', $frontlineUser) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="text-emerald-600 hover:text-emerald-800">Approve</button>
-                                        </form>
-
-                                        <form action="{{ route('secretary.team.reject', $frontlineUser) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="approval_notes" value="">
-                                            <button type="submit" class="text-rose-600 hover:text-rose-800">Reject</button>
-                                        </form>
-                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -155,7 +139,7 @@
             </table>
             </div>
 
-            <div class="border-t border-slate-200 px-6 py-4">
+            <div class="border-t border-slate-200 px-6 py-4" data-live-results="secretary-team-index">
                 {{ $users->links() }}
             </div>
         </div>

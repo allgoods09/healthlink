@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Backup;
 use App\Models\Barangay;
 use App\Models\BarangayCertificate;
+use App\Models\FieldVisit;
 use App\Models\Household;
 use App\Models\Purok;
 use App\Models\Resident;
@@ -18,6 +19,7 @@ use App\Policies\AuditLogPolicy;
 use App\Policies\BackupPolicy;
 use App\Policies\BarangayPolicy;
 use App\Policies\BarangayCertificatePolicy;
+use App\Policies\FieldVisitPolicy;
 use App\Policies\HouseholdPolicy;
 use App\Policies\PurokPolicy;
 use App\Policies\ResidentPolicy;
@@ -39,6 +41,7 @@ class AuthServiceProvider extends ServiceProvider
         Barangay::class => BarangayPolicy::class,
         Purok::class => PurokPolicy::class,
         Household::class => HouseholdPolicy::class,
+        FieldVisit::class => FieldVisitPolicy::class,
         Resident::class => ResidentPolicy::class,
         BarangayCertificate::class => BarangayCertificatePolicy::class,
         AuditLog::class => AuditLogPolicy::class,

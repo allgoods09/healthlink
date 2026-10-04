@@ -98,7 +98,7 @@
                 <p class="mt-1 text-sm text-slate-500">Open a resident profile to log prenatal checks, breastfeeding follow-up, and status changes.</p>
             </div>
             <div class="p-6">
-                <form method="GET" action="{{ route('bns.maternal.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <form method="GET" action="{{ route('bns.maternal.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3" data-live-results-form="bns-maternal-index">
                     <div>
                         <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                         <input type="text" name="search" id="search" value="{{ request('search') }}" placeholder="Resident name or code" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -122,7 +122,7 @@
                 </form>
                 <x-export-dropdown route="bns.maternal.export" dataset="Maternal Tracking Profiles" />
             </div>
-            <div class="divide-y divide-slate-200">
+            <div class="divide-y divide-slate-200" data-live-results="bns-maternal-index">
                 @forelse($profiles as $profile)
                     <div class="flex items-center justify-between gap-4 px-6 py-4">
                         <div>
@@ -138,7 +138,7 @@
                     </div>
                 @endforelse
             </div>
-            <div class="border-t border-slate-200 px-6 py-4">
+            <div class="border-t border-slate-200 px-6 py-4" data-live-results="bns-maternal-index">
                 {{ $profiles->links() }}
             </div>
         </section>

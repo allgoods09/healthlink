@@ -21,6 +21,7 @@ class ProfileUpdateRequest extends Model
         'barangay_id',
         'subject_type',
         'subject_id',
+        'mobile_submission_key',
         'current_snapshot',
         'proposed_changes',
         'request_reason',

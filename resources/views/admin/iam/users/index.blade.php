@@ -71,7 +71,7 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Filters</h2>
             </div>
             <div class="p-5">
-                <form method="GET" action="{{ route('admin.users.index') }}" class="space-y-4">
+                <form method="GET" action="{{ route('admin.users.index') }}" class="space-y-4" data-live-results-form="admin-iam-users-index">
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                         <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or email">
@@ -151,7 +151,7 @@
         </aside>
 
         <div class="overflow-hidden rounded-lg bg-white shadow">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" data-live-results="admin-iam-users-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -292,7 +292,7 @@
             </table>
             </div>
 
-            <div class="border-t border-gray-200 px-6 py-4">
+            <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-iam-users-index">
                 {{ $users->links() }}
             </div>
         </div>

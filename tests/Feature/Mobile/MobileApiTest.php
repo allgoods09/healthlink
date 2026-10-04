@@ -289,7 +289,7 @@ class MobileApiTest extends TestCase
         $this->assertDatabaseCount('field_visits', 0);
     }
 
-    public function test_mobile_sync_can_create_household_resident_and_field_visit_using_mobile_uuids(): void
+    public function test_mobile_sync_submits_household_and_resident_for_verification_without_creating_official_records(): void
     {
         $barangay = Barangay::factory()->create();
         $purok = Purok::factory()->create([
@@ -360,20 +360,20 @@ class MobileApiTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
-            ->assertJsonPath('records_synced', 3)
+            ->assertJsonPath('status', 'partial')
+            ->assertJsonPath('records_synced', 2)
             ->assertJsonPath('resolved_records.households.0.mobile_uuid', $householdUuid)
             ->assertJsonPath('resolved_records.residents.0.mobile_uuid', $residentUuid)
-            ->assertJsonPath('resolved_records.field_visits.0.mobile_uuid', $visitUuid);
+            ->assertJsonPath('resolved_records.households.0.verification_status', 'submitted')
+            ->assertJsonPath('resolved_records.residents.0.verification_status', 'submitted');
 
-        $household = Household::where('mobile_uuid', $householdUuid)->firstOrFail();
-        $resident = Resident::where('mobile_uuid', $residentUuid)->firstOrFail();
-        $visit = FieldVisit::where('mobile_uuid', $visitUuid)->firstOrFail();
-
-        $this->assertSame($purok->id, $household->purok_id);
-        $this->assertSame($household->id, $resident->household_id);
-        $this->assertSame($household->id, $visit->household_id);
-        $this->assertCount(1, $visit->photos ?? []);
+        $draft = \App\Models\HouseholdDraft::where('mobile_uuid', $householdUuid)->firstOrFail();
+        $residentDraft = \App\Models\ResidentDraft::where('mobile_uuid', $residentUuid)->firstOrFail();
+        $this->assertSame($purok->id, $draft->purok_id);
+        $this->assertSame($draft->id, $residentDraft->household_draft_id);
+        $this->assertNull(Household::where('mobile_uuid', $householdUuid)->first());
+        $this->assertNull(Resident::where('mobile_uuid', $residentUuid)->first());
+        $this->assertNull(FieldVisit::where('mobile_uuid', $visitUuid)->first());
     }
 
     public function test_mobile_sync_keeps_existing_risk_assessments_immutable_but_accepts_idempotent_retries(): void

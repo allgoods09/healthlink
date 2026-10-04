@@ -7,7 +7,7 @@
 @section('content')
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-5">
-            <form method="GET" action="{{ route('secretary.reports.demographics') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <form method="GET" action="{{ route('secretary.reports.demographics') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5" data-live-results-form="secretary-reports-demographics">
                 <div>
                     <label for="purok_id" class="block text-sm font-medium text-slate-700">Purok</label>
                     <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -66,7 +66,7 @@
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6" data-live-results="secretary-reports-demographics">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Residents</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['residents']) }}</p>
@@ -93,7 +93,7 @@
         </div>
     </div>
 
-    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-live-results="secretary-reports-demographics">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Male</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['male']) }}</p>
@@ -120,7 +120,7 @@
             </div>
             <x-export-dropdown route="secretary.reports.demographics.export" dataset="Barangay Demographics by Purok" :parameters="['dataset' => 'breakdown']" />
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="secretary-reports-demographics">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -164,7 +164,7 @@
             </div>
             <x-export-dropdown route="secretary.reports.demographics.export" dataset="Barangay Demographic Roster" :parameters="['dataset' => 'roster']" />
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="secretary-reports-demographics">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -201,7 +201,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-200 px-6 py-4">
+        <div class="border-t border-slate-200 px-6 py-4" data-live-results="secretary-reports-demographics">
             {{ $residents->links() }}
         </div>
     </div>

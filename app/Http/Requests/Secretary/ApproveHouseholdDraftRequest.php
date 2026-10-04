@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\Secretary;
 
+use App\Models\Household;
 use App\Models\HouseholdDraft;
 use App\Models\Purok;
 use App\Models\Resident;
+use App\Support\HouseholdRelationships;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -32,22 +34,23 @@ class ApproveHouseholdDraftRequest extends FormRequest
                 },
             ],
             'household_no' => [
-                'required',
+                $this->route('householdDraft')?->target_household_id ? 'nullable' : 'required',
                 'string',
                 'max:50',
-                Rule::unique('households')->where(fn ($query) => $query->where('purok_id', $this->input('purok_id'))),
+                Rule::unique('households')->where(fn ($query) => $query->where('purok_id', $this->input('purok_id')))
+                    ->ignore($this->route('householdDraft')?->target_household_id),
             ],
-            'household_address' => ['required', 'string'],
+            'household_address' => [$this->route('householdDraft')?->target_household_id ? 'nullable' : 'required', 'string'],
             'drinking_water_source' => ['nullable', 'string', 'max:100'],
             'has_sanitary_toilet' => ['nullable', 'boolean'],
             'sanitary_toilet_type' => ['nullable', 'string', 'max:100'],
-            'garbage_disposal_method' => ['nullable', 'string', 'in:' . implode(',', array_keys(\App\Models\Household::GARBAGE_DISPOSAL_METHODS))],
+            'garbage_disposal_method' => ['nullable', 'string', 'in:'.implode(',', array_keys(Household::GARBAGE_DISPOSAL_METHODS))],
             'has_backyard_garden' => ['nullable', 'boolean'],
-            'housing_material_type' => ['nullable', 'string', 'in:' . implode(',', array_keys(\App\Models\Household::HOUSING_MATERIAL_TYPES))],
+            'housing_material_type' => ['nullable', 'string', 'in:'.implode(',', array_keys(Household::HOUSING_MATERIAL_TYPES))],
             'is_social_aid_beneficiary' => ['nullable', 'boolean'],
             'head_draft_id' => ['nullable', 'integer'],
             'verification_notes' => ['nullable', 'string', 'max:2000'],
-            'residents' => ['required', 'array', 'min:1'],
+            'residents' => [$this->route('householdDraft')?->mobile_uuid && ! $this->route('householdDraft')?->target_household_id ? 'nullable' : 'required', 'array', $this->route('householdDraft')?->mobile_uuid && ! $this->route('householdDraft')?->target_household_id ? 'min:0' : 'min:1'],
             'residents.*.draft_id' => ['required', 'integer'],
             'residents.*.philsys_card_no' => ['nullable', 'string', 'max:50', 'unique:residents,philsys_card_no'],
             'residents.*.last_name' => ['required', 'string', 'max:100'],
@@ -76,6 +79,15 @@ class ApproveHouseholdDraftRequest extends FormRequest
                 return;
             }
 
+            if ($householdDraft->target_household_id) {
+                $target = $householdDraft->targetHousehold?->loadMissing('purok');
+                if (! $target || (int) $target->purok?->barangay_id !== (int) Auth::user()?->assigned_barangay_id ||
+                    (int) $this->input('purok_id') !== (int) $target->purok_id ||
+                    ($this->filled('household_no') && $this->input('household_no') !== $target->household_no)) {
+                    $validator->errors()->add('purok_id', 'This resident package must remain in its verified household.');
+                }
+            }
+
             $validDraftIds = $householdDraft->residentDrafts()->pluck('id')->all();
             $submittedDraftIds = collect($this->input('residents', []))
                 ->pluck('draft_id')
@@ -98,10 +110,15 @@ class ApproveHouseholdDraftRequest extends FormRequest
             $seenPayloadResidents = [];
 
             foreach ($this->input('residents', []) as $index => $residentPayload) {
+                if (HouseholdRelationships::isHead($residentPayload['relationship_to_head'] ?? null)
+                    && ($householdDraft->target_household_id || (int) ($residentPayload['draft_id'] ?? 0) !== (int) $headDraftId)) {
+                    $validator->errors()->add("residents.{$index}.relationship_to_head", 'Resolve the ordinary relationship for this member. Head designation uses the reviewed household head selection.');
+                }
                 $identityKey = strtolower(trim(($residentPayload['first_name'] ?? '').'|'.($residentPayload['last_name'] ?? '').'|'.($residentPayload['birth_date'] ?? '')));
 
                 if (isset($seenPayloadResidents[$identityKey])) {
                     $validator->errors()->add("residents.{$index}.birth_date", 'Duplicate resident entries were found in this draft package.');
+
                     continue;
                 }
 

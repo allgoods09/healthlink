@@ -78,7 +78,7 @@
         </section>
     </div>
 
-    <div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Seniors</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($seniorCount) }}</p>
@@ -90,10 +90,6 @@
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Pending Update Requests</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($pendingUpdateRequests) }}</p>
-        </div>
-        <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <p class="text-sm text-slate-500">Pending Triage Queue</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($pendingTriageQueue) }}</p>
         </div>
     </div>
 
@@ -150,8 +146,8 @@
                     <p class="mt-1 text-amber-800">Useful for cleanup before certification and demographic exports.</p>
                 </div>
                 <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p class="font-semibold text-slate-900">{{ number_format($pendingDraftPackages + $pendingUpdateRequests + $pendingTriageQueue) }} pipeline item(s) queued</p>
-                    <p class="mt-1 text-slate-700">Field drafts, correction requests, and triage records are now scoped into the secretary pipeline.</p>
+                    <p class="font-semibold text-slate-900">{{ number_format($pendingDraftPackages + $pendingUpdateRequests) }} pipeline item(s) queued</p>
+                    <p class="mt-1 text-slate-700">Field drafts and correction requests are scoped into the secretary pipeline.</p>
                 </div>
             </div>
         </section>
@@ -198,7 +194,7 @@
                         <div>
                             <p class="text-sm font-semibold text-slate-900">{{ $certificate->certificate_no }}</p>
                             <p class="mt-1 text-sm text-slate-500">{{ $certificate->certificate_type_label }} for {{ $certificate->issued_to_name }}</p>
-                            <p class="mt-2 text-sm text-slate-600">{{ $certificate->issued_at?->format('M d, Y h:i A') }}</p>
+                            <p class="mt-2 text-sm text-slate-600">{{ $certificate->issued_at?->copy()->timezone('Asia/Manila')->format('M d, Y h:i A') }}</p>
                         </div>
                         <a href="{{ route('secretary.certificates.show', $certificate) }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-tubigon/20 hover:text-tubigon">
                             View

@@ -8,7 +8,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { AppState, Platform, useColorScheme } from 'react-native';
+import { ActivityIndicator, AppState, Modal, Platform, Text, View, useColorScheme } from 'react-native';
+import { AccountSwitchBlockedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError } from '../lib/syncGuard';
 
 import { i18n, setLocale, SupportedLocale } from '../i18n';
 import {
@@ -26,8 +27,9 @@ import {
 import { MOBILE_API_BASE_URL } from '../lib/config';
 import {
   applyResolvedRecords,
-  clearToken,
-  clearOperationalData,
+  assertDatasetOwner,
+  clearLocalSession,
+  prepareDatasetForUser,
   getAppState,
   getDatasetAssignment,
   getDatasetOwnerUserId,
@@ -115,6 +117,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useState<AppearancePreference>('system');
   const [isOnline, setIsOnline] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const syncInFlight = useRef(false);
+  const sessionEpoch = useRef(0);
+  const authTransition = useRef(false);
+  const [isApplyingRefresh, setIsApplyingRefresh] = useState(false);
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -168,10 +174,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToast(null);
   }
 
-  async function hydrateBootstrapSession(bootstrap: Awaited<ReturnType<typeof mobileBootstrap>>) {
-    await replaceBootstrapData(bootstrap);
-    await setAppState('session_assignment', JSON.stringify(bootstrap.assignment));
-
+  async function hydrateBootstrapSession(bootstrap: Awaited<ReturnType<typeof mobileBootstrap>>, epoch: number) {
+    if (epoch !== sessionEpoch.current) return;
+    if (hasLocalEditor()) throw new RefreshDeferredError();
+    setIsApplyingRefresh(true);
+    try {
+      await replaceBootstrapData(bootstrap);
+    } finally {
+      setIsApplyingRefresh(false);
+    }
+    if (epoch !== sessionEpoch.current) return;
     setAssignment(bootstrap.assignment);
     setBootstrapCompleted(true);
     setLastSyncAt(bootstrap.server_time);
@@ -185,11 +197,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const epoch = sessionEpoch.current;
     try {
       const nextReleaseCheck = await mobileCheckRelease(
         nextBaseUrl,
         APP_VERSION_CODE
       );
+      if (epoch !== sessionEpoch.current) return;
       setReleaseCheck(nextReleaseCheck);
     } catch {
       // Keep mobile boot resilient when the release endpoint is not reachable.
@@ -201,8 +215,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const epoch = sessionEpoch.current;
     try {
       const response = await mobileNotifications(MOBILE_API_BASE_URL, nextToken);
+      if (epoch !== sessionEpoch.current) return;
       setNotifications(response.notifications);
       setUnreadNotificationCount(response.unread_count);
     } catch {
@@ -213,6 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function performInitialSync(
     nextApiBaseUrl: string,
     nextToken: string,
+    epoch: number,
     fallbackMessage = i18n.t('initialSyncFailed')
   ) {
     setBootstrapCompleted(false);
@@ -229,14 +246,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const bootstrap = await mobileBootstrap(nextApiBaseUrl, nextToken);
-      await hydrateBootstrapSession(bootstrap);
+      if (epoch !== sessionEpoch.current) return;
+      await hydrateBootstrapSession(bootstrap, epoch);
     } catch (error) {
+      if (epoch !== sessionEpoch.current) return;
       setBootstrapCompleted(false);
       const message = error instanceof Error ? error.message : fallbackMessage;
       setStatusMessage(message);
       showToast(message, 'error');
     } finally {
-      setInitialSyncInProgress(false);
+      if (epoch === sessionEpoch.current) setInitialSyncInProgress(false);
     }
   }
 
@@ -291,15 +310,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBootstrapCompleted(bootstrapped);
 
       if (storedToken) {
-        setToken(storedToken);
-        if (storedSessionUser) {
-          setUser(JSON.parse(storedSessionUser) as MobileUser);
-        }
-        if (storedSessionAssignment) {
-          setAssignment(JSON.parse(storedSessionAssignment) as MobileAssignment);
-        }
-        if (!bootstrapped) {
-          setStatusMessage(i18n.t('initialSyncPendingMessage'));
+        try {
+          const sessionUser = JSON.parse(storedSessionUser || 'null') as MobileUser | null;
+          await assertDatasetOwner(sessionUser?.id);
+          setUser(sessionUser);
+          setToken(storedToken);
+          if (storedSessionAssignment) {
+            setAssignment(JSON.parse(storedSessionAssignment) as MobileAssignment);
+          }
+          if (!bootstrapped) setStatusMessage(i18n.t('initialSyncPendingMessage'));
+        } catch {
+          await clearLocalSession();
+          setBootstrapCompleted(false);
+          setStatusMessage(i18n.t('accountRecordsProtected'));
         }
       }
 
@@ -325,8 +348,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const epoch = sessionEpoch.current;
     void mobileVerify(MOBILE_API_BASE_URL, token).catch(async () => {
-      await signOut(true);
+      if (epoch === sessionEpoch.current) await signOut(true);
     });
   }, [isOnline, token]);
 
@@ -367,64 +391,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     email: string;
     password: string;
   }) {
-    const response = await mobileLogin(MOBILE_API_BASE_URL, {
-      email,
-      password,
-      device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
-      device_platform: Platform.OS,
-      app_version: APP_VERSION,
-    });
-
-    const [existingDatasetOwnerUserId, existingDatasetAssignment, bootstrapped, storedLastSyncAt] =
-      await Promise.all([
-        getDatasetOwnerUserId(),
-        getDatasetAssignment(),
-        hasBootstrapData(),
-        getAppState('last_sync_at'),
-      ]);
-
-    const nextUserId = String(response.user.id);
-    const isDifferentDatasetOwner =
-      Boolean(existingDatasetOwnerUserId) && existingDatasetOwnerUserId !== nextUserId;
-    const canReuseCachedData =
-      existingDatasetOwnerUserId === nextUserId && bootstrapped;
-
-    if (isDifferentDatasetOwner) {
-      await clearOperationalData();
-    }
-
-    await storeToken(response.token);
-    await setAppState('session_user', JSON.stringify(response.user));
-
-    setUser(response.user);
-    setStatusMessage(null);
-    setInitialSyncInProgress(false);
-    await refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
-    await refreshNotificationsWithToken(response.token);
-
-    if (canReuseCachedData) {
-      if (existingDatasetAssignment) {
-        const cachedAssignment = JSON.parse(existingDatasetAssignment) as MobileAssignment;
-        await setAppState('session_assignment', existingDatasetAssignment);
-        setAssignment(cachedAssignment);
-      } else {
-        setAssignment(null);
+    if (authTransition.current) return;
+    authTransition.current = true;
+    const epoch = ++sessionEpoch.current;
+    try {
+      const response = await mobileLogin(MOBILE_API_BASE_URL, {
+        email,
+        password,
+        device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
+        device_platform: Platform.OS,
+        app_version: APP_VERSION,
+      });
+      if (epoch !== sessionEpoch.current) {
+        void mobileLogout(MOBILE_API_BASE_URL, response.token).catch(() => {});
+        return;
       }
 
-      setBootstrapCompleted(true);
-      setLastSyncAt(storedLastSyncAt || null);
+      try {
+        await prepareDatasetForUser(response.user.id);
+      } catch (error) {
+        // The rejected account must never become the local authenticated session.
+        void mobileLogout(MOBILE_API_BASE_URL, response.token).catch(() => {});
+        if (error instanceof AccountSwitchBlockedError) {
+          throw new Error(i18n.t('accountSwitchBlocked'));
+        }
+        throw error;
+      }
+      if (epoch !== sessionEpoch.current) return;
+
+      const [existingDatasetOwnerUserId, existingDatasetAssignment, bootstrapped, storedLastSyncAt] =
+        await Promise.all([
+          getDatasetOwnerUserId(),
+          getDatasetAssignment(),
+          hasBootstrapData(),
+          getAppState('last_sync_at'),
+        ]);
+
+      const nextUserId = String(response.user.id);
+      const canReuseCachedData =
+        existingDatasetOwnerUserId === nextUserId && bootstrapped;
+
+      await storeToken(response.token);
+      await setAppState('session_user', JSON.stringify(response.user));
+
+      setUser(response.user);
+      setStatusMessage(null);
+      setInitialSyncInProgress(false);
+      await refreshReleaseStatusWithBaseUrl(MOBILE_API_BASE_URL);
+      await refreshNotificationsWithToken(response.token);
+      if (epoch !== sessionEpoch.current) return;
+
+      if (canReuseCachedData) {
+        if (existingDatasetAssignment) {
+          const cachedAssignment = JSON.parse(existingDatasetAssignment) as MobileAssignment;
+          await setAppState('session_assignment', existingDatasetAssignment);
+          setAssignment(cachedAssignment);
+        } else {
+          setAssignment(null);
+        }
+
+        setBootstrapCompleted(true);
+        setLastSyncAt(storedLastSyncAt || null);
+        setToken(response.token);
+        await refreshPendingSyncCount();
+
+        return;
+      }
+
+      await setAppState('session_assignment', '');
+      setAssignment(null);
+      setBootstrapCompleted(false);
       setToken(response.token);
       await refreshPendingSyncCount();
-
-      return;
+      authTransition.current = false;
+      await performInitialSync(MOBILE_API_BASE_URL, response.token, epoch);
+    } finally {
+      if (epoch === sessionEpoch.current) authTransition.current = false;
     }
-
-    await setAppState('session_assignment', '');
-    setAssignment(null);
-    setBootstrapCompleted(false);
-    setToken(response.token);
-    await refreshPendingSyncCount();
-    await performInitialSync(MOBILE_API_BASE_URL, response.token);
   }
 
   async function requestPasswordReset(email: string) {
@@ -434,17 +477,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut(silent = false) {
-    if (token && !silent) {
-      try {
-        await mobileLogout(MOBILE_API_BASE_URL, token);
-      } catch {
-        // Keep local logout reliable even if the remote token is already gone.
-      }
-    }
-
-    await clearToken();
-    await setAppState('session_user', '');
-    await setAppState('session_assignment', '');
+    authTransition.current = true;
+    ++sessionEpoch.current;
+    syncInFlight.current = false;
+    setIsSyncing(false);
+    resolveConfirmation(false);
+    await clearLocalSession();
     setToken(null);
     setUser(null);
     setAssignment(null);
@@ -457,14 +495,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setReleaseCheck(null);
     clearToast();
     await refreshPendingSyncCount();
+    authTransition.current = false;
+    // Local logout never waits for connectivity and never uploads pending work.
+    if (token && !silent) void mobileLogout(MOBILE_API_BASE_URL, token).catch(() => {});
   }
 
   async function syncNow() {
-    if (!token || !isOnline || isSyncing) {
+    if (!token || !user || !isOnline || syncInFlight.current) {
       return;
     }
 
     const activeToken = token;
+    const epoch = sessionEpoch.current;
 
     if (releaseCheck?.update.available && releaseCheck.update.required) {
       const message =
@@ -474,21 +516,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    syncInFlight.current = true;
     setIsSyncing(true);
 
     try {
+      await assertDatasetOwner(user.id);
+      if (epoch !== sessionEpoch.current) return;
       const pendingSummary = await refreshPendingSyncCount();
+      let registrySubmitted = false;
 
       if (pendingSummary.total > 0) {
         setStatusMessage(i18n.t('uploadingChanges'));
-        const payload = await getPendingSyncPayload();
+        const { payload, snapshot } = await getPendingSyncPayload(user.id);
+        if (epoch !== sessionEpoch.current) return;
         const syncResponse = await mobileSync(MOBILE_API_BASE_URL, activeToken, {
           ...payload,
           device_name: `BHW ${Platform.OS === 'ios' ? 'iPhone' : 'Android'} Device`,
           app_version: APP_VERSION,
         });
+        registrySubmitted = [...syncResponse.resolved_records.households,
+          ...syncResponse.resolved_records.residents]
+          .some((record) => record.verification_status === 'submitted');
 
-        await applyResolvedRecords(syncResponse.resolved_records);
+        if (epoch !== sessionEpoch.current) return;
+        await applyResolvedRecords(syncResponse.resolved_records, snapshot);
+        if (epoch !== sessionEpoch.current) return;
         await setAppState('last_sync_at', syncResponse.synced_at);
         setLastSyncAt(syncResponse.synced_at);
         const remainingSummary = await refreshPendingSyncCount();
@@ -499,6 +551,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             i18n.t('syncUploadIncomplete');
           setStatusMessage(message);
           showToast(message, 'warning');
+          if (registrySubmitted) showToast(i18n.t('registrySubmitted'), 'info');
           setDataVersion((current) => current + 1);
 
           return;
@@ -514,17 +567,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setStatusMessage(i18n.t('downloadingLatest'));
       const bootstrap = await mobileBootstrap(MOBILE_API_BASE_URL, activeToken);
-      await hydrateBootstrapSession(bootstrap);
-      setStatusMessage(i18n.t('syncComplete'));
-      showToast(i18n.t('syncComplete'), 'success');
+      if (epoch !== sessionEpoch.current) return;
+      await hydrateBootstrapSession(bootstrap, epoch);
+      if (epoch !== sessionEpoch.current) return;
+      const message = pendingSummary.total > 0 && registrySubmitted ? i18n.t('registrySubmitted') : i18n.t('syncComplete');
+      setStatusMessage(message);
+      showToast(message, 'success');
       await refreshNotificationsWithToken(activeToken);
     } catch (error) {
+      if (epoch !== sessionEpoch.current) return;
+      if (error instanceof DatasetOwnershipError) {
+        const message = i18n.t('accountRecordsProtected');
+        setStatusMessage(message);
+        showToast(message, 'warning');
+        return;
+      }
+      if (error instanceof RefreshDeferredError) {
+        const message = i18n.t('syncRefreshDeferred');
+        setStatusMessage(message);
+        showToast(message, 'warning');
+        await refreshPendingSyncCount();
+        return;
+      }
       const message =
         error instanceof Error ? error.message : i18n.t('syncFailed');
       setStatusMessage(message);
       showToast(message, 'error');
     } finally {
-      setIsSyncing(false);
+      if (epoch === sessionEpoch.current) {
+        syncInFlight.current = false;
+        setIsSyncing(false);
+      }
     }
   }
 
@@ -533,7 +606,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await performInitialSync(MOBILE_API_BASE_URL, token);
+    await performInitialSync(MOBILE_API_BASE_URL, token, sessionEpoch.current);
   }
 
   async function setLanguagePreference(locale: SupportedLocale) {
@@ -670,7 +743,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ]
   );
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+      <Modal visible={isApplyingRefresh} transparent animationType="none" onRequestClose={() => {}}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: 32, backgroundColor: '#00000066' }}>
+          <View style={{ padding: 24, borderRadius: 16, gap: 16, backgroundColor: appTheme.colors.surface }}>
+            <ActivityIndicator />
+            <Text accessibilityRole="alert" style={{ color: appTheme.colors.text }}>
+              {i18n.t('syncApplyingRefresh')}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </AppContext.Provider>
+  );
 }
 
 export function useAppContext() {

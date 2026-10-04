@@ -69,6 +69,7 @@ class FieldDraftController extends Controller
             'reviewedBy',
             'residentDrafts',
             'approvedHousehold.purok',
+            'targetHousehold.purok',
             'approvedHousehold.headResident',
         ]);
 
@@ -87,7 +88,7 @@ class FieldDraftController extends Controller
                 ->with('error', 'Only pending field drafts can still be reviewed and approved.');
         }
 
-        $householdDraft->load(['purok', 'submittedBy.assignedPurok', 'residentDrafts']);
+        $householdDraft->load(['purok', 'submittedBy.assignedPurok', 'residentDrafts', 'targetHousehold.purok']);
 
         return view('secretary.drafts.edit', [
             'householdDraft' => $householdDraft,
@@ -145,7 +146,7 @@ class FieldDraftController extends Controller
     private function listingQuery(Request $request): Builder
     {
         return $this->filteredQuery($request)
-            ->with(['purok', 'submittedBy', 'reviewedBy', 'approvedHousehold'])
+            ->with(['purok', 'submittedBy', 'reviewedBy', 'approvedHousehold', 'targetHousehold'])
             ->withCount('residentDrafts')
             ->latest()
             ->orderByDesc('id');

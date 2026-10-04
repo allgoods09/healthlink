@@ -54,6 +54,7 @@
             return {
                 purokEndpoint,
                 householdEndpoint,
+                rankingEnabled: @js($routePrefix === 'secretary'),
                 barangayId: initialBarangay || '',
                 purokId: initialPurok || '',
                 householdId: initialHousehold || '',
@@ -93,11 +94,12 @@
                         return;
                     }
 
-                    this.filteredHouseholds = this.households
-                        .filter((household) => [household.household_no, household.household_address].join(' ').toLowerCase().includes(term))
+                    this.filteredHouseholds = (this.rankingEnabled
+                        ? window.rankHouseholdOptions(this.households, term)
+                        : this.households.filter((household) => [household.household_no, household.household_address].join(' ').toLowerCase().includes(term)))
                         .slice(0, 12);
 
-                    if (this.highlightedHouseholdIndex >= this.filteredHouseholds.length) {
+                    if (this.rankingEnabled || this.highlightedHouseholdIndex >= this.filteredHouseholds.length) {
                         this.highlightedHouseholdIndex = 0;
                     }
                 },

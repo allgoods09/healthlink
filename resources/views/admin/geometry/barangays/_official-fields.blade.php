@@ -16,6 +16,8 @@
                 $fieldId = 'official_names_' . $roleKey;
                 $value = old("official_names.$roleKey", $officialFieldNames[$roleKey] ?? '');
                 $isRequired = $roleKey === \App\Models\BarangayOfficial::ROLE_PUNONG_BARANGAY;
+                $linked = ($secretaryLinked ?? false) && $roleKey === \App\Models\BarangayOfficial::ROLE_BARANGAY_SECRETARY;
+                if ($linked) { $value = $resolvedSecretaryName; }
             @endphp
             <div>
                 <label for="{{ $fieldId }}" class="block text-sm font-medium text-gray-700">
@@ -29,9 +31,11 @@
                     name="official_names[{{ $roleKey }}]"
                     id="{{ $fieldId }}"
                     value="{{ $value }}"
+                    @if($linked) disabled aria-describedby="linked_secretary_help" @endif
                     @if($isRequired) required @endif
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm @error("official_names.$roleKey") border-red-500 @enderror"
                     placeholder="Enter {{ strtolower($definition['title']) }} name">
+                @if($linked)<p id="linked_secretary_help" class="mt-2 text-xs text-slate-500">System-linked. The active Secretary account name is used as the official Barangay Secretary.</p>@endif
                 @error("official_names.$roleKey")
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror

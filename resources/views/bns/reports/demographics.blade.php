@@ -21,7 +21,7 @@
 @section('content')
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-5">
-            <form method="GET" action="{{ route('bns.reports.demographics') }}" class="flex flex-col gap-4 md:flex-row md:items-end">
+            <form method="GET" action="{{ route('bns.reports.demographics') }}" class="flex flex-col gap-4 md:flex-row md:items-end" data-live-results-form="bns-reports-demographics">
                 <div class="w-full md:max-w-sm">
                     <label for="purok_id" class="block text-sm font-medium text-slate-700">Purok</label>
                     <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -42,7 +42,7 @@
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" data-live-results="bns-reports-demographics">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Residents</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['residents']) }}</p>
@@ -89,7 +89,7 @@
             <h3 class="text-lg font-semibold text-slate-900">Purok Breakdown</h3>
             <p class="text-sm text-slate-500">Demographic totals by purok inside your assigned barangay.</p>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="bns-reports-demographics">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>

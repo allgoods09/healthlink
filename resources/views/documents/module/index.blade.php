@@ -10,7 +10,7 @@
 @endphp
 
 @section('content')
-    <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div class="grid gap-6 {{ $routePrefix === 'admin' ? 'xl:grid-cols-[1.1fr_0.9fr]' : '' }}">
         <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -161,6 +161,7 @@
             </form>
         </section>
 
+        @if($routePrefix === 'admin')
         <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -192,15 +193,18 @@
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         @foreach($officials as $official)
+                            @php($linked = ($secretaryLinked ?? false) && $official->role_key === \App\Models\BarangayOfficial::ROLE_BARANGAY_SECRETARY)
                             <div>
                                 <label for="official_{{ $official->role_key }}" class="block text-sm font-medium text-slate-700">{{ $official->official_title }}</label>
                                 <input
                                     id="official_{{ $official->role_key }}"
                                     name="officials[{{ $official->role_key }}]"
                                     type="text"
-                                    value="{{ old('officials.'.$official->role_key, $official->official_name) }}"
+                                    value="{{ $linked ? $resolvedSecretaryName : old('officials.'.$official->role_key, $official->official_name) }}"
+                                    @if($linked) disabled aria-describedby="linked_secretary_help" @endif
                                     class="mt-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-tubigon focus:ring-tubigon"
                                     placeholder="Enter {{ strtolower($official->official_title) }} name">
+                                @if($linked)<p id="linked_secretary_help" class="mt-2 text-xs text-slate-500">System-linked. The active Secretary account name is used as the official Barangay Secretary.</p>@endif
                             </div>
                         @endforeach
                     </div>
@@ -213,5 +217,6 @@
                 </form>
             @endif
         </section>
+        @endif
     </div>
 @endsection

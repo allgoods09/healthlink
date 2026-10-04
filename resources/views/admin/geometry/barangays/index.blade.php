@@ -12,7 +12,7 @@
 @section('content')
     <div class="mb-6 rounded-lg bg-white shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route('admin.barangays.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <form method="GET" action="{{ route('admin.barangays.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4" data-live-results-form="admin-geometry-barangays-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or PSGC code">
@@ -46,7 +46,7 @@
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-geometry-barangays-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -111,7 +111,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-gray-200 px-6 py-4">
+        <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-geometry-barangays-index">
             {{ $barangays->links() }}
         </div>
     </div>

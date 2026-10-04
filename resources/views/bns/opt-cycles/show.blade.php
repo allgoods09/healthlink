@@ -20,7 +20,7 @@
         </div>
     </section>
     <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5">
-        <form method="GET">
+        <form method="GET" data-live-results-form="bns-opt-cycles-show">
             <div class="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <label class="text-sm font-medium">Find Child<input name="search" value="{{ request('search') }}" placeholder="Child's name" class="mt-2 block w-full rounded-xl border-slate-300 px-4 py-3"></label>
                 <label class="text-sm font-medium">Purok
@@ -62,7 +62,7 @@
             </details>
         </form>
     </section>
-    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white" data-live-results="bns-opt-cycles-show">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-left text-slate-600">
                 <tr>@foreach(['Child', 'Age', 'Purok', 'Mother/Caregiver', 'Weight', 'Height', 'Status', 'Action'] as $header)<th class="px-4 py-3">{{ $header }}</th>@endforeach</tr>

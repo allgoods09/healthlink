@@ -32,7 +32,7 @@
         >
             <option value="">Select purok</option>
             <template x-for="purok in puroks" :key="purok.id">
-                <option :value="String(purok.id)" x-text="purok.purok_name ? `Purok ${purok.purok_number} - ${purok.purok_name}` : `Purok ${purok.purok_number}`"></option>
+                <option :value="String(purok.id)" :selected="String(purok.id) === String(purokId)" x-text="purok.purok_name ? `Purok ${purok.purok_number} - ${purok.purok_name}` : `Purok ${purok.purok_number}`"></option>
             </template>
         </select>
         @error('purok_id')
@@ -71,7 +71,12 @@
                 'search' => collect([
                     $candidate->formal_name ?? $candidate->full_name,
                     $candidate->official_resident_code,
-                ])->filter()->implode(' '),
+                    ])->filter()->implode(' '),
+                    'ranking' => ($routePrefix ?? 'admin') === 'secretary' ? [
+                        'kind' => 'resident', 'primaryIdentifier' => $candidate->official_resident_code,
+                        'primaryName' => $candidate->formal_name ?? $candidate->full_name,
+                        'nameAliases' => [$candidate->full_name],
+                    ] : null,
             ])->values()->all();
         @endphp
         <x-searchable-record-select

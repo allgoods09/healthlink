@@ -112,7 +112,7 @@ class UpdateRequestController extends Controller
         ProfileUpdateRequest $profileUpdateRequest,
         SecretaryPipelineProcessor $processor,
         RoleNotificationService $roleNotificationService
-    ): RedirectResponse {
+    ): RedirectResponse|View {
         $this->ensureProfileUpdateRequestBelongsToBarangay($profileUpdateRequest);
 
         if ($profileUpdateRequest->request_status !== ProfileUpdateRequest::STATUS_PENDING) {
@@ -120,6 +120,9 @@ class UpdateRequestController extends Controller
         }
 
         $subject = $processor->applyProfileUpdateRequest($profileUpdateRequest, $request->validated(), Auth::user());
+        if ($subject instanceof View) {
+            return $subject;
+        }
         $roleNotificationService->notifyProfileUpdateReviewed($profileUpdateRequest->fresh('submittedBy'), true, Auth::user());
 
         return redirect()

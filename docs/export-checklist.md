@@ -45,7 +45,6 @@ Legend: `[x]` implemented and covered by a focused test; `[ ]` pending. A page w
 - [x] Frontline Team
 - [x] Draft Packages
 - [x] Update Requests
-- [x] Triage Queue
 - [x] Activity Feed
 - [x] Demographic Report: summary/by-purok data
 - [x] Demographic Report: resident roster

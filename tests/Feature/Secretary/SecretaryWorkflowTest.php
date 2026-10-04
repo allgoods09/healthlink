@@ -19,13 +19,16 @@ class SecretaryWorkflowTest extends TestCase
     {
         [$secretary, $resident] = $this->secretaryWithResident();
 
+        $reviewToken = $this->actingAs($secretary)->get(route('secretary.certificates.create'))->assertOk()->viewData('reviewToken');
+
         $response = $this->actingAs($secretary)->post(route('secretary.certificates.store'), [
             'certificate_type' => 'barangay_clearance',
             'recipient_type' => 'resident',
             'resident_id' => $resident->id,
             'purpose' => 'Medical assistance application',
             'remarks' => 'Verified against active registry record',
-            'issued_at' => now()->format('Y-m-d H:i:s'),
+            'issued_at' => now()->timezone('Asia/Manila')->format('Y-m-d\TH:i:s'),
+            'review_token' => $reviewToken,
         ]);
 
         $certificate = \App\Models\BarangayCertificate::query()->firstOrFail();
@@ -35,6 +38,7 @@ class SecretaryWorkflowTest extends TestCase
         $this->assertSame($secretary->assigned_barangay_id, $certificate->barangay_id);
         $this->assertSame($resident->id, $certificate->resident_id);
         $this->assertSame($secretary->id, $certificate->issued_by_user_id);
+        $this->assertSame($secretary->display_name, $certificate->signatory_name_at_issuance);
         $this->assertNotEmpty($certificate->certificate_no);
 
         $this->assertDatabaseHas('audit_logs', [

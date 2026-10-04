@@ -11,7 +11,6 @@ use App\Models\Purok;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
 use App\Models\SyncLog;
-use App\Models\TriageRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -64,11 +63,6 @@ trait InteractsWithSecretaryScope
         return ProfileUpdateRequest::query()->where('barangay_id', $this->assignedBarangayId());
     }
 
-    protected function secretaryTriageRecordsQuery(): Builder
-    {
-        return TriageRecord::query()->where('barangay_id', $this->assignedBarangayId());
-    }
-
     protected function secretaryActivityQuery(): Builder
     {
         return AuditLog::query()
@@ -110,10 +104,6 @@ trait InteractsWithSecretaryScope
                     ->orWhere(function (Builder $nested): void {
                         $nested->where('model_type', ProfileUpdateRequest::class)
                             ->whereIn('model_id', $this->secretaryProfileUpdateRequestsQuery()->select('id'));
-                    })
-                    ->orWhere(function (Builder $nested): void {
-                        $nested->where('model_type', TriageRecord::class)
-                            ->whereIn('model_id', $this->secretaryTriageRecordsQuery()->select('id'));
                     });
             });
     }
@@ -192,13 +182,6 @@ trait InteractsWithSecretaryScope
     protected function ensureProfileUpdateRequestBelongsToBarangay(ProfileUpdateRequest $profileUpdateRequest): void
     {
         if ((int) $profileUpdateRequest->barangay_id !== $this->assignedBarangayId()) {
-            abort(404);
-        }
-    }
-
-    protected function ensureTriageRecordBelongsToBarangay(TriageRecord $triageRecord): void
-    {
-        if ((int) $triageRecord->barangay_id !== $this->assignedBarangayId()) {
             abort(404);
         }
     }

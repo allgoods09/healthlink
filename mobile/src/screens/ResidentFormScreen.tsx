@@ -23,6 +23,7 @@ import {
   formatBirthDateInput,
   normalizeBirthDateInput,
 } from '../lib/format';
+import { findHouseholdByReference } from '../lib/householdIdentity';
 import {
   getHouseholds,
   getResidentByLocalId,
@@ -31,10 +32,13 @@ import {
 import { AppTheme } from '../theme';
 import { HouseholdRecord } from '../types';
 
+import { useLocalEditor } from '../lib/useLocalEditor';
+
 export function ResidentFormScreen({ route, navigation }: any) {
+  useLocalEditor();
   const theme = useAppTheme();
   const styles = useThemedStyles(createStyles);
-  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
+  const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
@@ -101,16 +105,10 @@ export function ResidentFormScreen({ route, navigation }: any) {
       setRelationshipToHead(existing.relationship_to_head);
       setActive(existing.is_active);
 
-      if (existing.household_server_id || existing.household_mobile_uuid) {
-        const existingHousehold = (await getHouseholds()).find(
-          (household) =>
-            household.server_id === existing.household_server_id ||
-            household.mobile_uuid === existing.household_mobile_uuid
-        );
+      const existingHousehold = findHouseholdByReference(await getHouseholds(), existing);
 
-        if (existingHousehold) {
-          setSelectedHousehold(existingHousehold);
-        }
+      if (existingHousehold) {
+        setSelectedHousehold(existingHousehold);
       }
     }
 
@@ -181,7 +179,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       email_address: emailAddress || null,
       relationship_to_head: relationshipToHead,
       is_active: active,
-    });
+    }, user?.id);
     bumpDataVersion();
     navigation.goBack();
   }

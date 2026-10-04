@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Secretary\Concerns\InteractsWithSecretaryScope;
-use App\Models\AuditLog;
 use App\Models\Barangay;
 use App\Models\BarangayOfficial;
 use App\Models\Household;
@@ -12,11 +11,13 @@ use App\Models\Resident;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
 use App\Support\RbiTemplatePdfGenerator;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\SecretaryRbiSelection;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -24,56 +25,92 @@ class DocumentController extends Controller
 {
     use InteractsWithSecretaryScope;
 
-    public function index(Request $request, BarangayOfficialsRegistry $officialsRegistry): View
+    public function index(Request $request, SecretaryRbiSelection $selector, BarangayOfficialsRegistry $officialsRegistry): View|RedirectResponse
     {
         Gate::authorize('viewAny', Resident::class);
         Gate::authorize('viewAny', Household::class);
 
         $barangay = Barangay::query()->findOrFail($this->assignedBarangayId());
-        $officials = $officialsRegistry->syncDefaults($barangay);
-        $filters = $this->filters($request) + ['barangay_id' => $barangay->id];
+        $step = max(1, min(4, (int) $request->input('step', 1)));
+        try {
+            $selection = $selector->normalize($request->all(), $barangay->id, $step);
+        } catch (ValidationException $exception) {
+            return $this->selectionError($request->all(), $exception);
+        }
+        $state = $this->draftState($request->all());
+        $puroks = $this->secretaryPuroksQuery()->orderBy('purok_number')->get();
+        $households = $selector->households($barangay->id)->with('purok')->orderBy('purok_id')->orderBy('household_no')->get();
+        $officials = $barangay->officials()->get()->keyBy('role_key');
+        $count = $step === 4 ? $selector->query($selection, $barangay->id)->count() : null;
+        $reviewToken = $step === 4 && $count > 0 ? Crypt::encryptString(json_encode([
+            'user_id' => $request->user()->id,
+            'barangay_id' => $barangay->id,
+            'selection' => $selection,
+        ], JSON_THROW_ON_ERROR)) : null;
 
-        return view('documents.module.index', [
-            'layout' => 'layouts.portal',
-            'routePrefix' => 'secretary',
-            'pageTitle' => 'Documents - HealthLink Secretary',
-            'pageHeader' => 'Documents',
-            'pageSubheader' => 'Generate strict RBI PDFs for residents and households using the locked government templates.',
+        return view('secretary.documents.index', [
+            'step' => $step,
             'barangay' => $barangay,
-            'barangays' => collect([$barangay]),
             'officials' => $officials,
-            'filters' => $filters,
-            'documentTypes' => $this->documentTypes(),
-            'puroks' => $this->secretaryPuroksQuery()->active()->orderBy('purok_number')->get(),
-            'households' => $this->availableHouseholds($filters),
-            'previewCount' => $this->previewCount($filters),
+            ...$officialsRegistry->secretaryPresentation($barangay),
+            'state' => $state,
+            'selection' => $selection,
+            'documentTypes' => SecretaryRbiSelection::DOCUMENTS,
+            'coverageTypes' => SecretaryRbiSelection::COVERAGES,
+            'puroks' => $puroks,
+            'households' => $households,
+            'previewCount' => $count,
+            'reviewToken' => $reviewToken,
+            'filterLabels' => $step === 4 ? $selector->filterLabels($selection) : [],
         ]);
     }
 
     public function export(
         Request $request,
         RbiTemplatePdfGenerator $generator,
-        BarangayOfficialsRegistry $officialsRegistry
+        BarangayOfficialsRegistry $officialsRegistry,
+        SecretaryRbiSelection $selector
     ): Response|RedirectResponse {
         Gate::authorize('viewAny', Resident::class);
         Gate::authorize('viewAny', Household::class);
 
         $barangay = Barangay::query()->findOrFail($this->assignedBarangayId());
-        $filters = $this->filters($request) + ['barangay_id' => $barangay->id];
+        // Export only the reviewed selection, never newly edited query controls.
+        try {
+            $token = $request->input('review');
+            if (! is_string($token) || $token === '') {
+                return redirect()->route('secretary.documents.index')->with('error', 'Review your selection before generating the PDF.');
+            }
+            $review = json_decode(Crypt::decryptString($token), true, flags: JSON_THROW_ON_ERROR);
+        } catch (DecryptException|\JsonException $exception) {
+            return redirect()->route('secretary.documents.index')->with('error', 'Please review your selection again before generating the PDF.');
+        }
+        abort_unless(is_array($review) && ($review['user_id'] ?? null) === $request->user()->id
+            && ($review['barangay_id'] ?? null) === $barangay->id && is_array($review['selection'] ?? null), 403);
+        try {
+            $filters = $selector->normalize($review['selection'], $barangay->id);
+        } catch (ValidationException $exception) {
+            return $this->selectionError($review['selection'], $exception);
+        }
+        if (array_intersect(SecretaryRbiSelection::FIELDS, array_keys($request->all()))) {
+            return redirect()->route('secretary.documents.index', $filters + ['step' => 4])
+                ->with('error', 'Return to Review after changing your selection.');
+        }
         $officials = $officialsRegistry->keyed($barangay);
 
         if ($filters['document_type'] === 'household_rbi') {
-            $records = $this->householdQuery($filters)
+            $records = $selector->query($filters, $barangay->id)
                 ->with(['purok.barangay', 'headResident', 'residents.socioEconomicProfile'])
                 ->get();
 
             if ($records->isEmpty()) {
-                return back()->with('error', 'No household records matched the selected document filters.');
+                return redirect()->route('secretary.documents.index', $filters + ['step' => 4])
+                    ->with('error', 'No household records matched the selected document filters.');
             }
 
             $content = $generator->generateHouseholds($records, [
                 'officials' => [
-                    'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                    'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
                     'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
                 ],
             ]);
@@ -94,16 +131,17 @@ class DocumentController extends Controller
             );
         }
 
-        $records = $this->residentQuery($filters)
+        $records = $selector->query($filters, $barangay->id)
             ->with(['household.purok.barangay', 'socioEconomicProfile'])
             ->get();
 
         if ($records->isEmpty()) {
-            return back()->with('error', 'No resident records matched the selected document filters.');
+            return redirect()->route('secretary.documents.index', $filters + ['step' => 4])
+                ->with('error', 'No resident records matched the selected document filters.');
         }
 
         $content = $generator->generateResidents($records, [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         ExportAudit::log('secretary resident RBI documents', 'pdf', [
@@ -127,142 +165,52 @@ class DocumentController extends Controller
         Gate::authorize('viewAny', Household::class);
 
         $barangay = Barangay::query()->findOrFail($this->assignedBarangayId());
+        if (is_array($request->input('officials'))) {
+            $request->merge(['officials' => $officialsRegistry->editableNameInput($barangay, $request->input('officials'))]);
+        }
         $validated = $request->validate([
             'officials' => ['required', 'array'],
             'officials.*' => ['nullable', 'string', 'max:150'],
         ]);
 
-        $officials = $officialsRegistry->syncDefaults($barangay)->keyBy('role_key');
-
-        foreach (BarangayOfficial::defaults() as $definition) {
-            $official = $officials->get($definition['role_key']);
-            $name = trim((string) ($validated['officials'][$definition['role_key']] ?? ''));
-
-            if (! $official) {
-                continue;
-            }
-
-            $oldValues = $official->toArray();
-            $official->update(['official_name' => $name !== '' ? $name : null]);
-            AuditLog::logMutation('updated', Auth::user(), $official, $oldValues, $official->fresh()->toArray());
-        }
+        $officialsRegistry->updateNames($barangay, $validated['officials']);
 
         return back()->with('success', 'Barangay officials updated for document attestation fields.');
     }
 
-    private function filters(Request $request): array
+    private function draftState(array $input): array
     {
-        return $request->validate([
-            'document_type' => ['nullable', 'in:resident_rbi,household_rbi'],
-            'purok_id' => ['nullable', 'integer'],
-            'household_id' => ['nullable', 'integer'],
-            'sex' => ['nullable', 'in:Male,Female'],
-            'resident_status' => ['nullable', 'in:active,deceased,relocated'],
-            'record_status' => ['nullable', 'in:all,active,inactive'],
-            'social_aid' => ['nullable', 'in:all,yes,no'],
-            'age_min' => ['nullable', 'integer', 'min:0', 'max:150'],
-            'age_max' => ['nullable', 'integer', 'min:0', 'max:150'],
-        ]) + [
-            'document_type' => $request->input('document_type', 'resident_rbi'),
-            'record_status' => $request->input('record_status', 'active'),
-            'social_aid' => $request->input('social_aid', 'all'),
-        ];
+        $state = ['document_type' => '', 'coverage' => 'barangay', 'purok_ids' => [], 'household_ids' => [],
+            'record_status' => 'active', 'social_aid' => 'all', 'sex' => '', 'resident_status' => '', 'age_min' => '', 'age_max' => ''];
+        foreach ($state as $field => $default) {
+            if (is_array($default)) {
+                $state[$field] = array_values(array_filter((array) ($input[$field] ?? []), fn ($id) => is_scalar($id)));
+            } elseif (isset($input[$field]) && is_scalar($input[$field])) {
+                $state[$field] = (string) $input[$field];
+            }
+        }
+
+        return $state;
     }
 
-    private function residentQuery(array $filters): Builder
+    private function selectionError(array $input, ValidationException $exception): RedirectResponse
     {
-        $query = $this->secretaryResidentsQuery()->orderBy('last_name')->orderBy('first_name');
+        $keys = array_keys($exception->errors());
+        $step = in_array('document_type', $keys, true) ? 1
+            : (collect($keys)->contains(fn ($key) => $key === 'coverage' || str_starts_with($key, 'purok_ids') || str_starts_with($key, 'household_ids')) ? 2 : 3);
 
-        if (! empty($filters['purok_id'])) {
-            $query->whereHas('household', fn (Builder $builder) => $builder->where('purok_id', $filters['purok_id']));
-        }
-
-        if (! empty($filters['household_id'])) {
-            $query->where('household_id', $filters['household_id']);
-        }
-
-        if (! empty($filters['sex'])) {
-            $query->where('sex', $filters['sex']);
-        }
-
-        if (! empty($filters['resident_status'])) {
-            $query->where('resident_status', $filters['resident_status']);
-        }
-
-        if (($filters['record_status'] ?? 'active') !== 'all') {
-            $query->where('is_active', ($filters['record_status'] ?? 'active') === 'active');
-        }
-
-        if (isset($filters['age_min']) && $filters['age_min'] !== null) {
-            $query->whereDate('birth_date', '<=', now()->subYears((int) $filters['age_min'])->endOfDay());
-        }
-
-        if (isset($filters['age_max']) && $filters['age_max'] !== null) {
-            $query->whereDate('birth_date', '>=', now()->subYears((int) $filters['age_max'] + 1)->addDay()->startOfDay());
-        }
-
-        return $query;
-    }
-
-    private function householdQuery(array $filters): Builder
-    {
-        $query = $this->secretaryHouseholdsQuery()->orderBy('purok_id')->orderBy('household_no');
-
-        if (! empty($filters['purok_id'])) {
-            $query->where('purok_id', $filters['purok_id']);
-        }
-
-        if (! empty($filters['household_id'])) {
-            $query->whereKey($filters['household_id']);
-        }
-
-        if (($filters['record_status'] ?? 'active') !== 'all') {
-            $query->where('is_active', ($filters['record_status'] ?? 'active') === 'active');
-        }
-
-        if (($filters['social_aid'] ?? 'all') !== 'all') {
-            $query->where('is_social_aid_beneficiary', ($filters['social_aid'] ?? 'all') === 'yes');
-        }
-
-        return $query;
-    }
-
-    private function availableHouseholds(array $filters)
-    {
-        $query = $this->secretaryHouseholdsQuery()
-            ->with('purok')
-            ->active()
-            ->orderBy('household_no');
-
-        if (! empty($filters['purok_id'])) {
-            $query->where('purok_id', $filters['purok_id']);
-        }
-
-        return $query->get();
-    }
-
-    private function previewCount(array $filters): int
-    {
-        return $filters['document_type'] === 'household_rbi'
-            ? $this->householdQuery($filters)->count()
-            : $this->residentQuery($filters)->count();
-    }
-
-    private function documentTypes(): array
-    {
-        return [
-            'resident_rbi' => 'RBI Form B - Individual Records',
-            'household_rbi' => 'RBI Form A - Household Records',
-        ];
+        return redirect()->route('secretary.documents.index', $this->draftState($input) + ['step' => $step])
+            ->withErrors($exception->errors())->withInput($input);
     }
 
     private function auditFilters(array $filters, Barangay $barangay): array
     {
         return array_filter([
-            'document_type' => $this->documentTypes()[$filters['document_type']] ?? $filters['document_type'],
+            'document_type' => SecretaryRbiSelection::DOCUMENTS[$filters['document_type']],
             'barangay' => $barangay->name,
-            'purok_id' => $filters['purok_id'] ?? null,
-            'household_id' => $filters['household_id'] ?? null,
+            'coverage' => $filters['coverage'],
+            'purok_ids' => $filters['purok_ids'] ?? null,
+            'household_ids' => $filters['household_ids'] ?? null,
             'sex' => $filters['sex'] ?? null,
             'resident_status' => $filters['resident_status'] ?? null,
             'record_status' => $filters['record_status'] ?? null,

@@ -8,15 +8,19 @@
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        <x-record-action :href="route('secretary.puroks.create')" variant="add">Add Purok</x-record-action>
+    @else
     <a href="{{ route($routePrefix.'.puroks.create') }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
         Add Purok
     </a>
+    @endif
 @endsection
 
 @section('content')
     <div class="mb-6 rounded-lg bg-white shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route($routePrefix.'.puroks.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <form method="GET" action="{{ route($routePrefix.'.puroks.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5" data-live-results-form="admin-geometry-puroks-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Purok number or name">
@@ -62,7 +66,7 @@
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-geometry-puroks-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -94,21 +98,25 @@
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
                                     @if(!$purok->trashed())
-                                        <a href="{{ route($routePrefix.'.puroks.show', $purok) }}" class="text-blue-600 hover:text-blue-900">View</a>
-                                        <a href="{{ route($routePrefix.'.puroks.edit', $purok) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                        <form action="{{ route($routePrefix.'.puroks.toggle-status', $purok) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="{{ $purok->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
-                                                {{ $purok->is_active ? 'Deactivate' : 'Activate' }}
-                                            </button>
-                                        </form>
-                                        @if($canDelete ?? true)
-                                            <form action="{{ route($routePrefix.'.puroks.destroy', $purok) }}" method="POST" class="inline">
+                                        @if($routePrefix === 'secretary')
+                                            <x-record-action :href="route('secretary.puroks.show', $purok)" size="compact">View</x-record-action>
+                                        @else
+                                            <a href="{{ route($routePrefix.'.puroks.show', $purok) }}" class="text-blue-600 hover:text-blue-900">View</a>
+                                            <a href="{{ route($routePrefix.'.puroks.edit', $purok) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
+                                            <form action="{{ route($routePrefix.'.puroks.toggle-status', $purok) }}" method="POST" class="inline">
                                                 @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                @method('PATCH')
+                                                <button type="submit" class="{{ $purok->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
+                                                    {{ $purok->is_active ? 'Deactivate' : 'Activate' }}
+                                                </button>
                                             </form>
+                                            @if($canDelete ?? true)
+                                                <form action="{{ route($routePrefix.'.puroks.destroy', $purok) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                </form>
+                                            @endif
                                         @endif
                                     @else
                                         @if($canRestore ?? true)
@@ -130,7 +138,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-gray-200 px-6 py-4">
+        <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-geometry-puroks-index">
             {{ $puroks->links() }}
         </div>
     </div>

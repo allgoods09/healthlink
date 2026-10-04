@@ -33,12 +33,14 @@ class IssueBarangayCertificateRequest extends FormRequest
                     BarangayCertificate::RECIPIENT_HOUSEHOLD,
                 ]),
             ],
-            'resident_id' => ['nullable', 'exists:residents,id'],
-            'household_id' => ['nullable', 'exists:households,id'],
-            'issued_to_name' => ['nullable', 'string', 'max:255'],
-            'purpose' => ['required', 'string', 'max:500'],
+            'resident_id' => ['exclude_unless:recipient_type,resident', 'required', 'integer', Rule::exists('residents', 'id')->whereNull('deleted_at')],
+            'household_id' => ['exclude_unless:recipient_type,household', 'required', 'integer', Rule::exists('households', 'id')->whereNull('deleted_at')],
+            'use_printed_name' => ['sometimes', 'boolean'],
+            'issued_to_name' => ['exclude_unless:use_printed_name,1', 'required', 'string', 'max:255'],
+            'purpose' => ['required', 'string', 'max:255'],
             'remarks' => ['nullable', 'string', 'max:2000'],
-            'issued_at' => ['required', 'date'],
+            'issued_at' => ['required', 'date_format:Y-m-d\TH:i,Y-m-d\TH:i:s'],
+            'review_token' => ['nullable', 'string'],
         ];
     }
 
@@ -56,6 +58,7 @@ class IssueBarangayCertificateRequest extends FormRequest
                 $resident = Resident::with('household.purok')->find($this->input('resident_id'));
 
                 if (! $resident) {
+                    $validator->errors()->add('resident_id', 'Select an available active resident in your assigned barangay.');
                     return;
                 }
 
@@ -77,6 +80,7 @@ class IssueBarangayCertificateRequest extends FormRequest
                 $household = Household::with('purok')->find($this->input('household_id'));
 
                 if (! $household) {
+                    $validator->errors()->add('household_id', 'Select an available active household in your assigned barangay.');
                     return;
                 }
 

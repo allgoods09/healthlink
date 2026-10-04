@@ -26,7 +26,7 @@
 
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-5">
-            <form method="GET" action="{{ route('bns.campaign-periods.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <form method="GET" action="{{ route('bns.campaign-periods.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4" data-live-results-form="bns-campaign-periods-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" placeholder="Campaign name or notes" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -62,7 +62,7 @@
     </div>
 
     <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="bns-campaign-periods-index">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -117,7 +117,7 @@
             </table>
         </div>
 
-        <div class="border-t border-slate-200 px-6 py-4">
+        <div class="border-t border-slate-200 px-6 py-4" data-live-results="bns-campaign-periods-index">
             {{ $campaignPeriods->links() }}
         </div>
     </div>

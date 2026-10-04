@@ -12,6 +12,7 @@ use App\Models\ResidentDraft;
 use App\Models\TriageRecord;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class VerificationPipelineTest extends TestCase
@@ -204,6 +205,7 @@ class VerificationPipelineTest extends TestCase
             'religion' => $resident->religion,
             'contact_number' => '09112223333',
             'email_address' => $resident->email_address,
+            'set_as_household_head' => '1',
             'relationship_to_head' => 'Head of Household',
             'resident_status' => Resident::STATUS_ACTIVE,
             'moved_in_at' => now()->toDateString(),
@@ -284,7 +286,7 @@ class VerificationPipelineTest extends TestCase
         $this->assertSame('Applied after barangay hall verification.', $updateRequest->review_notes);
     }
 
-    public function test_secretary_triage_queue_only_lists_their_barangay_records(): void
+    public function test_former_secretary_triage_queue_is_unavailable_without_deleting_records(): void
     {
         [$secretary, $barangay, $purok] = $this->secretaryContext();
         $household = $this->createHousehold($purok, '020');
@@ -336,11 +338,70 @@ class VerificationPipelineTest extends TestCase
             'triage_notes' => 'Foreign note',
         ]);
 
-        $response = $this->actingAs($secretary)->get(route('secretary.triage.index'));
+        $this->actingAs($secretary)->get('/secretary/triage-queue')->assertNotFound();
+        $this->assertDatabaseCount('triage_records', 2);
+    }
 
-        $response->assertOk();
-        $response->assertSee('Resident, Scoped');
-        $response->assertDontSee('Resident, Foreign');
+    public static function childOutcomeCases(): array
+    {
+        return [
+            'pending unresolved' => ['pending', false, 1, false, 'Still pending review'],
+            'rejected unresolved' => ['rejected', false, 1, false, 'Rejected'],
+            'multiple rejected children' => ['rejected', false, 3, false, 'Rejected'],
+            'approved linked' => ['approved', true, 1, false, 'Approved to verified resident'],
+            'approved missing link' => ['approved', false, 1, false, 'Approved'],
+            'historical rejected' => ['rejected', false, 2, true, 'Rejected'],
+            'rejected with explicit approval link' => ['rejected', true, 1, false, 'Approved to verified resident'],
+            'pending with explicit approval link' => ['pending', true, 1, false, 'Approved to verified resident'],
+        ];
+    }
+
+    #[DataProvider('childOutcomeCases')]
+    public function test_draft_detail_child_wording_follows_parent_without_mutating_records(
+        string $status, bool $linked, int $childCount, bool $historical, string $expected
+    ): void {
+        [$secretary, $barangay, $purok] = $this->secretaryContext();
+        $draft = HouseholdDraft::create([
+            'barangay_id' => $barangay->id, 'purok_id' => $purok->id,
+            'household_address' => 'Synthetic draft fixture', 'draft_status' => $status,
+            'reviewed_by_user_id' => $status === 'pending' ? null : $secretary->id,
+            'reviewed_at' => $status === 'pending' ? null : ($historical ? '2025-01-15 10:00:00' : now()),
+            'verification_notes' => 'Existing package review notes remain visible.',
+        ]);
+        if ($historical) {
+            $draft->forceFill(['created_at' => '2025-01-14 10:00:00'])->save();
+        }
+        $approvedResident = $linked ? $this->createResident($this->createHousehold($purok, 'OUTCOME-1')) : null;
+        $children = [];
+        for ($index = 0; $index < $childCount; $index++) {
+            $children[] = ResidentDraft::create([
+                'household_draft_id' => $draft->id, 'last_name' => 'Fixture', 'first_name' => 'Child '.$index,
+                'birth_date' => '2018-01-01', 'birth_place' => 'Tubigon', 'sex' => 'Female',
+                'civil_status' => 'Single', 'citizenship' => 'Filipino', 'relationship_to_head' => 'Daughter',
+                'approved_resident_id' => $approvedResident?->id,
+            ]);
+        }
+        $before = $draft->fresh()->getAttributes();
+        $childAttributes = array_map(fn (ResidentDraft $child) => $child->fresh()->getAttributes(), $children);
+
+        $page = $this->actingAs($secretary)->get(route('secretary.drafts.show', $draft))->assertOk()
+            ->assertSee('Review Notes')->assertSee('Existing package review notes remain visible.');
+        if ($status !== 'pending') {
+            $page->assertDontSee('Still pending review');
+        }
+        $document = new \DOMDocument();
+        @$document->loadHTML($page->getContent());
+        $nodes = (new \DOMXPath($document))->query(
+            '//section[.//h3[normalize-space(.)="Resident Drafts"]]//div[@class="text-sm text-slate-500"]'
+        );
+        $this->assertCount($childCount, $nodes);
+        foreach ($nodes as $node) {
+            $this->assertSame($expected, trim($node->textContent));
+        }
+        $this->assertSame($before, $draft->fresh()->getAttributes());
+        foreach ($children as $index => $child) {
+            $this->assertSame($childAttributes[$index], $child->fresh()->getAttributes());
+        }
     }
 
     private function secretaryContext(): array

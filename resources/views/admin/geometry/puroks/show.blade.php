@@ -8,6 +8,9 @@
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        @include('secretary.partials.purok-actions')
+    @else
     <div class="flex items-center space-x-2">
         <a href="{{ route($routePrefix.'.puroks.index') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
             Back
@@ -16,6 +19,7 @@
             Edit Purok
         </a>
     </div>
+    @endif
 @endsection
 
 @section('content')

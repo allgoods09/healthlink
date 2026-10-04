@@ -8,6 +8,9 @@
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        @include('secretary.partials.household-actions')
+    @else
     <div class="flex flex-wrap items-center gap-2">
         @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.households.pdf'))
             <a href="{{ route($routePrefix.'.households.pdf', $household) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
@@ -29,6 +32,7 @@
             Back
         </a>
     </div>
+    @endif
 @endsection
 
 @section('content')
@@ -44,7 +48,7 @@
                 <p class="mt-1 text-sm text-gray-500">People currently linked to this household.</p>
             </div>
             <div class="divide-y divide-gray-200">
-                @forelse($household->residents as $resident)
+                @forelse(\App\Support\HouseholdMemberOrdering::ordered($household) as $resident)
                     <div class="flex items-start justify-between p-6">
                         <div>
                             <p class="text-sm font-semibold text-gray-900">{{ $resident->full_name }}</p>
@@ -73,4 +77,7 @@
             </div>
         </div>
     </div>
+    @isset($visitHistory)
+        @include('field-visits.partials.history', ['visitHistory' => $visitHistory, 'routePrefix' => $routePrefix])
+    @endisset
 @endsection

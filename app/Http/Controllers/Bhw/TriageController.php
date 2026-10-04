@@ -154,6 +154,13 @@ class TriageController extends Controller
 
         return view('bhw.triage.edit', [
             'triageRecord' => $triageRecord,
+            'residentOptions' => $this->bhwResidentsQuery()
+                ->with('household.purok')
+                ->where('resident_status', Resident::STATUS_ACTIVE)
+                ->where('is_active', true)
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(),
         ]);
     }
 

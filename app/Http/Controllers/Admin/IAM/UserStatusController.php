@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class UserStatusController extends Controller
 {
@@ -62,21 +63,23 @@ class UserStatusController extends Controller
 
         $users = User::whereIn('id', $userIds)->get();
 
-        foreach ($users as $user) {
-            // Skip if trying to deactivate self
-            if ($action === 'deactivate' && $user->id === Auth::id()) {
-                continue;
+        DB::transaction(function () use ($userIds, $action, $status): void {
+            foreach (User::whereIn('id', $userIds)->get() as $user) {
+                // Skip if trying to deactivate self
+                if ($action === 'deactivate' && $user->id === Auth::id()) {
+                    continue;
+                }
+
+                $oldStatus = $user->is_active;
+                $user->update(['is_active' => $status]);
+
+                \App\Models\AuditLog::logMutation('status_toggled', Auth::user(), $user, [
+                    'is_active' => $oldStatus
+                ], [
+                    'is_active' => $status
+                ]);
             }
-
-            $oldStatus = $user->is_active;
-            $user->update(['is_active' => $status]);
-
-            \App\Models\AuditLog::logMutation('status_toggled', Auth::user(), $user, [
-                'is_active' => $oldStatus
-            ], [
-                'is_active' => $status
-            ]);
-        }
+        }, 5);
 
         $message = count($users) . ' users have been ' . ($status ? 'activated' : 'deactivated') . '.';
 

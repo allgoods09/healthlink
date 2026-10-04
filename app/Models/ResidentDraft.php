@@ -11,6 +11,8 @@ class ResidentDraft extends Model
 
     protected $fillable = [
         'household_draft_id',
+        'mobile_uuid',
+        'mobile_revision',
         'philsys_card_no',
         'last_name',
         'first_name',

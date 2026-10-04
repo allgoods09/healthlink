@@ -9,8 +9,8 @@ use App\Models\HouseholdDraft;
 use App\Models\Purok;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
-use App\Models\TriageRecord;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -35,9 +35,6 @@ class DashboardController extends Controller
         $pendingUpdateRequests = $this->secretaryProfileUpdateRequestsQuery()
             ->where('request_status', ProfileUpdateRequest::STATUS_PENDING)
             ->count();
-        $pendingTriageQueue = $this->secretaryTriageRecordsQuery()
-            ->where('triage_status', TriageRecord::STATUS_PENDING)
-            ->count();
 
         $purokDensity = $this->secretaryPuroksQuery()
             ->with(['households.residents'])
@@ -58,6 +55,8 @@ class DashboardController extends Controller
             ->sortByDesc('active_residents')
             ->values();
 
+        $certificateMonth = CarbonImmutable::now('Asia/Manila')->startOfMonth();
+
         return view('secretary.dashboard', [
             'activeResidents' => $activeResidents,
             'deceasedResidents' => $deceasedResidents,
@@ -67,11 +66,13 @@ class DashboardController extends Controller
             'minorCount' => $minors,
             'headlessHouseholdCount' => $headlessHouseholds,
             'certificateCount' => $this->secretaryCertificatesQuery()->count(),
-            'monthlyCertificateCount' => $this->secretaryCertificatesQuery()->whereMonth('issued_at', now()->month)->whereYear('issued_at', now()->year)->count(),
+            'monthlyCertificateCount' => $this->secretaryCertificatesQuery()
+                ->where('issued_at', '>=', $certificateMonth->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'))
+                ->where('issued_at', '<', $certificateMonth->addMonth()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'))
+                ->count(),
             'pendingFrontlineApprovals' => $pendingFrontlineApprovals,
             'pendingDraftPackages' => $pendingDraftPackages,
             'pendingUpdateRequests' => $pendingUpdateRequests,
-            'pendingTriageQueue' => $pendingTriageQueue,
             'purokDensity' => $purokDensity,
             'recentFrontlineRegistrations' => $this->secretaryFrontlineUsersQuery()
                 ->with(['requestedBarangay', 'assignedPurok'])

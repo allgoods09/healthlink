@@ -2,7 +2,7 @@
 
 @section('title', 'Review Field Draft - HealthLink')
 @section('header', 'Review Field Draft')
-@section('subheader', 'Finalize the official household placement, adjust resident details if needed, and approve the entire package into the verified registry.')
+@section('subheader', $householdDraft->target_household_id ? 'Review new residents for an existing verified household.' : 'Finalize household placement and resident details before approval.')
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
@@ -38,7 +38,15 @@
                     @csrf
                     @method('PATCH')
 
+                    @if($householdDraft->target_household_id)
+                        <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+                            New residents will join verified Household #{{ $householdDraft->targetHousehold?->household_no }}. The household itself will not be changed.
+                        </div>
+                        <input type="hidden" name="purok_id" value="{{ $householdDraft->targetHousehold?->purok_id }}">
+                        <input type="hidden" name="household_no" value="{{ $householdDraft->targetHousehold?->household_no }}">
+                    @endif
                     <div class="grid gap-6 md:grid-cols-2">
+                        @if(!$householdDraft->target_household_id)
                         <div>
                             <label for="purok_id" class="block text-sm font-medium text-slate-700">Official Purok</label>
                             <select name="purok_id" id="purok_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('purok_id') border-rose-400 @enderror" required>
@@ -55,7 +63,7 @@
 
                         <div>
                             <label for="household_no" class="block text-sm font-medium text-slate-700">Official Household No.</label>
-                            <input type="text" name="household_no" id="household_no" value="{{ old('household_no') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('household_no') border-rose-400 @enderror" required>
+                            <input type="text" name="household_no" id="household_no" value="{{ old('household_no', $householdDraft->proposed_household_no) }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon @error('household_no') border-rose-400 @enderror" required>
                             @error('household_no')
                                 <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
                             @enderror
@@ -109,6 +117,7 @@
                                 <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
                             @enderror
                         </div>
+                        @endif
 
                         <div class="md:col-span-2">
                             <label for="verification_notes" class="block text-sm font-medium text-slate-700">Secretary Notes</label>
@@ -207,7 +216,7 @@
             <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-[0.22em] text-tubigon/70">Review Context</p>
                 <p class="mt-3 text-sm leading-7 text-slate-600">
-                    Approval creates one verified household plus all verified residents in this package. The draft itself stays in the queue as the audit source and links to the official records it created.
+                    {{ $householdDraft->target_household_id ? 'Approval adds these residents to the existing verified household. The household details remain unchanged.' : 'Approval creates a verified household and the residents in this package. The draft remains as the audit source.' }}
                 </p>
             </div>
 

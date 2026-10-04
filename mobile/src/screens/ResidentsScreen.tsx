@@ -14,6 +14,7 @@ import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppConte
 import { i18n } from '../i18n';
 import { formatResidentFormalName } from '../lib/format';
 import { getResidents } from '../lib/storage';
+import { registryStatusLabel } from '../lib/registryStatus';
 import { AppTheme } from '../theme';
 import { ResidentRecord } from '../types';
 
@@ -69,12 +70,15 @@ export function ResidentsScreen({ navigation }: any) {
                 <Text style={styles.cardTitle}>
                   {formatResidentFormalName(item)}
                 </Text>
-                <Text style={styles.badge}>{item.sync_status}</Text>
+                <Text style={styles.badge}>{registryStatusLabel(item)}</Text>
               </View>
               <Text style={styles.cardText}>
                 {item.household_no ? `${item.household_no} • ` : ''}
                 {item.relationship_to_head}
               </Text>
+              {item.verification_status === 'rejected' && item.verification_notes ? (
+                <Text style={styles.cardText}>{item.verification_notes}</Text>
+              ) : null}
               <Text style={styles.cardMeta}>
                 {item.sex} • {item.birth_date}
               </Text>

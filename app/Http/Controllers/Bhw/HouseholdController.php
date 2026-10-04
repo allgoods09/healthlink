@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Bhw;
 use App\Http\Controllers\Bhw\Concerns\InteractsWithBhwScope;
 use App\Http\Controllers\Controller;
 use App\Models\Household;
+use App\Models\FieldVisit;
 use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -80,6 +82,11 @@ class HouseholdController extends Controller
 
         return view('bhw.households.show', [
             'household' => $household,
+            'visitHistory' => Gate::allows('viewHousehold', [FieldVisit::class, $household])
+                ? $household->fieldVisits()->with('recordedBy')
+                    ->orderByDesc('visited_at')->orderByDesc('id')
+                    ->paginate(10, ['*'], 'visits_page')
+                : null,
             'recentTriage' => $this->bhwTriageRecordsQuery()
                 ->where('household_id', $household->id)
                 ->latest('measured_at')

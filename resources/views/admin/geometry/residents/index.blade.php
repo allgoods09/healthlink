@@ -16,13 +16,22 @@
             $household->household_address,
             $household->headResident?->formal_name,
         ])->filter()->implode(' '),
+        'ranking' => $routePrefix === 'secretary' ? [
+            'kind' => 'household', 'primaryIdentifier' => $household->household_no,
+            'primaryName' => 'Household #'.$household->household_no, 'purok' => $household->purok->display_name,
+            'secondaryFields' => [$household->purok->barangay->name, $household->purok->display_name, $household->household_address, $household->headResident?->formal_name],
+        ] : null,
     ])->values()->all();
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        <x-record-action :href="route('secretary.residents.create')" variant="add">Add Resident</x-record-action>
+    @else
     <a href="{{ route($routePrefix.'.residents.create') }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
         Add Resident
     </a>
+    @endif
 @endsection
 
 @section('content')
@@ -32,7 +41,7 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Filters</h2>
             </div>
             <div class="p-5">
-                <form method="GET" action="{{ route($routePrefix.'.residents.index') }}" class="space-y-4" data-progressive-purok-filter>
+                <form method="GET" action="{{ route($routePrefix.'.residents.index') }}" class="space-y-4" data-progressive-purok-filter data-live-results-form="admin-geometry-residents-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name or PhilSys ID">
@@ -130,7 +139,7 @@
         </aside>
 
         <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-geometry-residents-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -174,24 +183,30 @@
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
                                     @if(!$resident->trashed())
-                                        <a href="{{ route($routePrefix.'.residents.show', $resident) }}" class="text-blue-600 hover:text-blue-900">View</a>
-                                        <a href="{{ route($routePrefix.'.residents.edit', $resident) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                        @if($canRelocate ?? false)
-                                            <a href="{{ route($routePrefix.'.residents.relocate.edit', $resident) }}" class="text-teal-600 hover:text-teal-900">Relocate</a>
+                                        @if($routePrefix === 'secretary')
+                                            <x-record-action :href="route('secretary.residents.show', $resident)" size="compact">View</x-record-action>
+                                        @else
+                                            <a href="{{ route($routePrefix.'.residents.show', $resident) }}" class="text-blue-600 hover:text-blue-900">View</a>
                                         @endif
-                                        <form action="{{ route($routePrefix.'.residents.toggle-status', $resident) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="{{ $resident->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
-                                                {{ $resident->is_active ? 'Deactivate' : 'Activate' }}
-                                            </button>
-                                        </form>
-                                        @if($canDelete ?? true)
-                                            <form action="{{ route($routePrefix.'.residents.destroy', $resident) }}" method="POST" class="inline">
+                                        @if($routePrefix !== 'secretary')
+                                            <a href="{{ route($routePrefix.'.residents.edit', $resident) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
+                                            @if($canRelocate ?? false)
+                                                <a href="{{ route($routePrefix.'.residents.relocate.edit', $resident) }}" class="text-teal-600 hover:text-teal-900">Relocate</a>
+                                            @endif
+                                            <form action="{{ route($routePrefix.'.residents.toggle-status', $resident) }}" method="POST" class="inline">
                                                 @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                @method('PATCH')
+                                                <button type="submit" class="{{ $resident->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
+                                                    {{ $resident->is_active ? 'Deactivate' : 'Activate' }}
+                                                </button>
                                             </form>
+                                            @if($canDelete ?? true)
+                                                <form action="{{ route($routePrefix.'.residents.destroy', $resident) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                </form>
+                                            @endif
                                         @endif
                                     @else
                                         @if($canRestore ?? true)
@@ -213,7 +228,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-gray-200 px-6 py-4">
+        <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-geometry-residents-index">
             {{ $residents->links() }}
         </div>
         </div>

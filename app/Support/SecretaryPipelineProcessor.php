@@ -13,6 +13,8 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class SecretaryPipelineProcessor
 {
@@ -21,31 +23,42 @@ class SecretaryPipelineProcessor
     public function approveHouseholdDraft(HouseholdDraft $householdDraft, array $payload, User $secretary): Household
     {
         return DB::transaction(function () use ($householdDraft, $payload, $secretary): Household {
+            $householdDraft = HouseholdDraft::query()->lockForUpdate()->findOrFail($householdDraft->id);
+            if ($householdDraft->draft_status !== HouseholdDraft::STATUS_PENDING) {
+                throw ValidationException::withMessages(['residents' => 'This field draft has already been reviewed.']);
+            }
             $householdDraft->loadMissing('residentDrafts');
 
             $oldDraftValues = $householdDraft->toArray();
 
-            $household = Household::create([
-                'purok_id' => $payload['purok_id'],
-                'household_no' => $payload['household_no'],
-                'household_address' => $payload['household_address'],
-                'drinking_water_source' => $payload['drinking_water_source'] ?? null,
-                'has_sanitary_toilet' => $payload['has_sanitary_toilet'] ?? null,
-                'sanitary_toilet_type' => $payload['sanitary_toilet_type'] ?? null,
-                'garbage_disposal_method' => $payload['garbage_disposal_method'] ?? null,
-                'has_backyard_garden' => $payload['has_backyard_garden'] ?? null,
-                'housing_material_type' => $payload['housing_material_type'] ?? null,
-                'is_social_aid_beneficiary' => $payload['is_social_aid_beneficiary'] ?? false,
-                'is_active' => true,
-            ]);
+            $household = $householdDraft->target_household_id
+                ? Household::query()->whereHas('purok', fn ($query) => $query->where('barangay_id', $householdDraft->barangay_id))->findOrFail($householdDraft->target_household_id)
+                : Household::create([
+                    'purok_id' => $payload['purok_id'],
+                    'household_no' => $payload['household_no'],
+                    'household_address' => $payload['household_address'],
+                    'mobile_uuid' => $householdDraft->mobile_uuid,
+                    'drinking_water_source' => $payload['drinking_water_source'] ?? null,
+                    'has_sanitary_toilet' => $payload['has_sanitary_toilet'] ?? null,
+                    'sanitary_toilet_type' => $payload['sanitary_toilet_type'] ?? null,
+                    'garbage_disposal_method' => $payload['garbage_disposal_method'] ?? null,
+                    'has_backyard_garden' => $payload['has_backyard_garden'] ?? null,
+                    'housing_material_type' => $payload['housing_material_type'] ?? null,
+                    'is_social_aid_beneficiary' => $payload['is_social_aid_beneficiary'] ?? false,
+                    'is_active' => true,
+                ]);
 
-            AuditLog::logMutation('created', $secretary, $household);
+            if (! $householdDraft->target_household_id) {
+                AuditLog::logMutation('created', $secretary, $household);
+            }
 
             $createdResidents = [];
 
-            foreach ($payload['residents'] as $residentPayload) {
+            foreach ($payload['residents'] ?? [] as $residentPayload) {
+                $sourceDraft = $householdDraft->residentDrafts->firstWhere('id', (int) $residentPayload['draft_id']);
                 $resident = Resident::create([
                     'household_id' => $household->id,
+                    'mobile_uuid' => $sourceDraft?->mobile_uuid,
                     'philsys_card_no' => $residentPayload['philsys_card_no'] ?? null,
                     'last_name' => $residentPayload['last_name'],
                     'first_name' => $residentPayload['first_name'],
@@ -76,20 +89,10 @@ class SecretaryPipelineProcessor
 
             $headDraftId = $payload['head_draft_id'] ?? null;
 
-            if ($headDraftId && isset($createdResidents[$headDraftId])) {
-                $headResident = $createdResidents[$headDraftId];
-                $headResidentOldValues = $headResident->toArray();
-
-                $headResident->update([
-                    'relationship_to_head' => 'Head of Household',
-                ]);
-
-                $household->update([
-                    'head_resident_id' => $headResident->id,
-                ]);
-
-                AuditLog::logMutation('updated', $secretary, $headResident, $headResidentOldValues, $headResident->fresh()->toArray());
-                AuditLog::logMutation('updated', $secretary, $household, ['head_resident_id' => null], $household->fresh()->toArray());
+            if (! $householdDraft->target_household_id && $headDraftId && isset($createdResidents[$headDraftId])) {
+                $relationships = $household->residents()->whereKeyNot($createdResidents[$headDraftId]->id)
+                    ->pluck('relationship_to_head', 'id')->all();
+                app(HouseholdHeadManager::class)->designate($household, $createdResidents[$headDraftId], $relationships);
             }
 
             foreach ($householdDraft->residentDrafts as $residentDraft) {
@@ -118,9 +121,13 @@ class SecretaryPipelineProcessor
         });
     }
 
-    public function applyProfileUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Model
+    public function applyProfileUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Model|View
     {
-        return DB::transaction(function () use ($profileUpdateRequest, $payload, $secretary): Model {
+        $apply = function (array $payload) use ($profileUpdateRequest, $secretary): Model {
+            $profileUpdateRequest = ProfileUpdateRequest::query()->lockForUpdate()->findOrFail($profileUpdateRequest->id);
+            if ($profileUpdateRequest->request_status !== ProfileUpdateRequest::STATUS_PENDING) {
+                throw ValidationException::withMessages(['review_notes' => 'This correction request has already been reviewed.']);
+            }
             $oldRequestValues = $profileUpdateRequest->toArray();
 
             $subject = match ($profileUpdateRequest->subject_type) {
@@ -141,7 +148,16 @@ class SecretaryPipelineProcessor
             AuditLog::logMutation('updated', $secretary, $profileUpdateRequest, $oldRequestValues, $profileUpdateRequest->fresh()->toArray());
 
             return $subject;
-        });
+        };
+        $workflow = app(HouseholdHeadReview::class);
+
+        return match ($profileUpdateRequest->subject_type) {
+            ProfileUpdateRequest::SUBJECT_RESIDENT => $workflow->resident(request(), $payload,
+                Resident::findOrFail($profileUpdateRequest->subject_id), fn ($data) => $apply($data), true),
+            ProfileUpdateRequest::SUBJECT_HOUSEHOLD => $workflow->household(request(), $payload,
+                Household::findOrFail($profileUpdateRequest->subject_id), fn ($data) => $apply($data)),
+            default => throw new \RuntimeException('Unsupported update request subject.'),
+        };
     }
 
     private function applyResidentUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Resident
@@ -150,36 +166,9 @@ class SecretaryPipelineProcessor
         $resident->loadMissing('household');
 
         $oldResidentValues = $resident->load('household.purok', 'socioEconomicProfile')->toArray();
-        $oldHousehold = $resident->household;
-        $targetHousehold = Household::query()->findOrFail($payload['household_id']);
-        $data = $this->normalizeResidentLifecycle(Arr::except($payload, ['review_notes']));
-
-        $wasOldHead = (int) $oldHousehold?->head_resident_id === (int) $resident->id;
-        $relationship = $data['relationship_to_head'];
+        $data = $this->normalizeResidentLifecycle(Arr::except($payload, ['review_notes', 'set_as_household_head']));
 
         $resident->update($data);
-
-        if ($wasOldHead && (int) $oldHousehold->id !== (int) $targetHousehold->id) {
-            $oldHouseholdOldValues = $oldHousehold->toArray();
-
-            $oldHousehold->update(['head_resident_id' => null]);
-
-            AuditLog::logMutation('updated', $secretary, $oldHousehold, $oldHouseholdOldValues, $oldHousehold->fresh()->toArray());
-        }
-
-        if ($relationship === 'Head of Household') {
-            $targetHouseholdOldValues = $targetHousehold->toArray();
-
-            $targetHousehold->update(['head_resident_id' => $resident->id]);
-
-            AuditLog::logMutation('updated', $secretary, $targetHousehold, $targetHouseholdOldValues, $targetHousehold->fresh()->toArray());
-        } elseif ((int) $targetHousehold->head_resident_id === (int) $resident->id) {
-            $targetHouseholdOldValues = $targetHousehold->toArray();
-
-            $targetHousehold->update(['head_resident_id' => null]);
-
-            AuditLog::logMutation('updated', $secretary, $targetHousehold, $targetHouseholdOldValues, $targetHousehold->fresh()->toArray());
-        }
 
         AuditLog::logMutation('updated', $secretary, $resident, $oldResidentValues, $resident->fresh()->load('household.purok', 'socioEconomicProfile')->toArray());
 

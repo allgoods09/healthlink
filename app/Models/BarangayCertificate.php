@@ -4,10 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 class BarangayCertificate extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::updating(function (BarangayCertificate $certificate): void {
+            if ($certificate->isDirty('signatory_name_at_issuance')) {
+                throw ValidationException::withMessages([
+                    'signatory_name_at_issuance' => 'The Secretary name recorded at certificate issuance cannot be changed.',
+                ]);
+            }
+        });
+    }
 
     public const TYPE_CLEARANCE = 'barangay_clearance';
     public const TYPE_INDIGENCY = 'certificate_of_indigency';
@@ -27,6 +39,7 @@ class BarangayCertificate extends Model
         'remarks',
         'issued_at',
         'issued_by_user_id',
+        'signatory_name_at_issuance',
     ];
 
     protected $casts = [

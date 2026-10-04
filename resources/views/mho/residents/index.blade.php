@@ -29,7 +29,7 @@
         </section>
 
         <section class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <form method="GET" action="{{ route('mho.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6" data-progressive-purok-filter>
+            <form method="GET" action="{{ route('mho.residents.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6" data-progressive-purok-filter data-live-results-form="mho-residents-index">
                 <div class="xl:col-span-2">
                     <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                     <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Resident, code, household, or PhilSys" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -79,7 +79,7 @@
     </div>
 
     <div class="mt-8 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="mho-residents-index">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -132,7 +132,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-200 px-6 py-4">
+        <div class="border-t border-slate-200 px-6 py-4" data-live-results="mho-residents-index">
             {{ $residents->links() }}
         </div>
     </div>

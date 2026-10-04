@@ -31,6 +31,11 @@
                 $household->household_address,
                 $household->headResident?->formal_name,
             ])->filter()->implode(' '),
+            'ranking' => [
+                'kind' => 'household', 'primaryIdentifier' => $household->household_no,
+                'primaryName' => 'Household #'.$household->household_no, 'purok' => $household->purok?->display_name,
+                'secondaryFields' => [$household->purok?->display_name, $household->household_address, $household->headResident?->formal_name],
+            ],
         ])->values()->all();
         $headResidentSearchOptions = collect($subject?->residents ?? [])->map(fn ($resident) => [
             'value' => $resident->id,
@@ -39,6 +44,10 @@
                 $resident->formal_name,
                 $resident->official_resident_code,
             ])->filter()->implode(' '),
+            'ranking' => [
+                'kind' => 'resident', 'primaryIdentifier' => $resident->official_resident_code,
+                'primaryName' => $resident->formal_name, 'nameAliases' => [$resident->full_name],
+            ],
         ])->values()->all();
     @endphp
 
@@ -134,6 +143,12 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">Relationship to Head</label>
                                 <input type="text" name="relationship_to_head" value="{{ old('relationship_to_head', data_get($proposed, 'relationship_to_head', $subject?->relationship_to_head)) }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon" required>
+                                @if($subject?->is_household_head)
+                                    <p class="mt-2 text-sm text-slate-500">This resident remains the household head during ordinary corrections.</p>
+                                @else
+                                    <label class="mt-3 flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="set_as_household_head" value="1" @checked(old('set_as_household_head')) class="rounded border-slate-300">Set this resident as the household head</label>
+                                    <p class="mt-1 text-sm text-slate-500">An explicit change requires reviewing the household's other members.</p>
+                                @endif
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">Resident Status</label>

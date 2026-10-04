@@ -25,7 +25,7 @@
         </section>
 
         <section class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <form method="GET" action="{{ route('phn.follow-ups.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <form method="GET" action="{{ route('phn.follow-ups.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5" data-live-results-form="phn-follow-ups-index">
                 <div class="xl:col-span-2">
                     <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                     <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Resident or follow-up note" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -58,7 +58,7 @@
         </section>
     </div>
 
-    <div class="mt-8 space-y-4">
+    <div class="mt-8 space-y-4" data-live-results="phn-follow-ups-index">
         @forelse($followUps as $encounter)
             <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-6 py-4">
@@ -120,7 +120,7 @@
         @endforelse
     </div>
 
-    <div class="mt-6">
+    <div class="mt-6" data-live-results="phn-follow-ups-index">
         {{ $followUps->links() }}
     </div>
 @endsection

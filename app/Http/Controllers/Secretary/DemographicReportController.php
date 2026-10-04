@@ -43,7 +43,7 @@ class DemographicReportController extends Controller
             'Birth Date' => fn (Resident $resident) => optional($resident->birth_date)?->format('Y-m-d'),
             'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
             'Household' => fn (Resident $resident) => $resident->household?->household_no,
-            'Relationship' => 'relationship_to_head',
+            'Relationship to Household Head' => 'relationship_to_head',
             'Availability' => fn (Resident $resident) => $resident->is_active ? 'Active' : 'Inactive',
             'Civil Registry Status' => fn (Resident $resident) => $resident->resident_status_label,
             'Occupation' => fn (Resident $resident) => $resident->socioEconomicProfile?->occupation ?: 'N/A',
@@ -85,7 +85,7 @@ class DemographicReportController extends Controller
 
         abort_unless($request->input('dataset', 'roster') === 'roster', 404);
 
-        return ExportDownload::make($format, 'Barangay Demographic Roster', 'Demographics', 'secretary_demographic_roster', $columns, $residents, $filters, $this->secretaryUser()->assignedBarangay?->name, Resident::class, array_intersect_key($columns, array_flip(['Resident', 'Sex', 'Age', 'Purok', 'Household', 'Relationship', 'Civil Registry Status'])));
+        return ExportDownload::make($format, 'Barangay Demographic Roster', 'Demographics', 'secretary_demographic_roster', $columns, $residents, $filters, $this->secretaryUser()->assignedBarangay?->name, Resident::class, array_intersect_key($columns, array_flip(['Resident', 'Sex', 'Age', 'Purok', 'Household', 'Relationship to Household Head', 'Civil Registry Status'])));
     }
 
     private function listingQuery(Request $request): Builder

@@ -6,12 +6,12 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.team.edit', $frontlineUser) }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+        <x-record-action :href="route('secretary.team.edit', $frontlineUser)" variant="manage">
             Manage Assignment
-        </a>
-        <a href="{{ route('secretary.team.password.edit', $frontlineUser) }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        </x-record-action>
+        <x-record-action :href="route('secretary.team.password.edit', $frontlineUser)" variant="security">
             Reset Password
-        </a>
+        </x-record-action>
     </div>
 @endsection
 

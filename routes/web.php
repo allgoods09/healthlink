@@ -44,6 +44,7 @@ use App\Http\Controllers\Mho\DashboardController as MhoDashboardController;
 use App\Http\Controllers\Mho\EscalationController as MhoEscalationController;
 use App\Http\Controllers\Mho\ResidentController as MhoResidentController;
 use App\Http\Controllers\Mobile\BhwReleaseController;
+use App\Http\Controllers\HouseholdVisitController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Phn\ClinicalEncounterController as PhnClinicalEncounterController;
 use App\Http\Controllers\Phn\DashboardController as PhnDashboardController;
@@ -57,12 +58,12 @@ use App\Http\Controllers\Secretary\CertificateController as SecretaryCertificate
 use App\Http\Controllers\Secretary\DashboardController as SecretaryDashboardController;
 use App\Http\Controllers\Secretary\DemographicReportController as SecretaryDemographicReportController;
 use App\Http\Controllers\Secretary\DocumentController as SecretaryDocumentController;
+use App\Http\Controllers\Secretary\BarangayOfficialController as SecretaryBarangayOfficialController;
 use App\Http\Controllers\Secretary\FieldDraftController as SecretaryFieldDraftController;
 use App\Http\Controllers\Secretary\FrontlineUserController as SecretaryFrontlineUserController;
 use App\Http\Controllers\Secretary\HouseholdController as SecretaryHouseholdController;
 use App\Http\Controllers\Secretary\PurokController as SecretaryPurokController;
 use App\Http\Controllers\Secretary\ResidentController as SecretaryResidentController;
-use App\Http\Controllers\Secretary\TriageQueueController as SecretaryTriageQueueController;
 use App\Http\Controllers\Secretary\UpdateRequestController as SecretaryUpdateRequestController;
 use App\Http\Controllers\Secretary\UserPasswordController as SecretaryUserPasswordController;
 use App\Http\Middleware\EnsureLegacyOptWritesEnabled;
@@ -273,6 +274,10 @@ Route::middleware(['auth', 'verified', 'active', 'role:bhw', 'no-cache'])
                 Route::get('/{household}', 'show')->name('show');
             });
 
+        Route::get('/visits/{fieldVisit}', [HouseholdVisitController::class, 'show'])->name('visits.show');
+        Route::get('/visits/{fieldVisit}/photos/{photoIndex}', [HouseholdVisitController::class, 'photo'])
+            ->whereNumber('photoIndex')->name('visits.photo');
+
         Route::prefix('drafts')
             ->name('drafts.')
             ->controller(BhwHouseholdDraftController::class)
@@ -350,6 +355,7 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::get('/create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
                 Route::get('/export/{format}', 'export')->name('export');
+                Route::get('/get-by-barangay', 'getByBarangay')->name('get-by-barangay');
                 Route::get('/{purok}', 'show')->name('show');
                 Route::get('/{purok}/edit', 'edit')->name('edit');
                 Route::put('/{purok}', 'update')->name('update');
@@ -371,6 +377,10 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::put('/{household}', 'update')->name('update');
                 Route::patch('/{household}/toggle-status', 'toggleStatus')->name('toggle-status');
             });
+
+        Route::get('/visits/{fieldVisit}', [HouseholdVisitController::class, 'show'])->name('visits.show');
+        Route::get('/visits/{fieldVisit}/photos/{photoIndex}', [HouseholdVisitController::class, 'photo'])
+            ->whereNumber('photoIndex')->name('visits.photo');
 
         Route::prefix('residents')
             ->name('residents.')
@@ -453,15 +463,6 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::patch('/{profileUpdateRequest}/reject', 'reject')->name('reject');
             });
 
-        Route::prefix('triage-queue')
-            ->name('triage.')
-            ->controller(SecretaryTriageQueueController::class)
-            ->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/export/{format}', 'export')->name('export');
-                Route::get('/{triageRecord}', 'show')->name('show');
-            });
-
         Route::prefix('activity')
             ->name('activity.')
             ->controller(SecretaryActivityFeedController::class)
@@ -479,6 +480,14 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::get('/demographics/export/{format}', 'export')->name('demographics.export');
             });
 
+        Route::prefix('officials')
+            ->name('officials.')
+            ->controller(SecretaryBarangayOfficialController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/edit', 'edit')->name('edit');
+            });
+
         Route::prefix('documents')
             ->name('documents.')
             ->controller(SecretaryDocumentController::class)
@@ -488,7 +497,6 @@ Route::middleware(['auth', 'verified', 'active', 'role:secretary', 'no-cache'])
                 Route::put('/officials', 'updateOfficials')->name('officials.update');
             });
 
-        Route::get('/puroks/get-by-barangay', [SecretaryPurokController::class, 'getByBarangay'])->name('puroks.get-by-barangay');
     });
 
 // =============================================
@@ -717,6 +725,10 @@ Route::middleware(['auth', 'verified', 'active', 'role:admin', 'no-cache'])
             Route::patch('/{household}/toggle-status', 'toggleStatus')->name('toggle-status');
             Route::patch('/{id}/restore', 'restore')->name('restore');
          });
+
+    Route::get('/visits/{fieldVisit}', [HouseholdVisitController::class, 'show'])->name('visits.show');
+    Route::get('/visits/{fieldVisit}/photos/{photoIndex}', [HouseholdVisitController::class, 'photo'])
+        ->whereNumber('photoIndex')->name('visits.photo');
 
     Route::prefix('residents')
          ->name('residents.')

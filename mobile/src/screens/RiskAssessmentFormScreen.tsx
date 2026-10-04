@@ -134,7 +134,10 @@ const ALCOHOL_OPTIONS: ChoiceOption[] = [
   { label: 'Yes, drinks alcohol', value: 'drinks_alcohol' },
 ];
 
+import { useLocalEditor } from '../lib/useLocalEditor';
+
 export function RiskAssessmentFormScreen({ route, navigation }: any) {
+  useLocalEditor();
   const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const appTheme = useAppTheme();
   const styles = useThemedStyles(createStyles);
@@ -420,7 +423,7 @@ export function RiskAssessmentFormScreen({ route, navigation }: any) {
       oral_hypoglycemic_medications: oralHypoglycemicMedications,
       follow_up_date: followUpDate ? followUpDate.toISOString().slice(0, 10) : null,
       remarks,
-    });
+    }, user?.id);
 
     bumpDataVersion();
     navigation.goBack();

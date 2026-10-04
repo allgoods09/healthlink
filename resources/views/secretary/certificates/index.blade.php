@@ -5,15 +5,13 @@
 @section('subheader', 'Issue, review, and export barangay clearances and certificates of indigency tied to verified household and resident records.')
 
 @section('actions')
-    <a href="{{ route('secretary.certificates.create') }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
-        Issue Certificate
-    </a>
+    <x-record-action :href="route('secretary.certificates.create')" variant="add">Issue Certificate</x-record-action>
 @endsection
 
 @section('content')
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
         <div class="p-5">
-            <form method="GET" action="{{ route('secretary.certificates.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
+            <form method="GET" action="{{ route('secretary.certificates.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6" data-live-results-form="secretary-certificates-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-slate-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon" placeholder="Certificate no., recipient, purpose">
@@ -67,7 +65,7 @@
     </div>
 
     <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="secretary-certificates-index">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
                     <tr>
@@ -95,13 +93,13 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ \Illuminate\Support\Str::limit($certificate->purpose, 60) }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">
-                                <div>{{ $certificate->issued_at?->format('M d, Y') }}</div>
+                                <div>{{ $certificate->issued_at?->copy()->timezone('Asia/Manila')->format('M d, Y') }}</div>
                                 <div class="mt-1 text-xs text-slate-500">{{ $certificate->issuedBy?->name ?? 'System' }}</div>
                             </td>
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
-                                    <a href="{{ route('secretary.certificates.show', $certificate) }}" class="text-blue-600 hover:text-blue-900">View</a>
-                                    <a href="{{ route('secretary.certificates.pdf', $certificate) }}" class="text-rose-600 hover:text-rose-900">PDF</a>
+                                    <x-record-action :href="route('secretary.certificates.show', $certificate)" variant="view" size="compact">View</x-record-action>
+                                    <x-record-action :href="route('secretary.certificates.pdf', $certificate)" variant="document" size="compact">PDF</x-record-action>
                                 </div>
                             </td>
                         </tr>
@@ -113,7 +111,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-200 px-6 py-4">
+        <div class="border-t border-slate-200 px-6 py-4" data-live-results="secretary-certificates-index">
             {{ $certificates->links() }}
         </div>
     </div>

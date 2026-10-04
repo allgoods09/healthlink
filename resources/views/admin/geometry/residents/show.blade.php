@@ -8,6 +8,9 @@
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        @include('secretary.partials.resident-actions')
+    @else
     <div class="flex flex-wrap items-center gap-2">
         @if(\Illuminate\Support\Facades\Route::has($routePrefix.'.residents.pdf'))
             <a href="{{ route($routePrefix.'.residents.pdf', $resident) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
@@ -34,6 +37,7 @@
             Back
         </a>
     </div>
+    @endif
 @endsection
 
 @section('content')

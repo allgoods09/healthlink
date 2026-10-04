@@ -18,6 +18,8 @@ class DemoAccountSeederTest extends TestCase
     {
         $this->seed(BarangaySeeder::class);
         $this->seed(MockOperationalDataSeeder::class);
+        // Explicitly replace the mock officeholder before assigning the main demo account.
+        User::where('email', 'secretary.pooc-oriental@healthlink.test')->firstOrFail()->update(['is_active' => false]);
         $this->seed(DemoAccountSeeder::class);
 
         $pilotBarangay = Barangay::query()->where('name', 'Pooc Oriental')->firstOrFail();
@@ -51,6 +53,7 @@ class DemoAccountSeederTest extends TestCase
     {
         $this->seed(BarangaySeeder::class);
         $this->seed(MockOperationalDataSeeder::class);
+        User::where('email', 'secretary.pooc-oriental@healthlink.test')->firstOrFail()->update(['is_active' => false]);
         $this->seed(DemoAccountSeeder::class);
 
         $demoEmails = [
@@ -73,5 +76,21 @@ class DemoAccountSeederTest extends TestCase
             $originalIds,
             User::query()->whereIn('email', $demoEmails)->pluck('id', 'email')->all()
         );
+    }
+
+    public function test_combined_legacy_demo_seeders_cannot_silently_replace_the_existing_secretary(): void
+    {
+        $this->seed(BarangaySeeder::class);
+        $this->seed(MockOperationalDataSeeder::class);
+        $existing = User::where('email', 'secretary.pooc-oriental@healthlink.test')->firstOrFail();
+        try {
+            $this->seed(DemoAccountSeeder::class);
+            $this->fail('A second operational demo Secretary must be rejected.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('assigned_barangay_id', $exception->errors());
+        }
+        $this->assertTrue($existing->fresh()->is_active);
+        $this->assertSame(1, User::operationalSecretaries()->where('assigned_barangay_id', $existing->assigned_barangay_id)->count());
+        $this->assertDatabaseMissing('users', ['email' => 'secretary@healthlink.com']);
     }
 }

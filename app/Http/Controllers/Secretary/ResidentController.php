@@ -17,13 +17,15 @@ use App\Models\ResidentSocioEconomicProfile;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
 use App\Support\ExportDownload;
+use App\Support\HouseholdHeadReview;
+use App\Support\HouseholdRelationships;
 use App\Support\RbiTemplatePdfGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -77,7 +79,7 @@ class ResidentController extends Controller
             'Barangay' => fn (Resident $resident) => $resident->household?->purok?->barangay?->name,
             'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
             'Household' => fn (Resident $resident) => $resident->household?->household_no,
-            'Relationship' => 'relationship_to_head',
+            'Relationship to Household Head' => 'relationship_to_head',
             'Education' => fn (Resident $resident) => $resident->socioEconomicProfile?->highest_education_level ?: 'N/A',
             'Occupation' => fn (Resident $resident) => $resident->socioEconomicProfile?->occupation ?: 'N/A',
             'Availability' => fn (Resident $resident) => $resident->is_active ? 'Active' : 'Inactive',
@@ -138,7 +140,7 @@ class ResidentController extends Controller
         ]);
 
         $content = $generator->generateResidents([$resident], [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf');
@@ -158,7 +160,7 @@ class ResidentController extends Controller
         $officials = $officialsRegistry->keyed($barangay);
 
         $content = $generator->generateResidents([$resident], [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf', true);
@@ -213,18 +215,22 @@ class ResidentController extends Controller
         ]);
     }
 
-    public function store(ResidentStoreRequest $request): RedirectResponse
+    public function store(ResidentStoreRequest $request): RedirectResponse|View
     {
         Gate::authorize('create', Resident::class);
 
         $data = $request->validated();
         $data = $this->normalizeResidentLifecycle($data);
-        $residentData = Arr::except($data, $this->socioEconomicFields());
+        $resident = app(HouseholdHeadReview::class)->resident($request, $data, null, function ($data) {
+            $resident = Resident::create(Arr::except($data, [...$this->socioEconomicFields(), 'set_as_household_head']));
+            $this->syncSocioEconomicProfile($resident, $data);
+            AuditLog::logMutation('created', Auth::user(), $resident);
 
-        $resident = Resident::create($residentData);
-        $this->syncSocioEconomicProfile($resident, $data);
-
-        AuditLog::logMutation('created', Auth::user(), $resident);
+            return $resident;
+        });
+        if ($resident instanceof View) {
+            return $resident;
+        }
 
         return redirect()
             ->route('secretary.residents.show', $resident)
@@ -283,20 +289,24 @@ class ResidentController extends Controller
         ]);
     }
 
-    public function update(ResidentUpdateRequest $request, Resident $resident): RedirectResponse
+    public function update(ResidentUpdateRequest $request, Resident $resident): RedirectResponse|View
     {
         Gate::authorize('update', $resident);
         $this->ensureResidentBelongsToBarangay($resident);
 
         $data = $request->validated();
         $data = $this->normalizeResidentLifecycle($data);
-        $oldValues = $resident->load('socioEconomicProfile')->toArray();
-        $residentData = Arr::except($data, $this->socioEconomicFields());
+        $resident = app(HouseholdHeadReview::class)->resident($request, $data, $resident, function ($data, $resident) {
+            $oldValues = $resident->load('socioEconomicProfile')->toArray();
+            $resident->update(Arr::except($data, [...$this->socioEconomicFields(), 'set_as_household_head']));
+            $this->syncSocioEconomicProfile($resident, $data);
+            AuditLog::logMutation('updated', Auth::user(), $resident, $oldValues, $resident->fresh()->load('socioEconomicProfile')->toArray());
 
-        $resident->update($residentData);
-        $this->syncSocioEconomicProfile($resident, $data);
-
-        AuditLog::logMutation('updated', Auth::user(), $resident, $oldValues, $resident->fresh()->load('socioEconomicProfile')->toArray());
+            return $resident;
+        });
+        if ($resident instanceof View) {
+            return $resident;
+        }
 
         return redirect()
             ->route('secretary.residents.show', $resident)
@@ -346,74 +356,92 @@ class ResidentController extends Controller
         ]);
     }
 
-    public function relocate(RelocateResidentRequest $request, Resident $resident): RedirectResponse
+    public function relocate(RelocateResidentRequest $request, Resident $resident): RedirectResponse|View
     {
         Gate::authorize('update', $resident);
         $this->ensureResidentBelongsToBarangay($resident);
 
         $payload = $request->validated();
+        $resident->load('household.purok');
+        $sourceId = $resident->household_id;
+        $targetId = $payload['destination'] === 'existing_household' ? (int) $payload['target_household_id'] : null;
+        $plans = [];
+        if ($resident->is_household_head && $resident->household->residents()->whereKeyNot($resident->id)->exists()) {
+            $plans[$sourceId] = ['choose_candidate' => true, 'exclude_id' => $resident->id];
+        }
+        if ($targetId && ($payload['set_as_household_head'] ?? false)) {
+            $plans[$targetId] = ['candidate_id' => $resident->id, 'candidate_name' => $resident->full_name];
+        }
+        if (! ($payload['set_as_household_head'] ?? false)) {
+            HouseholdRelationships::validate($payload['relationship_to_head'], $resident->is_household_head ? null : $resident->relationship_to_head);
+        }
+        $result = app(HouseholdHeadReview::class)->run($request, array_filter([$sourceId, $targetId]), $plans,
+            function ($households, $plans, $heads) use ($resident, $payload, $sourceId, $targetId): void {
+                $resident = $households[$sourceId]->residents->firstWhere('id', $resident->id);
+                if (! $resident) {
+                    throw ValidationException::withMessages(['head_reviews' => 'This resident moved. Reload the relocation form.']);
+                }
+                $oldHousehold = $households[$sourceId];
+                $wasOldHead = (int) $oldHousehold->head_resident_id === (int) $resident->id;
+                if ($wasOldHead && ! ($payload['set_as_household_head'] ?? false)
+                    && HouseholdRelationships::isHead($payload['relationship_to_head'])) {
+                    throw ValidationException::withMessages(['relationship_to_head' => 'Choose an ordinary relationship in the destination household, or explicitly designate this resident as its head.']);
+                }
 
-        DB::transaction(function () use ($resident, $payload): void {
-            $resident->load('household.purok');
-            $oldHousehold = $resident->household;
-            $oldHouseholdValues = $oldHousehold->toArray();
-            $wasOldHead = (int) $oldHousehold->head_resident_id === (int) $resident->id;
+                if ($payload['destination'] === 'new_household') {
+                    $targetHousehold = Household::create([
+                        'purok_id' => (int) $payload['target_purok_id'],
+                        'household_no' => $payload['new_household_no'],
+                        'household_address' => $payload['new_household_address'],
+                        'is_social_aid_beneficiary' => $payload['new_household_social_aid'] ?? false,
+                        'is_active' => true,
+                    ]);
 
-            if ($payload['destination'] === 'new_household') {
-                $targetHousehold = Household::create([
-                    'purok_id' => (int) $payload['target_purok_id'],
-                    'household_no' => $payload['new_household_no'],
-                    'household_address' => $payload['new_household_address'],
-                    'is_social_aid_beneficiary' => $payload['new_household_social_aid'] ?? false,
+                    AuditLog::logMutation('created', Auth::user(), $targetHousehold);
+                } else {
+                    $targetHousehold = $households[$targetId];
+                }
+
+                $targetHousehold->loadMissing('headResident');
+                $oldResidentValues = $resident->toArray();
+
+                $relationship = $payload['set_as_household_head'] ?? false
+                    ? HouseholdRelationships::HEAD
+                    : $payload['relationship_to_head'];
+
+                $resident->update([
+                    'household_id' => $targetHousehold->id,
+                    'relationship_to_head' => $relationship,
+                    'resident_status' => Resident::STATUS_ACTIVE,
+                    'moved_in_at' => $payload['moved_in_at'] ?? now()->toDateString(),
+                    'moved_out_at' => null,
+                    'date_of_death' => null,
+                    'status_notes' => $payload['status_notes'] ?? $resident->status_notes,
                     'is_active' => true,
                 ]);
 
-                AuditLog::logMutation('created', Auth::user(), $targetHousehold);
-            } else {
-                $targetHousehold = $this->secretaryHouseholdsQuery()
-                    ->active()
-                    ->findOrFail((int) $payload['target_household_id']);
-            }
+                foreach ($plans as $id => $plan) {
+                    $candidate = ($plan['choose_candidate'] ?? false) ? Resident::findOrFail($plan['candidate_id']) : $resident;
+                    $heads->designate($households[$id], $candidate, $plan['relationships']);
+                }
+                if ($wasOldHead && ! isset($plans[$sourceId])) {
+                    $heads->clearEmpty($oldHousehold);
+                }
+                if (! $targetId && ($payload['set_as_household_head'] ?? false)) {
+                    $heads->designate($targetHousehold, $resident, []);
+                }
 
-            $targetHousehold->loadMissing('headResident');
-            $targetHouseholdValues = $targetHousehold->toArray();
-            $oldResidentValues = $resident->toArray();
-
-            $relationship = $payload['set_as_household_head'] ?? false
-                ? 'Head of Household'
-                : $payload['relationship_to_head'];
-
-            $resident->update([
-                'household_id' => $targetHousehold->id,
-                'relationship_to_head' => $relationship,
-                'resident_status' => Resident::STATUS_ACTIVE,
-                'moved_in_at' => $payload['moved_in_at'] ?? now()->toDateString(),
-                'moved_out_at' => null,
-                'date_of_death' => null,
-                'status_notes' => $payload['status_notes'] ?? $resident->status_notes,
-                'is_active' => true,
-            ]);
-
-            if ($wasOldHead) {
-                $oldHousehold->update(['head_resident_id' => null]);
-
-                AuditLog::logMutation('updated', Auth::user(), $oldHousehold, $oldHouseholdValues, $oldHousehold->fresh()->toArray());
-            }
-
-            if ($payload['set_as_household_head'] ?? false) {
-                $targetHousehold->update(['head_resident_id' => $resident->id]);
-
-                AuditLog::logMutation('updated', Auth::user(), $targetHousehold, $targetHouseholdValues, $targetHousehold->fresh()->toArray());
-            }
-
-            AuditLog::logMutation(
-                'updated',
-                Auth::user(),
-                $resident,
-                $oldResidentValues,
-                $resident->fresh()->load('household.purok')->toArray()
-            );
-        });
+                AuditLog::logMutation(
+                    'updated',
+                    Auth::user(),
+                    $resident,
+                    $oldResidentValues,
+                    $resident->fresh()->load('household.purok')->toArray()
+                );
+            });
+        if ($result instanceof View) {
+            return $result;
+        }
 
         return redirect()
             ->route('secretary.residents.show', $resident->fresh())

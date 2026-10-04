@@ -125,7 +125,9 @@ class RoleNotificationService
             [
                 'title' => $approved ? 'Field draft approved' : 'Field draft rejected',
                 'body' => $approved
-                    ? "Draft {$draft->draft_reference_code} is now live as Household #{$approvedHouseholdNo}."
+                    ? ($draft->target_household_id
+                        ? "Draft {$draft->draft_reference_code} was approved for Household #{$approvedHouseholdNo}."
+                        : "Draft {$draft->draft_reference_code} is now live as Household #{$approvedHouseholdNo}.")
                     : "Draft {$draft->draft_reference_code} was returned after review. Please check the remarks in HealthLink.",
                 'level' => $approved ? 'success' : 'warning',
                 'category' => 'field_draft',

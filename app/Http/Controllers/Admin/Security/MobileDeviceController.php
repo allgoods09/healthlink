@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Security;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\ExportDownload;
+use App\Support\MobileBarangayScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -73,6 +74,8 @@ class MobileDeviceController extends Controller
         if ($user->role !== 'bhw' || ! $user->isApproved() || ! $user->is_active) {
             return back()->with('error', 'Only active, approved BHW accounts can receive mobile tokens.');
         }
+
+        MobileBarangayScope::requireBarangayId($user);
 
         $revokedTokens = $user->tokens()->count();
         $user->tokens()->delete();

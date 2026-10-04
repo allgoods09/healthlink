@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\MobileBarangayScope;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -33,6 +34,8 @@ class EnsureMobileToken
                 'message' => 'This account is no longer allowed to access the mobile API.',
             ], 403);
         }
+
+        MobileBarangayScope::requireBarangayId($user);
 
         return $next($request);
     }

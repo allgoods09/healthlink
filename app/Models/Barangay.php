@@ -29,6 +29,11 @@ class Barangay extends Model
         });
     }
 
+    public function save(array $options = [])
+    {
+        return app(\App\Support\OperationalSecretaryGuard::class)->saveBarangay($this, fn () => parent::save($options));
+    }
+
     /**
      * The attributes that are mass assignable.
      *

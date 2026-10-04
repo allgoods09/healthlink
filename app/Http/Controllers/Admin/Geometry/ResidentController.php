@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin\Geometry;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\NormalizesResidentLifecycle;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Geometry\ResidentStoreRequest;
 use App\Http\Requests\Admin\Geometry\ResidentUpdateRequest;
 use App\Models\AuditLog;
@@ -16,6 +16,7 @@ use App\Models\ResidentSocioEconomicProfile;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
 use App\Support\ExportDownload;
+use App\Support\HouseholdHeadReview;
 use App\Support\RbiTemplatePdfGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -64,7 +65,7 @@ class ResidentController extends Controller
             'Barangay' => fn (Resident $resident) => $resident->household?->purok?->barangay?->name,
             'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
             'Household' => fn (Resident $resident) => $resident->household?->household_no,
-            'Relationship' => 'relationship_to_head',
+            'Relationship to Household Head' => 'relationship_to_head',
             'Education' => fn (Resident $resident) => $resident->socioEconomicProfile?->highest_education_level ?: 'N/A',
             'Occupation' => fn (Resident $resident) => $resident->socioEconomicProfile?->occupation ?: 'N/A',
             'Availability' => fn (Resident $resident) => $resident->is_active ? 'Active' : 'Inactive',
@@ -116,7 +117,7 @@ class ResidentController extends Controller
         ]);
 
         $content = $generator->generateResidents([$resident], [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf');
@@ -135,7 +136,7 @@ class ResidentController extends Controller
         $officials = $officialsRegistry->keyed($barangay);
 
         $content = $generator->generateResidents([$resident], [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         return $this->pdfResponse($content, 'resident-rbi-form-'.$resident->id.'.pdf', true);
@@ -192,12 +193,16 @@ class ResidentController extends Controller
 
         $data = $request->validated();
         $data = $this->normalizeResidentLifecycle($data);
-        $residentData = Arr::except($data, $this->socioEconomicFields());
+        $resident = app(HouseholdHeadReview::class)->resident($request, $data, null, function ($data) {
+            $resident = Resident::create(Arr::except($data, [...$this->socioEconomicFields(), 'set_as_household_head']));
+            $this->syncSocioEconomicProfile($resident, $data);
+            AuditLog::logMutation('created', Auth::user(), $resident);
 
-        $resident = Resident::create($residentData);
-        $this->syncSocioEconomicProfile($resident, $data);
-
-        AuditLog::logMutation('created', Auth::user(), $resident);
+            return $resident;
+        });
+        if ($resident instanceof View) {
+            return $resident;
+        }
 
         return redirect()
             ->route('admin.residents.show', $resident)
@@ -250,13 +255,17 @@ class ResidentController extends Controller
 
         $data = $request->validated();
         $data = $this->normalizeResidentLifecycle($data);
-        $oldValues = $resident->load('socioEconomicProfile')->toArray();
-        $residentData = Arr::except($data, $this->socioEconomicFields());
+        $resident = app(HouseholdHeadReview::class)->resident($request, $data, $resident, function ($data, $resident) {
+            $oldValues = $resident->load('socioEconomicProfile')->toArray();
+            $resident->update(Arr::except($data, [...$this->socioEconomicFields(), 'set_as_household_head']));
+            $this->syncSocioEconomicProfile($resident, $data);
+            AuditLog::logMutation('updated', Auth::user(), $resident, $oldValues, $resident->fresh()->load('socioEconomicProfile')->toArray());
 
-        $resident->update($residentData);
-        $this->syncSocioEconomicProfile($resident, $data);
-
-        AuditLog::logMutation('updated', Auth::user(), $resident, $oldValues, $resident->fresh()->load('socioEconomicProfile')->toArray());
+            return $resident;
+        });
+        if ($resident instanceof View) {
+            return $resident;
+        }
 
         return redirect()
             ->route('admin.residents.show', $resident)

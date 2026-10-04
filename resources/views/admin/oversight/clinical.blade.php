@@ -12,7 +12,7 @@
     </div>
 
     <div class="rounded-xl bg-white p-6 shadow-sm">
-        <form method="GET" action="{{ route('admin.oversight.clinical') }}" class="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
+        <form method="GET" action="{{ route('admin.oversight.clinical') }}" class="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]" data-live-results-form="admin-oversight-clinical">
             <div>
                 <label for="barangay_id" class="block text-sm font-medium text-gray-700">Barangay</label>
                 <select id="barangay_id" name="barangay_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -29,7 +29,7 @@
         </form>
     </div>
 
-    <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-6">
+    <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-6" data-live-results="admin-oversight-clinical">
         <div class="rounded-xl bg-white p-5 shadow-sm">
             <p class="text-sm font-medium text-gray-500">Pending Triage</p>
             <p class="mt-2 text-3xl font-semibold text-amber-600">{{ number_format($pendingTriageCount) }}</p>
@@ -56,7 +56,7 @@
         </div>
     </div>
 
-    <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]" data-live-results="admin-oversight-clinical">
         <div class="rounded-xl bg-white shadow-sm">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Barangay Clinical Throughput</h3>
@@ -134,7 +134,7 @@
         </div>
     </div>
 
-    <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+    <div class="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2" data-live-results="admin-oversight-clinical">
         <div class="rounded-xl bg-white shadow-sm">
             <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Overdue Follow-Ups</h3>

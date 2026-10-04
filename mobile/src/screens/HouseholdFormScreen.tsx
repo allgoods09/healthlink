@@ -16,10 +16,13 @@ import { i18n } from '../i18n';
 import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
 import { AppTheme } from '../theme';
 
+import { useLocalEditor } from '../lib/useLocalEditor';
+
 export function HouseholdFormScreen({ route, navigation }: any) {
+  useLocalEditor();
   const theme = useAppTheme();
   const styles = useThemedStyles(createStyles);
-  const { assignment, bumpDataVersion, requestConfirmation } = useAppContext();
+  const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [householdNo, setHouseholdNo] = useState('');
@@ -71,7 +74,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       household_address: address,
       is_social_aid_beneficiary: socialAid,
       is_active: active,
-    });
+    }, user?.id);
     bumpDataVersion();
     navigation.goBack();
   }

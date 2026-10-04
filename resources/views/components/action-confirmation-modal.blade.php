@@ -2,11 +2,14 @@
     x-data="actionConfirmationModal()"
     x-init="init()"
     @keydown.escape.window="if (open) { $event.preventDefault() }"
-    @keydown.tab.window="trapFocus($event)"
 >
     <div
+        x-ref="layer"
         x-cloak
         x-show="open"
+        x-modal-layer="open"
+        data-modal-layer
+        @click.self="if (!isSubmitting) { cancel() }"
         x-transition:enter="transition ease-out duration-200"
         x-transition:enter-start="opacity-0"
         x-transition:enter-end="opacity-100"
@@ -18,6 +21,8 @@
     >
         <section
             x-ref="dialog"
+            data-modal-panel
+            tabindex="-1"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="action-confirmation-title"

@@ -68,12 +68,14 @@ class RelocateResidentRequest extends FormRequest
 
             if ($resident->resident_status === Resident::STATUS_DECEASED) {
                 $validator->errors()->add('target_purok_id', 'Deceased residents cannot be relocated.');
+
                 return;
             }
 
             if ($this->input('destination') === 'existing_household') {
                 if (! $this->filled('target_household_id')) {
                     $validator->errors()->add('target_household_id', 'Please select the destination household.');
+
                     return;
                 }
 
@@ -95,11 +97,6 @@ class RelocateResidentRequest extends FormRequest
                     $validator->errors()->add('target_household_id', 'The resident is already assigned to that household.');
                 }
 
-                if ($this->boolean('set_as_household_head')
-                    && $household->head_resident_id
-                    && (int) $household->head_resident_id !== (int) $resident->id) {
-                    $validator->errors()->add('set_as_household_head', 'The destination household already has a designated head.');
-                }
             }
 
             if ($this->input('destination') === 'new_household') {

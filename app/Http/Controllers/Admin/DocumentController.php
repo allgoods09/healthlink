@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditLog;
 use App\Models\Barangay;
 use App\Models\BarangayOfficial;
 use App\Models\Household;
@@ -15,7 +14,6 @@ use App\Support\RbiTemplatePdfGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
@@ -41,6 +39,7 @@ class DocumentController extends Controller
             'barangay' => $barangay,
             'barangays' => $barangays,
             'officials' => $officials,
+            ...($barangay ? $officialsRegistry->secretaryPresentation($barangay) : ['secretaryLinked' => false, 'resolvedSecretaryName' => null]),
             'filters' => $filters,
             'documentTypes' => $this->documentTypes(),
             'puroks' => $barangay ? Purok::query()->where('barangay_id', $barangay->id)->active()->orderBy('purok_number')->get() : collect(),
@@ -77,7 +76,7 @@ class DocumentController extends Controller
 
             $content = $generator->generateHouseholds($records, [
                 'officials' => [
-                    'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                    'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
                     'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
                 ],
             ]);
@@ -107,7 +106,7 @@ class DocumentController extends Controller
         }
 
         $content = $generator->generateResidents($records, [
-            'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+            'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
         ]);
 
         ExportAudit::log('admin resident RBI documents', 'pdf', [
@@ -130,6 +129,12 @@ class DocumentController extends Controller
     {
         Gate::authorize('viewAny', Barangay::class);
 
+        $barangayId = filter_var($request->input('barangay_id'), FILTER_VALIDATE_INT);
+        $selected = $barangayId ? Barangay::query()->find($barangayId) : null;
+        if ($selected && is_array($request->input('officials'))) {
+            $request->merge(['officials' => $officialsRegistry->editableNameInput($selected, $request->input('officials'))]);
+        }
+
         $validated = $request->validate([
             'barangay_id' => ['required', 'integer', 'exists:barangays,id'],
             'officials' => ['required', 'array'],
@@ -137,20 +142,7 @@ class DocumentController extends Controller
         ]);
 
         $barangay = Barangay::query()->findOrFail($validated['barangay_id']);
-        $officials = $officialsRegistry->syncDefaults($barangay)->keyBy('role_key');
-
-        foreach (BarangayOfficial::defaults() as $definition) {
-            $official = $officials->get($definition['role_key']);
-            $name = trim((string) ($validated['officials'][$definition['role_key']] ?? ''));
-
-            if (! $official) {
-                continue;
-            }
-
-            $oldValues = $official->toArray();
-            $official->update(['official_name' => $name !== '' ? $name : null]);
-            AuditLog::logMutation('updated', Auth::user(), $official, $oldValues, $official->fresh()->toArray());
-        }
+        $officialsRegistry->updateNames($barangay, $validated['officials']);
 
         return back()->with('success', 'Barangay officials updated for the selected document workspace.');
     }

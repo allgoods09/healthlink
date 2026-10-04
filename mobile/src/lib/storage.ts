@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
+import { AccountSwitchBlockedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
 
 import {
   BootstrapPayload,
@@ -14,6 +15,28 @@ import {
 
 const TOKEN_KEY = 'healthlink_mobile_token';
 const DB_NAME = 'healthlink_bhw.db';
+const SYNC_TABLES = ['households', 'residents', 'field_visits', 'risk_assessments'] as const;
+type SyncTable = typeof SYNC_TABLES[number];
+type SnapshotRows = Record<SyncTable, Record<string, any>[]>;
+type UploadSnapshot = { ownerUserId: number; rows: SnapshotRows };
+
+// Public mutators share one queue; their internal helpers must not re-enter it.
+export const saveHousehold = (values: Parameters<typeof saveHouseholdInternal>[0], userId: number | undefined) =>
+  ownedWrite(userId, () => saveHouseholdInternal(values));
+export const saveResident = (values: Parameters<typeof saveResidentInternal>[0], userId: number | undefined) =>
+  ownedWrite(userId, () => saveResidentInternal(values));
+export const saveVisit = (values: Parameters<typeof saveVisitInternal>[0], userId: number | undefined) =>
+  ownedWrite(userId, () => saveVisitInternal(values));
+export const saveRiskAssessment = (values: Parameters<typeof saveRiskAssessmentInternal>[0], userId: number | undefined) =>
+  ownedWrite(userId, () => saveRiskAssessmentInternal(values));
+export const getPendingSyncPayload = (userId: number) => ownedWrite(userId, async () => {
+  const { payload, snapshot } = await getPendingSyncPayloadInternal();
+  return { payload, snapshot: { ownerUserId: userId, rows: snapshot } };
+});
+export const replaceBootstrapData = (payload: BootstrapPayload) =>
+  ownedWrite(payload.user.id, () => replaceBootstrapDataInternal(payload));
+export const applyResolvedRecords = (resolved: SyncResponse['resolved_records'], snapshot: UploadSnapshot) =>
+  ownedWrite(snapshot.ownerUserId, () => applyResolvedRecordsInternal(resolved, snapshot.rows));
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -269,6 +292,13 @@ export async function initializeStorage() {
 
   await ensureColumn(db, 'households', 'purok_id', 'INTEGER');
   await ensureColumn(db, 'households', 'purok_display_name', 'TEXT');
+  for (const table of ['households', 'residents']) {
+    await ensureColumn(db, table, 'verification_status', "TEXT NOT NULL DEFAULT 'approved'");
+    await ensureColumn(db, table, 'verification_notes', 'TEXT');
+  }
+  for (const table of SYNC_TABLES) {
+    await ensureColumn(db, table, 'local_revision', 'INTEGER NOT NULL DEFAULT 0');
+  }
   await repairInvalidMobileUuids(db);
 }
 
@@ -410,18 +440,36 @@ export async function clearToken() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
-export async function replaceBootstrapData(payload: BootstrapPayload) {
+async function replaceBootstrapDataInternal(payload: BootstrapPayload) {
   const db = await getDatabase();
 
-  await db.withTransactionAsync(async () => {
+  await db.withExclusiveTransactionAsync(async (db) => {
+    if (hasLocalEditor()) throw new RefreshDeferredError();
+    const identities = {} as Record<SyncTable, Map<number, number>>;
+    const uuidIdentities = {} as Record<SyncTable, Map<string, number>>;
+    const revisions = {} as Record<SyncTable, Map<number, number>>;
+    for (const table of SYNC_TABLES) {
+      const pending = await db.getFirstAsync(`SELECT 1 FROM ${table} WHERE sync_status != 'synced' LIMIT 1`);
+      if (pending) throw new RefreshDeferredError();
+      const rows = await db.getAllAsync<{ local_id: number; server_id: number | null; mobile_uuid: string | null; local_revision: number }>(
+        `SELECT local_id, server_id, mobile_uuid, local_revision FROM ${table}`
+      );
+      identities[table] = new Map(rows.filter(row => row.server_id != null).map(row => [row.server_id!, row.local_id]));
+      uuidIdentities[table] = new Map(rows.filter(row => row.mobile_uuid).map(row => [row.mobile_uuid!, row.local_id]));
+      revisions[table] = new Map(rows.map(row => [row.local_id, row.local_revision]));
+    }
+    if (hasLocalEditor()) throw new RefreshDeferredError();
     await db.runAsync('DELETE FROM risk_assessments');
     await db.runAsync('DELETE FROM field_visits');
     await db.runAsync('DELETE FROM residents');
     await db.runAsync('DELETE FROM households');
 
     for (const household of payload.households) {
+      const oldId = (household.id == null ? null : identities.households.get(household.id)) ??
+        (household.mobile_uuid ? uuidIdentities.households.get(household.mobile_uuid) : null) ?? null;
       await db.runAsync(
         `INSERT INTO households (
+          local_id,
           server_id,
           mobile_uuid,
           purok_id,
@@ -431,9 +479,13 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           is_social_aid_beneficiary,
           is_active,
           sync_status,
+          verification_status,
+          verification_notes,
+          local_revision,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)`,
         [
+          oldId,
           household.id,
           household.mobile_uuid,
           household.purok_id,
@@ -442,14 +494,20 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           household.household_address,
           boolToInt(household.is_social_aid_beneficiary),
           boolToInt(household.is_active),
+          household.verification_status ?? 'approved',
+          household.verification_notes ?? null,
+          Math.max(household.local_revision ?? 0, oldId == null ? 0 : revisions.households.get(oldId) ?? 0),
           household.updated_at,
         ]
       );
     }
 
     for (const resident of payload.residents) {
+      const oldId = (resident.id == null ? null : identities.residents.get(resident.id)) ??
+        (resident.mobile_uuid ? uuidIdentities.residents.get(resident.mobile_uuid) : null) ?? null;
       await db.runAsync(
         `INSERT INTO residents (
+          local_id,
           server_id,
           mobile_uuid,
           household_server_id,
@@ -470,9 +528,13 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           relationship_to_head,
           is_active,
           sync_status,
+          verification_status,
+          verification_notes,
+          local_revision,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)`,
         [
+          oldId,
           resident.id,
           resident.mobile_uuid,
           resident.household_id,
@@ -492,6 +554,9 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           resident.email_address,
           resident.relationship_to_head,
           boolToInt(resident.is_active),
+          resident.verification_status ?? 'approved',
+          resident.verification_notes ?? null,
+          Math.max(resident.local_revision ?? 0, oldId == null ? 0 : revisions.residents.get(oldId) ?? 0),
           resident.updated_at,
         ]
       );
@@ -500,6 +565,7 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
     for (const visit of payload.field_visits) {
       await db.runAsync(
         `INSERT INTO field_visits (
+          local_id,
           server_id,
           mobile_uuid,
           household_server_id,
@@ -509,8 +575,9 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           photos_json,
           sync_status,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
         [
+          identities.field_visits.get(visit.id) ?? null,
           visit.id,
           visit.mobile_uuid,
           visit.household_id,
@@ -526,6 +593,7 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
     for (const assessment of payload.risk_assessments) {
       await db.runAsync(
         `INSERT INTO risk_assessments (
+          local_id,
           server_id,
           mobile_uuid,
           resident_server_id,
@@ -578,8 +646,9 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
           remarks,
           sync_status,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)`,
         [
+          identities.risk_assessments.get(assessment.id) ?? null,
           assessment.id,
           assessment.mobile_uuid,
           assessment.resident_id,
@@ -634,31 +703,64 @@ export async function replaceBootstrapData(payload: BootstrapPayload) {
         ]
       );
     }
+    for (const [key, value] of Object.entries({
+      bootstrap_completed: '1', dataset_owner_user_id: String(payload.user.id),
+      dataset_assignment: JSON.stringify(payload.assignment), last_sync_at: payload.server_time,
+      session_assignment: JSON.stringify(payload.assignment),
+    })) {
+      await db.runAsync('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)', [key, value]);
+    }
+    // A form may have mounted while asynchronous inserts were running. Roll back safely.
+    if (hasLocalEditor()) throw new RefreshDeferredError();
   });
-
-  await setAppState('bootstrap_completed', '1');
-  await setAppState('dataset_owner_user_id', String(payload.user.id));
-  await setAppState('dataset_assignment', JSON.stringify(payload.assignment));
-  await setAppState('last_sync_at', payload.server_time);
 }
 
-export async function clearOperationalData() {
-  const db = await getDatabase();
-
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM risk_assessments');
-    await db.runAsync('DELETE FROM field_visits');
-    await db.runAsync('DELETE FROM residents');
-    await db.runAsync('DELETE FROM households');
+async function ownedWrite<T>(userId: number | undefined, operation: () => Promise<T>) {
+  return serializeLocalWrite(async () => {
+    await assertDatasetOwner(userId);
+    return operation();
   });
+}
 
-  await setAppState('bootstrap_completed', '0');
-  await setAppState('dataset_owner_user_id', '');
-  await setAppState('dataset_assignment', '');
-  await setAppState('last_sync_at', '');
+export async function assertDatasetOwner(userId: number | undefined) {
+  if (!userId || !Number.isSafeInteger(userId) || userId < 1 ||
+      await getDatasetOwnerUserId() !== String(userId)) {
+    throw new DatasetOwnershipError();
+  }
+}
+
+export const prepareDatasetForUser = (userId: number) => serializeLocalWrite(async () => {
+  if (!Number.isSafeInteger(userId) || userId < 1) throw new DatasetOwnershipError();
+  const db = await getDatabase();
+  await db.withExclusiveTransactionAsync(async db => {
+    const owner = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_state WHERE key = ?', ['dataset_owner_user_id']
+    );
+    if (owner?.value === String(userId)) return;
+    // Unknown ownership is not permission to claim or discard pending work.
+    for (const table of SYNC_TABLES) {
+      if (await db.getFirstAsync(`SELECT 1 FROM ${table} WHERE sync_status != 'synced' LIMIT 1`)) {
+        throw new AccountSwitchBlockedError();
+      }
+    }
+    if (hasLocalEditor()) throw new RefreshDeferredError();
+    for (const table of [...SYNC_TABLES].reverse()) await db.runAsync(`DELETE FROM ${table}`);
+    for (const [key, value] of Object.entries({
+      bootstrap_completed: '0', dataset_owner_user_id: String(userId),
+      dataset_assignment: '', last_sync_at: '', session_user: '', session_assignment: '',
+    })) {
+      await db.runAsync('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)', [key, value]);
+    }
+    if (hasLocalEditor()) throw new RefreshDeferredError();
+  });
+});
+
+// Logout removes credentials only. Records, ownership and visit photos stay intact.
+export const clearLocalSession = () => serializeLocalWrite(async () => {
+  await clearToken();
   await setAppState('session_user', '');
   await setAppState('session_assignment', '');
-}
+});
 
 export async function getDatasetOwnerUserId() {
   return getAppState('dataset_owner_user_id');
@@ -707,7 +809,7 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
       latest_risk_assessments.latest_risk_assessment_date AS latest_risk_assessment_date
      FROM residents
      LEFT JOIN households ON households.server_id = residents.household_server_id
-       OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = residents.household_mobile_uuid)
+       OR (households.mobile_uuid IS NOT NULL AND TRIM(households.mobile_uuid) <> '' AND households.mobile_uuid = residents.household_mobile_uuid)
      LEFT JOIN (
        SELECT resident_server_id, MAX(assessment_date) AS latest_risk_assessment_date
        FROM risk_assessments
@@ -740,7 +842,7 @@ export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
       households.purok_display_name AS household_purok_display_name
      FROM field_visits
      LEFT JOIN households ON households.server_id = field_visits.household_server_id
-       OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = field_visits.household_mobile_uuid)
+       OR (households.mobile_uuid IS NOT NULL AND TRIM(households.mobile_uuid) <> '' AND households.mobile_uuid = field_visits.household_mobile_uuid)
      WHERE COALESCE(households.household_no, '') LIKE ? OR COALESCE(field_visits.notes, '') LIKE ?
      ORDER BY field_visits.visited_at DESC`,
     [`%${search}%`, `%${search}%`]
@@ -776,9 +878,9 @@ export async function getResidentsForHousehold(household: {
       households.purok_display_name AS household_purok_display_name
      FROM residents
      LEFT JOIN households ON households.server_id = residents.household_server_id
-       OR (households.mobile_uuid IS NOT NULL AND households.mobile_uuid = residents.household_mobile_uuid)
+       OR (households.mobile_uuid IS NOT NULL AND TRIM(households.mobile_uuid) <> '' AND households.mobile_uuid = residents.household_mobile_uuid)
      WHERE (residents.household_server_id = ?)
-        OR (residents.household_mobile_uuid IS NOT NULL AND residents.household_mobile_uuid = ?)
+        OR (residents.household_mobile_uuid IS NOT NULL AND TRIM(residents.household_mobile_uuid) <> '' AND residents.household_mobile_uuid = ?)
      ORDER BY residents.last_name ASC, residents.first_name ASC`,
     [household.server_id ?? null, household.mobile_uuid ?? null]
   );
@@ -895,18 +997,28 @@ export async function getRiskAssessmentByLocalId(
   };
 }
 
-export async function saveHousehold(
+async function existingIdentity(db: SQLite.SQLiteDatabase, table: SyncTable, localId?: number) {
+  if (!localId) return null;
+  const row = await db.getFirstAsync<{ server_id: number | null; mobile_uuid: string | null }>(
+    `SELECT server_id, mobile_uuid FROM ${table} WHERE local_id = ?`, [localId]
+  );
+  if (!row) throw new Error('This record is no longer on this device. Please reopen the form.');
+  return row;
+}
+
+async function saveHouseholdInternal(
   values: Omit<HouseholdRecord, 'sync_status'> & { local_id?: number }
 ) {
   const db = await getDatabase();
-  const mobileUuid = values.mobile_uuid ?? createUuid();
-  const syncStatus = values.server_id ? 'pending_update' : 'pending_create';
+  const current = await existingIdentity(db, 'households', values.local_id);
+  const mobileUuid = current?.mobile_uuid ?? values.mobile_uuid ?? createUuid();
+  const syncStatus = (current?.server_id ?? values.server_id) ? 'pending_update' : 'pending_create';
 
   if (values.local_id) {
     await db.runAsync(
       `UPDATE households
        SET mobile_uuid = ?, purok_id = ?, purok_display_name = ?, household_no = ?, household_address = ?, is_social_aid_beneficiary = ?,
-           is_active = ?, sync_status = ?, updated_at = ?
+           is_active = ?, sync_status = ?, updated_at = ?, local_revision = local_revision + 1
        WHERE local_id = ?`,
       [
         mobileUuid,
@@ -953,12 +1065,13 @@ export async function saveHousehold(
   );
 }
 
-export async function saveResident(
+async function saveResidentInternal(
   values: Omit<ResidentRecord, 'sync_status'> & { local_id?: number }
 ) {
   const db = await getDatabase();
-  const mobileUuid = values.mobile_uuid ?? createUuid();
-  const syncStatus = values.server_id ? 'pending_update' : 'pending_create';
+  const current = await existingIdentity(db, 'residents', values.local_id);
+  const mobileUuid = current?.mobile_uuid ?? values.mobile_uuid ?? createUuid();
+  const syncStatus = (current?.server_id ?? values.server_id) ? 'pending_update' : 'pending_create';
 
   if (values.local_id) {
     await db.runAsync(
@@ -966,7 +1079,7 @@ export async function saveResident(
        SET mobile_uuid = ?, household_server_id = ?, household_mobile_uuid = ?, philsys_card_no = ?, last_name = ?,
            first_name = ?, middle_name = ?, suffix = ?, birth_date = ?, birth_place = ?, sex = ?, civil_status = ?,
            citizenship = ?, religion = ?, contact_number = ?, email_address = ?, relationship_to_head = ?, is_active = ?,
-           sync_status = ?, updated_at = ?
+           sync_status = ?, updated_at = ?, local_revision = local_revision + 1
        WHERE local_id = ?`,
       [
         mobileUuid,
@@ -1046,18 +1159,19 @@ export async function saveResident(
   );
 }
 
-export async function saveVisit(
+async function saveVisitInternal(
   values: Omit<FieldVisitRecord, 'sync_status'> & { local_id?: number }
 ) {
   const db = await getDatabase();
-  const mobileUuid = values.mobile_uuid ?? createUuid();
-  const syncStatus = values.server_id ? 'pending_update' : 'pending_create';
+  const current = await existingIdentity(db, 'field_visits', values.local_id);
+  const mobileUuid = current?.mobile_uuid ?? values.mobile_uuid ?? createUuid();
+  const syncStatus = (current?.server_id ?? values.server_id) ? 'pending_update' : 'pending_create';
 
   if (values.local_id) {
     await db.runAsync(
       `UPDATE field_visits
        SET mobile_uuid = ?, household_server_id = ?, household_mobile_uuid = ?, visited_at = ?, notes = ?,
-           photos_json = ?, sync_status = ?, updated_at = ?
+           photos_json = ?, sync_status = ?, updated_at = ?, local_revision = local_revision + 1
        WHERE local_id = ?`,
       [
         mobileUuid,
@@ -1101,7 +1215,7 @@ export async function saveVisit(
   );
 }
 
-export async function saveRiskAssessment(
+async function saveRiskAssessmentInternal(
   values: Omit<RiskAssessmentRecord, 'sync_status' | 'requires_immediate_referral'> & {
     local_id?: number;
     requires_immediate_referral?: boolean;
@@ -1121,13 +1235,16 @@ export async function saveRiskAssessment(
         [values.local_id]
       )
     : null;
+  if (values.local_id && !existingLocalRecord) {
+    throw new Error('This record is no longer on this device. Please reopen the form.');
+  }
   const shouldCreateNewRecord =
     Boolean(existingLocalRecord?.server_id) ||
     existingLocalRecord?.sync_status === 'synced';
   const targetLocalId = shouldCreateNewRecord ? undefined : values.local_id;
   const mobileUuid = shouldCreateNewRecord
     ? createUuid()
-    : values.mobile_uuid ?? existingLocalRecord?.mobile_uuid ?? createUuid();
+    : existingLocalRecord?.mobile_uuid ?? values.mobile_uuid ?? createUuid();
   const syncStatus: SyncStatus = 'pending_create';
   const requiresImmediateReferral =
     values.requires_immediate_referral ??
@@ -1216,7 +1333,7 @@ export async function saveRiskAssessment(
            dm_symptoms_json = ?, lipid_profile_date = ?, total_cholesterol = ?, hdl = ?, ldl = ?, vldl = ?,
            triglycerides = ?, urinalysis_protein = ?, urinalysis_ketones = ?, urinalysis_date = ?,
            chronic_respiratory_symptoms_json = ?, lifestyle_modification = ?, anti_hypertensive_medications = ?,
-           oral_hypoglycemic_medications = ?, follow_up_date = ?, remarks = ?, sync_status = ?, updated_at = ?
+           oral_hypoglycemic_medications = ?, follow_up_date = ?, remarks = ?, sync_status = ?, updated_at = ?, local_revision = local_revision + 1
        WHERE local_id = ?`,
       [...params, targetLocalId]
     );
@@ -1287,7 +1404,7 @@ export async function hasBootstrapData() {
   return (await getAppState('bootstrap_completed')) === '1';
 }
 
-export async function getPendingSyncPayload() {
+async function getPendingSyncPayloadInternal() {
   const db = await getDatabase();
   await repairInvalidMobileUuids(db);
   const households = await db.getAllAsync<any>(
@@ -1303,10 +1420,12 @@ export async function getPendingSyncPayload() {
     `SELECT * FROM risk_assessments WHERE sync_status != 'synced' ORDER BY local_id ASC`
   );
 
-  return {
+  const snapshot: SnapshotRows = { households, residents, field_visits: visits, risk_assessments: riskAssessments };
+  const payload = {
     households: households.map((row: any) => ({
       id: row.server_id ?? undefined,
       mobile_uuid: row.mobile_uuid ?? undefined,
+      local_revision: row.local_revision,
       household_no: row.household_no,
       household_address: row.household_address,
       is_social_aid_beneficiary: intToBool(row.is_social_aid_beneficiary),
@@ -1315,6 +1434,7 @@ export async function getPendingSyncPayload() {
     residents: residents.map((row: any) => ({
       id: row.server_id ?? undefined,
       mobile_uuid: row.mobile_uuid ?? undefined,
+      local_revision: row.local_revision,
       household_id: row.household_server_id ?? undefined,
       household_mobile_uuid: row.household_mobile_uuid ?? undefined,
       philsys_card_no: row.philsys_card_no ?? undefined,
@@ -1415,84 +1535,75 @@ export async function getPendingSyncPayload() {
       remarks: row.remarks ?? undefined,
     })),
   };
+  return { snapshot, payload };
 }
 
-export async function applyResolvedRecords(resolved: SyncResponse['resolved_records']) {
+async function applyResolvedRecordsInternal(resolved: SyncResponse['resolved_records'], snapshot: SnapshotRows) {
   const db = await getDatabase();
 
-  await db.withTransactionAsync(async () => {
-    for (const household of resolved.households) {
-      if (!household.mobile_uuid) continue;
+  await db.withExclusiveTransactionAsync(async (db) => {
+    for (const table of SYNC_TABLES) {
+      for (const record of resolved[table]) {
+        const uploaded = snapshot[table].find(row => row.mobile_uuid && row.mobile_uuid === record.mobile_uuid);
+        if (!uploaded) continue;
+        const current = await db.getFirstAsync<any>(
+          `SELECT * FROM ${table} WHERE local_id = ? AND mobile_uuid = ?`,
+          [uploaded.local_id, uploaded.mobile_uuid]
+        );
+        if (!current) continue;
+        const unchanged = current.local_revision === uploaded.local_revision;
 
-      await db.runAsync(
-        `UPDATE households
-         SET server_id = ?, sync_status = 'synced', updated_at = ?
-         WHERE mobile_uuid = ?`,
-        [household.id, household.updated_at ?? new Date().toISOString(), household.mobile_uuid]
-      );
+        if (table === 'risk_assessments' && !unchanged) {
+          // Assessments are immutable on the server. Keep the newer draft at its
+          // existing local ID and retain the acknowledged version as history.
+          await db.runAsync(
+            `UPDATE risk_assessments SET mobile_uuid = ?, server_id = NULL,
+             sync_status = 'pending_create' WHERE local_id = ?`,
+            [createUuid(), current.local_id]
+          );
+          const { local_id: _localId, ...history } = uploaded;
+          history.server_id = record.id;
+          history.sync_status = 'synced';
+          history.updated_at = record.updated_at ?? uploaded.updated_at;
+          const columns = Object.keys(history);
+          await db.runAsync(
+            `INSERT INTO risk_assessments (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+            Object.values(history)
+          );
+          continue;
+        }
 
-      await db.runAsync(
-        `UPDATE residents
-         SET household_server_id = ?
-         WHERE household_mobile_uuid = ?`,
-        [household.id, household.mobile_uuid]
-      );
-
-      await db.runAsync(
-        `UPDATE field_visits
-         SET household_server_id = ?
-         WHERE household_mobile_uuid = ?`,
-        [household.id, household.mobile_uuid]
-      );
-    }
-
-    for (const resident of resolved.residents) {
-      if (!resident.mobile_uuid) continue;
-
-      await db.runAsync(
-        `UPDATE residents
-         SET server_id = ?, household_server_id = COALESCE(household_server_id, ?),
-             sync_status = 'synced', updated_at = ?
-         WHERE mobile_uuid = ?`,
-        [
-          resident.id,
-          resident.household_id ?? null,
-          resident.updated_at ?? new Date().toISOString(),
-          resident.mobile_uuid,
-        ]
-      );
-    }
-
-    for (const visit of resolved.field_visits) {
-      if (!visit.mobile_uuid) continue;
-
-      await db.runAsync(
-        `UPDATE field_visits
-         SET server_id = ?, household_server_id = COALESCE(household_server_id, ?),
-             sync_status = 'synced', updated_at = ?
-         WHERE mobile_uuid = ?`,
-        [
-          visit.id,
-          visit.household_id ?? null,
-          visit.updated_at ?? new Date().toISOString(),
-          visit.mobile_uuid,
-        ]
-      );
-    }
-
-    for (const assessment of resolved.risk_assessments) {
-      if (!assessment.mobile_uuid) continue;
-
-      await db.runAsync(
-        `UPDATE risk_assessments
-         SET server_id = ?, sync_status = 'synced', updated_at = ?
-         WHERE mobile_uuid = ?`,
-        [
-          assessment.id,
-          assessment.updated_at ?? new Date().toISOString(),
-          assessment.mobile_uuid,
-        ]
-      );
+        if (table === 'households' || table === 'residents') {
+          await db.runAsync(
+            `UPDATE ${table} SET server_id = ?, sync_status = ?, verification_status = ?,
+             verification_notes = ?, updated_at = ? WHERE local_id = ?`,
+            [record.id ?? current.server_id,
+              unchanged ? 'synced' : ((record.id ?? current.server_id) ? 'pending_update' : 'pending_create'),
+              record.verification_status ?? 'approved', record.verification_notes ?? null,
+              unchanged ? record.updated_at ?? current.updated_at : current.updated_at, current.local_id]
+          );
+        } else {
+          await db.runAsync(
+            `UPDATE ${table} SET server_id = ?, sync_status = ?, updated_at = ? WHERE local_id = ?`,
+            [record.id, unchanged ? 'synced' : 'pending_update',
+              unchanged ? record.updated_at ?? current.updated_at : current.updated_at, current.local_id]
+          );
+        }
+        if (unchanged && (table === 'residents' || table === 'field_visits')) {
+          await db.runAsync(
+            `UPDATE ${table} SET household_server_id = COALESCE(household_server_id, ?) WHERE local_id = ?`,
+            [record.household_id ?? null, current.local_id]
+          );
+        }
+        if (table === 'households' && record.id) {
+          for (const childTable of ['residents', 'field_visits']) {
+            await db.runAsync(
+              `UPDATE ${childTable} SET household_server_id = ? WHERE household_mobile_uuid = ?`,
+              [record.id, record.mobile_uuid!]
+            );
+          }
+        }
+      }
     }
   });
 }

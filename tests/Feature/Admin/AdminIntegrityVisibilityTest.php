@@ -260,6 +260,7 @@ class AdminIntegrityVisibilityTest extends TestCase
             'households' => [
                 [
                     'id' => $validHousehold->id,
+                    'mobile_uuid' => '00000000-0000-4000-8000-000000000801',
                     'household_address' => 'Updated from mobile',
                 ],
             ],
@@ -276,7 +277,12 @@ class AdminIntegrityVisibilityTest extends TestCase
             ->assertJsonPath('status', SyncLog::STATUS_PARTIAL)
             ->assertJsonPath('records_synced', 1);
 
-        $this->assertSame('Updated from mobile', $validHousehold->fresh()->household_address);
+        $this->assertSame('Old address', $validHousehold->fresh()->household_address);
+        $this->assertDatabaseHas('profile_update_requests', [
+            'subject_type' => 'household',
+            'subject_id' => $validHousehold->id,
+            'request_status' => 'pending',
+        ]);
         $this->assertSame('09173333333', $foreignResident->fresh()->contact_number);
         $this->assertDatabaseHas('sync_logs', [
             'status' => SyncLog::STATUS_PARTIAL,

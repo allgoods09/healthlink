@@ -4,19 +4,26 @@ namespace App\Http\Requests\Admin\Geometry;
 
 use App\Models\Household;
 use App\Models\Resident;
+use App\Support\HouseholdRelationships;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class ResidentUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        HouseholdRelationships::prepareResidentRequest($this);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
         $user = Auth::user();
-        
+
         // Allow admin, mho, phn, secretary, bns, bhw to update
         return in_array($user->role, ['admin', 'mho', 'phn', 'secretary', 'bns', 'bhw']);
     }
@@ -24,7 +31,7 @@ class ResidentUpdateRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -36,28 +43,28 @@ class ResidentUpdateRequest extends FormRequest
                 'exists:households,id',
                 function ($attribute, $value, $fail) {
                     $user = Auth::user();
-                    $household = \App\Models\Household::with('purok')->find($value);
-                    
-                    if (!$household) {
+                    $household = Household::with('purok')->find($value);
+
+                    if (! $household) {
                         return;
                     }
-                    
+
                     if ($user->role === 'bhw' && $user->assigned_purok_id != $household->purok_id) {
                         $fail('You can only update residents in your assigned purok.');
                     }
-                    
+
                     if (in_array($user->role, ['secretary', 'bns'])) {
                         if ($household->purok->barangay_id != $user->assigned_barangay_id) {
                             $fail('You can only update residents in your assigned barangay.');
                         }
                     }
-                }
+                },
             ],
             'philsys_card_no' => [
-                'nullable', 
-                'string', 
-                'max:50', 
-                Rule::unique('residents')->ignore($residentId)
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('residents')->ignore($residentId),
             ],
             'last_name' => ['required', 'string', 'max:100'],
             'first_name' => ['required', 'string', 'max:100'],
@@ -84,6 +91,7 @@ class ResidentUpdateRequest extends FormRequest
             'contact_number' => ['nullable', 'string', 'max:20'],
             'email_address' => ['nullable', 'email', 'max:100'],
             'relationship_to_head' => ['required', 'string', 'max:100'],
+            'set_as_household_head' => ['sometimes', 'boolean'],
             'resident_status' => ['nullable', 'in:active,deceased,relocated'],
             'moved_in_at' => ['nullable', 'date'],
             'moved_out_at' => ['nullable', 'date'],

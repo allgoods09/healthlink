@@ -6,12 +6,24 @@ use App\Models\Household;
 use App\Models\ProfileUpdateRequest;
 use App\Models\Purok;
 use App\Models\Resident;
+use App\Support\HouseholdRelationships;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class ApplyProfileUpdateRequestRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $correction = $this->route('profileUpdateRequest');
+        $resident = $correction?->subject_type === ProfileUpdateRequest::SUBJECT_RESIDENT
+            ? Resident::find($correction->subject_id) : null;
+        if ($this->boolean('set_as_household_head') || $resident && $resident->is_household_head &&
+            (int) $this->input('household_id') === (int) $resident->household_id) {
+            $this->merge(['relationship_to_head' => HouseholdRelationships::HEAD]);
+        }
+    }
+
     public function authorize(): bool
     {
         return Auth::user()?->role === 'secretary';
@@ -126,6 +138,7 @@ class ApplyProfileUpdateRequestRequest extends FormRequest
             'contact_number' => ['nullable', 'string', 'max:20'],
             'email_address' => ['nullable', 'email', 'max:100'],
             'relationship_to_head' => ['required', 'string', 'max:100'],
+            'set_as_household_head' => ['sometimes', 'boolean'],
             'resident_status' => ['required', 'in:active,deceased,relocated'],
             'moved_in_at' => ['nullable', 'date'],
             'moved_out_at' => ['nullable', 'date'],
@@ -160,9 +173,9 @@ class ApplyProfileUpdateRequestRequest extends FormRequest
             'drinking_water_source' => ['nullable', 'string', 'max:100'],
             'has_sanitary_toilet' => ['nullable', 'boolean'],
             'sanitary_toilet_type' => ['nullable', 'string', 'max:100'],
-            'garbage_disposal_method' => ['nullable', 'string', 'in:' . implode(',', array_keys(\App\Models\Household::GARBAGE_DISPOSAL_METHODS))],
+            'garbage_disposal_method' => ['nullable', 'string', 'in:'.implode(',', array_keys(Household::GARBAGE_DISPOSAL_METHODS))],
             'has_backyard_garden' => ['nullable', 'boolean'],
-            'housing_material_type' => ['nullable', 'string', 'in:' . implode(',', array_keys(\App\Models\Household::HOUSING_MATERIAL_TYPES))],
+            'housing_material_type' => ['nullable', 'string', 'in:'.implode(',', array_keys(Household::HOUSING_MATERIAL_TYPES))],
             'head_resident_id' => ['nullable', 'exists:residents,id'],
             'is_social_aid_beneficiary' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],

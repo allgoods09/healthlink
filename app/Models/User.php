@@ -106,6 +106,26 @@ class User extends Authenticatable implements MustVerifyEmailContract
         });
     }
 
+    public function save(array $options = [])
+    {
+        return app(\App\Support\OperationalSecretaryGuard::class)->saveUser($this, fn () => parent::save($options));
+    }
+
+    public function scopeOperationalSecretaries($query)
+    {
+        return $query->where('role', 'secretary')
+            ->where('approval_status', self::APPROVAL_APPROVED)
+            ->where('is_active', true)->whereNotNull('email_verified_at')
+            ->whereHas('assignedBarangay', fn ($barangay) => $barangay->active());
+    }
+
+    public function isOperationalSecretaryFor(Barangay $barangay): bool
+    {
+        return $this->role === 'secretary' && $this->isApproved() && $this->isActive()
+            && $this->hasVerifiedEmail() && $barangay->isActive()
+            && (int) $this->assigned_barangay_id === (int) $barangay->id;
+    }
+
     /**
      * Send the HealthLink-branded email verification message.
      */

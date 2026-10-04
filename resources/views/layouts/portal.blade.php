@@ -10,16 +10,18 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
 
+    <x-sidebar-bootstrap />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @stack('styles')
 </head>
-<body x-data="sidebarLayout('portal-{{ $user?->role ?? 'default' }}')" class="font-sans antialiased bg-slate-50">
+@php
+    $user = Auth::user();
+@endphp
+<body x-data="sidebarLayout('portal-{{ $user?->role ?? 'default' }}')" data-sidebar-shell class="font-sans antialiased bg-slate-50">
 <x-flash-toasts />
 <x-action-confirmation-modal />
 @php
-    $user = Auth::user();
-
     $portalHeading = match ($user?->role) {
         'bns' => 'Nutrition Operations',
         'secretary' => 'Barangay Records',
@@ -69,9 +71,10 @@
             [
                 'label' => 'Civil Registry',
                 'items' => [
-                    ['label' => 'Residents', 'href' => route('secretary.residents.index'), 'active' => request()->routeIs('secretary.residents.*'), 'icon' => 'resident'],
+                    ['label' => 'Residents', 'href' => route('secretary.residents.index'), 'active' => request()->routeIs('secretary.residents.*'), 'icon' => 'resident', 'navigationSkeleton' => 'generic'],
                     ['label' => 'Households', 'href' => route('secretary.households.index'), 'active' => request()->routeIs('secretary.households.*'), 'icon' => 'household'],
                     ['label' => 'Puroks', 'href' => route('secretary.puroks.index'), 'active' => request()->routeIs('secretary.puroks.*'), 'icon' => 'barangay'],
+                    ['label' => 'Barangay Officials', 'href' => route('secretary.officials.index'), 'active' => request()->routeIs('secretary.officials.*'), 'icon' => 'barangay'],
                     ['label' => 'Certificates', 'href' => route('secretary.certificates.index'), 'active' => request()->routeIs('secretary.certificates.*'), 'icon' => 'metrics'],
                 ],
             ],
@@ -87,7 +90,6 @@
                 'items' => [
                     ['label' => 'Field Drafts', 'href' => route('secretary.drafts.index'), 'active' => request()->routeIs('secretary.drafts.*'), 'icon' => 'household'],
                     ['label' => 'Update Requests', 'href' => route('secretary.update-requests.index'), 'active' => request()->routeIs('secretary.update-requests.*'), 'icon' => 'audit'],
-                    ['label' => 'Pending Triage', 'href' => route('secretary.triage.index'), 'active' => request()->routeIs('secretary.triage.*'), 'icon' => 'sync'],
                 ],
             ],
             [
@@ -190,6 +192,7 @@
         <div x-show="!isDesktop && sidebarOpen" x-cloak @click="closeSidebar()" class="fixed inset-0 z-40 bg-slate-950/30 lg:hidden"></div>
 
         <aside
+               data-sidebar
                x-show="sidebarOpen"
                x-cloak
                @click.capture="handleNavClick($event)"
@@ -223,6 +226,7 @@
                                     :icon="$item['icon'] ?? ''"
                                     :disabled="$item['disabled'] ?? false"
                                     :badge="$item['badge'] ?? null"
+                                    :navigation-skeleton="$item['navigationSkeleton'] ?? null"
                                     scheme="brand"
                                 >
                                     {{ $item['label'] }}
@@ -251,7 +255,7 @@
             </div>
         </aside>
 
-        <div :class="isDesktop && sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'">
+        <div data-sidebar-content :class="isDesktop && sidebarOpen ? 'lg:ml-72' : 'lg:ml-0'">
             <nav class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
                 <div class="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
                     <div class="flex items-center gap-4">
@@ -285,20 +289,24 @@
                 </div>
             </nav>
 
-            <main class="p-4 sm:p-6 lg:p-8">
-                <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">@yield('header')</h1>
-                        @hasSection('subheader')
-                            <p class="mt-1 text-sm text-slate-500">@yield('subheader')</p>
-                        @endif
+            <main class="navigation-loading-region p-4 sm:p-6 lg:p-8" data-navigation-loading-region>
+                <div data-navigation-content>
+                    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">@yield('header')</h1>
+                            @hasSection('subheader')
+                                <p class="mt-1 text-sm text-slate-500">@yield('subheader')</p>
+                            @endif
+                        </div>
+                        <div>
+                            @yield('actions')
+                        </div>
                     </div>
-                    <div>
-                        @yield('actions')
-                    </div>
-                </div>
 
-                @yield('content')
+                    @yield('content')
+                </div>
+                <x-navigation-skeleton />
+                <span class="sr-only" role="status" data-navigation-loading-status></span>
             </main>
         </div>
     </div>

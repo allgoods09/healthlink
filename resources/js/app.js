@@ -1,11 +1,23 @@
 
 
 import Alpine from 'alpinejs';
+import { sidebarLayout } from './sidebar-layout';
+import { initializeNavigationSkeleton } from './navigation-skeleton';
+import { initializeLiveResults } from './live-results';
+import { createModalInteraction, registerModalInteraction } from './modal-interaction';
 import { optCaregiverField, optMeasurementForm } from './opt-entry';
+import { rbiHouseholdSelector } from './rbi-selection';
+import { certificateWizard } from './certificate-wizard';
+import { prepareRecordOptions, rankRecordOptions, rankHouseholdOptions } from './record-ranking';
 
 window.Alpine = Alpine;
+const modalInteraction = createModalInteraction(window, document);
+registerModalInteraction(Alpine, modalInteraction);
 window.optCaregiverField = optCaregiverField;
 window.optMeasurementForm = optMeasurementForm;
+window.rbiHouseholdSelector = rbiHouseholdSelector;
+window.certificateWizard = certificateWizard;
+window.rankHouseholdOptions = rankHouseholdOptions;
 window.searchableRecordSelect = (config = {}) => ({
     options: Array.isArray(config.options) ? config.options : [],
     selectedValue: config.selected === undefined || config.selected === null ? '' : String(config.selected),
@@ -18,10 +30,14 @@ window.searchableRecordSelect = (config = {}) => ({
     isOpen: false,
     highlightedIndex: 0,
     normalizedOptions: [],
+    searchOptions: [],
     filteredOptions: [],
 
     init() {
         this.setOptions(this.options);
+        this.$el.closest('form[data-live-results-form]')?.addEventListener('live-results:restore', () => {
+            this.$nextTick(() => this.syncQueryToSelection());
+        });
     },
 
     setOptions(options) {
@@ -32,8 +48,10 @@ window.searchableRecordSelect = (config = {}) => ({
                 label: String(option.label ?? ''),
                 search: String(option.search ?? option.label ?? '').toLowerCase(),
                 description: String(option.description ?? ''),
+                ranking: option.ranking ?? null,
             }))
             .filter((option) => option.value !== '');
+        this.searchOptions = prepareRecordOptions(this.normalizedOptions);
 
         if (!this.normalizedOptions.find((option) => option.value === this.selectedValue)) {
             this.selectedValue = '';
@@ -53,13 +71,19 @@ window.searchableRecordSelect = (config = {}) => ({
         const selectedOption = this.normalizedOptions.find((option) => option.value === this.selectedValue);
 
         if (!selectedOption || this.query !== selectedOption.label) {
+            const wasSelected = this.selectedValue !== '';
             this.selectedValue = '';
+            if (wasSelected) this.notifyLiveFilter();
         }
 
         this.highlightedIndex = 0;
         this.refreshResults();
         this.isOpen = this.query.trim().length > 0;
         this.syncValidity();
+    },
+
+    notifyLiveFilter() {
+        this.$nextTick(() => this.$el.closest('form[data-live-results-form]')?.dispatchEvent(new Event('live-results:filter-change')));
     },
 
     handleBlur() {
@@ -87,13 +111,12 @@ window.searchableRecordSelect = (config = {}) => ({
             return;
         }
 
-        this.filteredOptions = this.normalizedOptions
-            .filter((option) => option.label.toLowerCase().includes(term) || option.search.includes(term))
-            .slice(0, this.maxResults);
-
-        if (this.highlightedIndex >= this.filteredOptions.length) {
+        const results = rankRecordOptions(this.searchOptions, term).slice(0, this.maxResults);
+        if (results.length !== this.filteredOptions.length || results.some((option, index) => option.value !== this.filteredOptions[index]?.value)
+            || this.highlightedIndex >= results.length) {
             this.highlightedIndex = 0;
         }
+        this.filteredOptions = results;
     },
 
     move(step) {
@@ -127,6 +150,7 @@ window.searchableRecordSelect = (config = {}) => ({
         this.isOpen = false;
         this.highlightedIndex = 0;
         this.syncValidity();
+        this.notifyLiveFilter();
     },
 
     syncValidity() {
@@ -142,190 +166,7 @@ window.searchableRecordSelect = (config = {}) => ({
     },
 });
 
-Alpine.data('sidebarLayout', (sidebarContext = 'default', desktopBreakpoint = 1024) => ({
-    storageKey: 'healthlink.sidebar.desktop.open',
-    scrollStoragePrefix: 'healthlink.sidebar.scroll',
-    sidebarContext,
-    isDesktop: window.innerWidth >= desktopBreakpoint,
-    sidebarOpen: window.innerWidth >= desktopBreakpoint,
-    resizeHandler: null,
-    scrollHandler: null,
-    pageHideHandler: null,
-
-    init() {
-        this.sidebarOpen = this.resolveInitialSidebarState();
-
-        this.resizeHandler = () => {
-            const isDesktop = window.innerWidth >= desktopBreakpoint;
-
-            if (isDesktop !== this.isDesktop) {
-                this.isDesktop = isDesktop;
-                this.sidebarOpen = isDesktop
-                    ? this.getStoredDesktopPreference() ?? true
-                    : false;
-                return;
-            }
-
-            this.isDesktop = isDesktop;
-
-            if (isDesktop) {
-                this.sidebarOpen = this.getStoredDesktopPreference() ?? true;
-            }
-        };
-
-        this.resizeHandler();
-        window.addEventListener('resize', this.resizeHandler);
-
-        this.$watch('sidebarOpen', (isOpen) => {
-            if (isOpen) {
-                this.$nextTick(() => {
-                    this.attachScrollListener();
-                    this.restoreSidebarScroll();
-                });
-
-                return;
-            }
-
-            this.persistSidebarScroll();
-        });
-
-        this.pageHideHandler = () => this.persistSidebarScroll();
-        window.addEventListener('pagehide', this.pageHideHandler);
-
-        this.$nextTick(() => {
-            this.attachScrollListener();
-            this.restoreSidebarScroll();
-        });
-    },
-
-    destroy() {
-        this.persistSidebarScroll();
-
-        if (this.resizeHandler) {
-            window.removeEventListener('resize', this.resizeHandler);
-        }
-
-        if (this.scrollHandler && this.$refs.sidebarScroll) {
-            this.$refs.sidebarScroll.removeEventListener('scroll', this.scrollHandler);
-        }
-
-        if (this.pageHideHandler) {
-            window.removeEventListener('pagehide', this.pageHideHandler);
-        }
-    },
-
-    toggleSidebar() {
-        this.sidebarOpen = !this.sidebarOpen;
-        this.persistDesktopPreference();
-    },
-
-    closeSidebar() {
-        if (!this.isDesktop) {
-            this.sidebarOpen = false;
-        }
-    },
-
-    handleNavClick(event) {
-        if (!event.target.closest('a[href]')) {
-            return;
-        }
-
-        this.persistSidebarScroll();
-
-        if (!this.isDesktop) {
-            this.sidebarOpen = false;
-        }
-    },
-
-    resolveInitialSidebarState() {
-        if (!this.isDesktop) {
-            return false;
-        }
-
-        return this.getStoredDesktopPreference() ?? true;
-    },
-
-    persistDesktopPreference() {
-        if (!this.isDesktop) {
-            return;
-        }
-
-        try {
-            window.localStorage.setItem(this.storageKey, this.sidebarOpen ? '1' : '0');
-        } catch (error) {
-            // Ignore storage failures so navigation never breaks.
-        }
-    },
-
-    getStoredDesktopPreference() {
-        try {
-            const value = window.localStorage.getItem(this.storageKey);
-
-            if (value === null) {
-                return null;
-            }
-
-            return value === '1';
-        } catch (error) {
-            return null;
-        }
-    },
-
-    attachScrollListener() {
-        if (!this.$refs.sidebarScroll || this.scrollHandler) {
-            return;
-        }
-
-        this.scrollHandler = () => this.persistSidebarScroll();
-        this.$refs.sidebarScroll.addEventListener('scroll', this.scrollHandler, { passive: true });
-    },
-
-    persistSidebarScroll() {
-        if (!this.$refs.sidebarScroll) {
-            return;
-        }
-
-        try {
-            window.sessionStorage.setItem(this.scrollStorageKey(), String(this.$refs.sidebarScroll.scrollTop));
-        } catch (error) {
-            // Ignore storage failures so navigation never breaks.
-        }
-    },
-
-    restoreSidebarScroll() {
-        if (!this.$refs.sidebarScroll) {
-            return;
-        }
-
-        const storedScrollTop = this.getStoredSidebarScroll();
-
-        if (storedScrollTop === null) {
-            return;
-        }
-
-        this.$refs.sidebarScroll.scrollTop = storedScrollTop;
-    },
-
-    getStoredSidebarScroll() {
-        try {
-            const value = window.sessionStorage.getItem(this.scrollStorageKey());
-
-            if (value === null) {
-                return null;
-            }
-
-            const parsedValue = Number.parseInt(value, 10);
-
-            return Number.isNaN(parsedValue) ? null : parsedValue;
-        } catch (error) {
-            return null;
-        }
-    },
-
-    scrollStorageKey() {
-        return `${this.scrollStoragePrefix}.${this.sidebarContext}`;
-    },
-}));
+Alpine.data('sidebarLayout', (context = 'default', breakpoint = 1024) => sidebarLayout(window, context, breakpoint));
 
 function initializeProgressivePurokFilters() {
     const filterGroups = document.querySelectorAll('[data-progressive-purok-filter]');
@@ -371,6 +212,7 @@ function initializeProgressivePurokFilters() {
         };
 
         barangaySelect.addEventListener('change', rebuildOptions);
+        group.addEventListener('live-results:restore', rebuildOptions);
         rebuildOptions();
     });
 }
@@ -537,6 +379,10 @@ function createLiveTableSearch(filterForm, index) {
     liveSearchForm.action = filterForm.action;
     liveSearchForm.className = 'live-table-search';
     liveSearchForm.dataset.filterPanel = 'false';
+    if (filterForm.dataset.liveResultsForm) {
+        liveSearchForm.dataset.liveResultsForm = filterForm.dataset.liveResultsForm;
+        liveSearchForm.liveResultsSource = filterForm;
+    }
     liveSearchForm.setAttribute('role', 'search');
 
     const query = new URLSearchParams(window.location.search);
@@ -605,7 +451,7 @@ function createLiveTableSearch(filterForm, index) {
     };
 
     const submitSearch = () => {
-        rememberFocus();
+        if (!liveSearchForm.dataset.liveResultsForm) rememberFocus();
         liveSearchForm.requestSubmit();
     };
 
@@ -614,7 +460,7 @@ function createLiveTableSearch(filterForm, index) {
         clearButton.hidden = searchInput.value === '';
         window.clearTimeout(debounceTimer);
 
-        if (!isComposing) {
+        if (!isComposing && !liveSearchForm.dataset.liveResultsForm) {
             debounceTimer = window.setTimeout(submitSearch, 400);
         }
     };
@@ -630,7 +476,7 @@ function createLiveTableSearch(filterForm, index) {
     });
     liveSearchForm.addEventListener('submit', () => {
         window.clearTimeout(debounceTimer);
-        rememberFocus();
+        if (!liveSearchForm.dataset.liveResultsForm) rememberFocus();
     });
     liveSearchForm.addEventListener('live-search:cancel', () => {
         window.clearTimeout(debounceTimer);
@@ -640,6 +486,11 @@ function createLiveTableSearch(filterForm, index) {
         searchMirror.value = '';
         clearButton.hidden = true;
         submitSearch();
+    });
+
+    filterForm.addEventListener('live-results:restore', () => {
+        searchInput.value = searchMirror.value;
+        clearButton.hidden = searchInput.value === '';
     });
 
     try {
@@ -716,21 +567,21 @@ function initializeFilterModals() {
             if (liveSearch instanceof HTMLFormElement) {
                 const searchField = liveSearch.querySelector('input[type="search"]');
                 const exportButton = exportControl.querySelector('button');
-                const appliedSearch = new URLSearchParams(window.location.search).get('search') || '';
-
                 if (searchField instanceof HTMLInputElement && exportButton instanceof HTMLButtonElement) {
+                    const appliedSearch = () => new URLSearchParams(window.location.search).get('search') || '';
                     const syncExportAvailability = () => {
-                        const isPending = searchField.value !== appliedSearch;
+                        const isPending = searchField.value !== appliedSearch();
                         exportButton.disabled = isPending;
                         exportButton.title = isPending ? 'Wait for the search results to update before exporting' : '';
                     };
 
                     searchField.addEventListener('input', syncExportAvailability);
                     exportControl.addEventListener('click', (event) => {
-                        if (searchField.value !== appliedSearch && event.target.closest('a')) {
+                        if (searchField.value !== appliedSearch() && event.target.closest('a')) {
                             event.preventDefault();
                         }
                     });
+                    document.addEventListener('live-results:updated', syncExportAvailability);
                     syncExportAvailability();
                 }
             }
@@ -762,6 +613,16 @@ function initializeFilterModals() {
             triggerArea.classList.add('has-active-filters');
             triggerArea.appendChild(activeSummary);
         }
+
+        const refreshSummary = () => {
+            triggerArea.querySelector('.filter-modal-active-summary')?.remove();
+            const summary = buildActiveFilterSummary(form);
+            triggerArea.classList.toggle('has-active-filters', Boolean(summary));
+            if (summary) triggerArea.appendChild(summary);
+            triggerArea.querySelectorAll('a').forEach(link => { link.dataset.liveResultsLink = form.dataset.liveResultsForm ?? ''; });
+        };
+        refreshSummary();
+        document.addEventListener('live-results:updated', refreshSummary);
 
         const modal = document.createElement('div');
         modal.id = panelId;
@@ -806,22 +667,19 @@ function initializeFilterModals() {
             originalParent.appendChild(controlsArea);
         }
 
-        let returnFocusElement = null;
-
         const setOpen = (isOpen) => {
             modal.classList.toggle('is-open', isOpen);
             modal.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
             trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            document.body.classList.toggle('filter-modal-open', isOpen);
-
             if (isOpen) {
-                returnFocusElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-                window.setTimeout(() => {
+                modalInteraction.open(modal);
+                window.requestAnimationFrame(() => {
+                    if (!modal.classList.contains('is-open')) return;
                     const firstField = panelBody.querySelector('input:not([type="hidden"]), select, textarea, button');
                     firstField?.focus();
-                }, 0);
+                });
             } else {
-                returnFocusElement?.focus();
+                modalInteraction.close(modal);
             }
         };
 
@@ -829,17 +687,12 @@ function initializeFilterModals() {
             liveSearch?.dispatchEvent(new Event('live-search:cancel'));
             setOpen(true);
         });
+        form.addEventListener('live-results:submitted', () => setOpen(false));
         modal.querySelectorAll('[data-filter-modal-close]').forEach((button) => {
             button.addEventListener('click', () => setOpen(false));
         });
         modal.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
-                event.preventDefault();
-                setOpen(false);
-            }
-        });
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && modal.classList.contains('is-open')) {
                 event.preventDefault();
                 setOpen(false);
             }
@@ -851,7 +704,6 @@ Alpine.data('actionConfirmationModal', () => ({
     open: false,
     form: null,
     submitter: null,
-    returnFocusElement: null,
     title: 'Are you sure?',
     description: 'Do you want to continue?',
     eyebrow: 'Please confirm',
@@ -932,9 +784,6 @@ Alpine.data('actionConfirmationModal', () => ({
 
         this.form = form;
         this.submitter = submitter;
-        this.returnFocusElement = document.activeElement instanceof HTMLElement
-            ? document.activeElement
-            : null;
         this.title = config.title;
         this.description = config.description;
         this.eyebrow = config.eyebrow;
@@ -951,6 +800,8 @@ Alpine.data('actionConfirmationModal', () => ({
         this.errorMessage = '';
         this.isSubmitting = false;
         this.open = true;
+        // Capture the submitting control synchronously, before Alpine renders/focuses the dialog.
+        modalInteraction.open(this.$refs.layer, submitter ?? document.activeElement);
 
         this.$nextTick(() => {
             const field = this.requiresReason
@@ -1170,37 +1021,11 @@ Alpine.data('actionConfirmationModal', () => ({
         this.open = false;
         this.errorMessage = '';
         this.isSubmitting = false;
-
-        this.$nextTick(() => this.returnFocusElement?.focus());
-    },
-
-    trapFocus(event) {
-        if (!this.open || event.key !== 'Tab' || !this.$refs.dialog) {
-            return;
-        }
-
-        const focusable = [...this.$refs.dialog.querySelectorAll(
-            'button:not([disabled]), textarea:not([disabled]), input:not([disabled])',
-        )].filter((element) => element.offsetParent !== null);
-
-        if (focusable.length === 0) {
-            event.preventDefault();
-            return;
-        }
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-        }
     },
 }));
 
 initializeFilterModals();
 Alpine.start();
 initializeProgressivePurokFilters();
+initializeLiveResults(window, document);
+initializeNavigationSkeleton(window, document);

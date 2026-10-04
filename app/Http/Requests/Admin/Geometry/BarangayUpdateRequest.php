@@ -8,6 +8,15 @@ use Illuminate\Support\Facades\Auth;
 
 class BarangayUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $barangay = $this->route('barangay');
+        if ($barangay instanceof \App\Models\Barangay && is_array($this->input('official_names'))) {
+            $this->merge(['official_names' => app(\App\Support\BarangayOfficialsRegistry::class)
+                ->editableNameInput($barangay, $this->input('official_names'))]);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */

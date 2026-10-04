@@ -17,7 +17,8 @@ use Illuminate\Validation\ValidationException;
 class MobileSyncProcessor
 {
     public function __construct(
-        private readonly RoleNotificationService $roleNotificationService
+        private readonly RoleNotificationService $roleNotificationService,
+        private readonly MobileRegistrySubmissionService $registrySubmissions
     ) {
     }
 
@@ -121,243 +122,30 @@ class MobileSyncProcessor
         ];
     }
 
-    /**
-     * Sync a single household payload.
-     */
     private function syncHousehold(User $user, mixed $record, int $index): array
     {
         try {
-            $validated = $this->validateHouseholdRecord($record);
+            return ['success' => true, 'record' => $this->registrySubmissions->submitHousehold(
+                $user, $this->validateHouseholdRecord($record)
+            )];
         } catch (ValidationException $exception) {
             return $this->failure('households', $index, $exception->validator->errors()->first());
-        }
-
-        $household = $this->resolveHouseholdForUser(
-            $user,
-            $validated['id'] ?? null,
-            $validated['mobile_uuid'] ?? null
-        );
-
-        $creating = ! $household;
-
-        if (! $household && empty($validated['mobile_uuid'])) {
-            return $this->failure('households', $index, 'New households require a mobile UUID.');
-        }
-
-        if (! $household) {
-            $household = new Household([
-                'mobile_uuid' => $validated['mobile_uuid'],
-                'purok_id' => $user->assigned_purok_id,
-            ]);
-        }
-
-        $attributes = [];
-
-        foreach (['mobile_uuid', 'household_no', 'household_address', 'is_social_aid_beneficiary', 'is_active'] as $field) {
-            if (array_key_exists($field, $validated)) {
-                $attributes[$field] = $validated[$field];
-            }
-        }
-
-        if ($creating) {
-            foreach (['household_no', 'household_address', 'is_social_aid_beneficiary', 'is_active'] as $field) {
-                if (! array_key_exists($field, $attributes)) {
-                    return $this->failure('households', $index, "New households require the '{$field}' field.");
-                }
-            }
-        }
-
-        if (! $creating && $attributes === []) {
-            return $this->failure('households', $index, 'No updatable household fields were provided.');
-        }
-
-        $candidateHouseholdNo = $attributes['household_no'] ?? $household->household_no;
-
-        $duplicate = Household::query()
-            ->where('purok_id', $user->assigned_purok_id)
-            ->where('household_no', $candidateHouseholdNo)
-            ->when($household->exists, fn ($query) => $query->whereKeyNot($household->id))
-            ->exists();
-
-        if ($duplicate) {
-            return $this->failure('households', $index, 'This household number already exists in the assigned purok.');
-        }
-
-        try {
-            DB::transaction(function () use ($household, $attributes, $user): void {
-                $household->fill(array_merge($attributes, [
-                    'purok_id' => $user->assigned_purok_id,
-                ]));
-
-                $household->save();
-            });
         } catch (\Throwable $exception) {
-            return $this->failure('households', $index, 'Household update failed: '.$exception->getMessage());
+            return $this->failure('households', $index, $exception->getMessage());
         }
-
-        if ($creating) {
-            $this->roleNotificationService->notifyHouseholdAddedForSecretary($household->fresh('purok.barangay'), $user, 'mobile');
-        }
-
-        return [
-            'success' => true,
-            'record' => [
-                'id' => $household->id,
-                'mobile_uuid' => $household->mobile_uuid,
-                'operation' => $creating ? 'created' : 'updated',
-                'updated_at' => optional($household->updated_at)->toIso8601String(),
-            ],
-        ];
     }
 
-    /**
-     * Sync a single resident payload.
-     */
     private function syncResident(User $user, mixed $record, int $index): array
     {
         try {
-            $validated = $this->validateResidentRecord($record);
+            return ['success' => true, 'record' => $this->registrySubmissions->submitResident(
+                $user, $this->validateResidentRecord($record)
+            )];
         } catch (ValidationException $exception) {
             return $this->failure('residents', $index, $exception->validator->errors()->first());
-        }
-
-        $household = $this->resolveHouseholdForUser(
-            $user,
-            $validated['household_id'] ?? null,
-            $validated['household_mobile_uuid'] ?? null
-        );
-
-        if (! $household) {
-            return $this->failure('residents', $index, 'Resident household not found in the assigned purok.');
-        }
-
-        $resident = $this->resolveResidentForUser(
-            $user,
-            $validated['id'] ?? null,
-            $validated['mobile_uuid'] ?? null
-        );
-
-        $creating = ! $resident;
-
-        if (! $resident && empty($validated['mobile_uuid'])) {
-            return $this->failure('residents', $index, 'New residents require a mobile UUID.');
-        }
-
-        if (! $resident) {
-            $resident = new Resident([
-                'mobile_uuid' => $validated['mobile_uuid'],
-            ]);
-        }
-
-        $attributes = [];
-
-        foreach ([
-            'mobile_uuid',
-            'philsys_card_no',
-            'last_name',
-            'first_name',
-            'middle_name',
-            'suffix',
-            'birth_date',
-            'birth_place',
-            'sex',
-            'civil_status',
-            'citizenship',
-            'religion',
-            'contact_number',
-            'email_address',
-            'relationship_to_head',
-            'is_active',
-        ] as $field) {
-            if (array_key_exists($field, $validated)) {
-                $attributes[$field] = $validated[$field];
-            }
-        }
-
-        if ($creating) {
-            foreach ([
-                'last_name',
-                'first_name',
-                'birth_date',
-                'birth_place',
-                'sex',
-                'civil_status',
-                'citizenship',
-                'relationship_to_head',
-                'is_active',
-            ] as $field) {
-                if (! array_key_exists($field, $attributes)) {
-                    return $this->failure('residents', $index, "New residents require the '{$field}' field.");
-                }
-            }
-        }
-
-        if (! $creating && $attributes === [] && ! $household->is($resident->household)) {
-            $attributes['household_id'] = $household->id;
-        }
-
-        if (! $creating && $attributes === []) {
-            return $this->failure('residents', $index, 'No updatable resident fields were provided.');
-        }
-
-        $candidate = array_merge([
-            'philsys_card_no' => $resident->philsys_card_no,
-            'last_name' => $resident->last_name,
-            'first_name' => $resident->first_name,
-            'birth_date' => optional($resident->birth_date)->toDateString(),
-        ], $attributes);
-
-        if (! empty($candidate['philsys_card_no'])) {
-            $duplicatePhilSys = Resident::query()
-                ->where('philsys_card_no', $candidate['philsys_card_no'])
-                ->when($resident->exists, fn ($query) => $query->whereKeyNot($resident->id))
-                ->exists();
-
-            if ($duplicatePhilSys) {
-                return $this->failure('residents', $index, 'This PhilSys ID is already registered.');
-            }
-        }
-
-        $duplicateIdentity = Resident::query()
-            ->whereRaw('LOWER(first_name) = ?', [strtolower((string) $candidate['first_name'])])
-            ->whereRaw('LOWER(last_name) = ?', [strtolower((string) $candidate['last_name'])])
-            ->whereDate('birth_date', $candidate['birth_date'])
-            ->whereHas('household', function ($query) use ($user): void {
-                $query->where('purok_id', $user->assigned_purok_id);
-            })
-            ->when($resident->exists, fn ($query) => $query->whereKeyNot($resident->id))
-            ->exists();
-
-        if ($duplicateIdentity) {
-            return $this->failure('residents', $index, 'A resident with the same name and birth date already exists in this purok.');
-        }
-
-        try {
-            DB::transaction(function () use ($resident, $attributes, $household): void {
-                $resident->fill(array_merge($attributes, [
-                    'household_id' => $household->id,
-                ]));
-
-                $resident->save();
-            });
         } catch (\Throwable $exception) {
-            return $this->failure('residents', $index, 'Resident update failed: '.$exception->getMessage());
+            return $this->failure('residents', $index, $exception->getMessage());
         }
-
-        if ($creating) {
-            $this->roleNotificationService->notifyResidentAddedForSecretary($resident->fresh('household.purok.barangay'), $user, 'mobile');
-        }
-
-        return [
-            'success' => true,
-            'record' => [
-                'id' => $resident->id,
-                'mobile_uuid' => $resident->mobile_uuid,
-                'household_id' => $resident->household_id,
-                'operation' => $creating ? 'created' : 'updated',
-                'updated_at' => optional($resident->updated_at)->toIso8601String(),
-            ],
-        ];
     }
 
     /**
@@ -662,12 +450,17 @@ class MobileSyncProcessor
     private function validateHouseholdRecord(mixed $record): array
     {
         return Validator::make(is_array($record) ? $record : [], [
+            'barangay_id' => ['prohibited'],
+            'purok_id' => ['prohibited'],
+            'submitted_by_user_id' => ['prohibited'],
+            'approval_state' => ['prohibited'],
             'id' => ['nullable', 'integer'],
             'mobile_uuid' => ['nullable', 'uuid', 'required_without:id'],
             'household_no' => ['sometimes', 'string', 'max:50'],
             'household_address' => ['sometimes', 'string'],
             'is_social_aid_beneficiary' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'local_revision' => ['nullable', 'integer', 'min:0'],
         ])->validate();
     }
 
@@ -677,6 +470,10 @@ class MobileSyncProcessor
     private function validateResidentRecord(mixed $record): array
     {
         return Validator::make(is_array($record) ? $record : [], [
+            'barangay_id' => ['prohibited'],
+            'purok_id' => ['prohibited'],
+            'submitted_by_user_id' => ['prohibited'],
+            'approval_state' => ['prohibited'],
             'id' => ['nullable', 'integer'],
             'mobile_uuid' => ['nullable', 'uuid', 'required_without:id'],
             'household_id' => ['nullable', 'integer'],
@@ -696,6 +493,7 @@ class MobileSyncProcessor
             'email_address' => ['nullable', 'email', 'max:100'],
             'relationship_to_head' => ['sometimes', 'string', 'max:100'],
             'is_active' => ['sometimes', 'boolean'],
+            'local_revision' => ['nullable', 'integer', 'min:0'],
         ])->validate();
     }
 

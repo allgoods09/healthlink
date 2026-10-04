@@ -6,15 +6,9 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.certificates.pdf', $certificate) }}" class="inline-flex items-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
-            Download PDF
-        </a>
-        <a href="{{ route('secretary.certificates.create') }}" class="inline-flex items-center rounded-md bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
-            Issue Another
-        </a>
-        <a href="{{ route('secretary.certificates.index') }}" class="inline-flex items-center rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">
-            Back to Log
-        </a>
+        <x-record-action :href="route('secretary.certificates.pdf', $certificate)" variant="document">Download PDF</x-record-action>
+        <x-record-action :href="route('secretary.certificates.create')" variant="add">Issue Another</x-record-action>
+        <x-record-action :href="route('secretary.certificates.index')" variant="back">Back to Log</x-record-action>
     </div>
 @endsection
 
@@ -35,8 +29,8 @@
                     <p class="mt-1 text-base font-semibold text-slate-900">{{ $certificate->recipient_type_label }}</p>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500">Issued At</p>
-                    <p class="mt-1 text-base font-semibold text-slate-900">{{ $certificate->issued_at?->format('F d, Y h:i A') }}</p>
+                    <p class="text-sm font-medium text-slate-500">Issued At (Philippine time)</p>
+                    <p class="mt-1 text-base font-semibold text-slate-900">{{ $certificate->issued_at?->copy()->timezone('Asia/Manila')->format('F d, Y h:i A') }}</p>
                 </div>
                 <div>
                     <p class="text-sm font-medium text-slate-500">Issued By</p>

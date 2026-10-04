@@ -2,9 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Match the persisted desktop shell before Alpine takes over; mobile keeps x-cloak. */
+@media (min-width: 1024px) {
+    html[data-sidebar-desktop-open="1"] [data-sidebar-shell]:not([data-sidebar-ready]) [data-sidebar] {
+        display: flex !important;
+    }
+    html[data-sidebar-desktop-open="0"] [data-sidebar-shell]:not([data-sidebar-ready]) [data-sidebar] {
+        display: none !important;
+    }
+    html[data-sidebar-desktop-open="1"] [data-sidebar-shell]:not([data-sidebar-ready]) [data-sidebar-content] {
+        margin-left: 18rem;
+    }
+    html[data-sidebar-desktop-open="0"] [data-sidebar-shell]:not([data-sidebar-ready]) [data-sidebar-content] {
+        margin-left: 0;
+    }
+}
+
+.navigation-loading-region {
+    --navigation-skeleton-ready: 1;
+    position: relative;
+    min-height: calc(100vh - 4rem);
+}
+
+.navigation-skeleton { display: none; }
+.is-navigation-loading > [data-navigation-content] { visibility: hidden; }
+.is-navigation-loading > .navigation-skeleton {
+    display: block;
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    pointer-events: none;
+    background: #f8fafc;
+}
+.navigation-skeleton-body { position: sticky; top: 4rem; }
+
+/* Results feedback deliberately leaves both controls and existing rows mounted. */
+[data-live-results] { position: relative; }
+.is-results-loading { opacity: .6; }
+.is-results-loading::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: #cbd5e1;
+    animation: navigation-skeleton-pulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+.live-results-status { min-height: 1.5rem; margin: .5rem 0; font-size: .875rem; color: #64748b; }
+.live-results-status.is-error { color: #b45309; }
+@media (prefers-reduced-motion: reduce) { .is-results-loading::before { animation: none; } }
+.navigation-skeleton-line {
+    height: .875rem;
+    width: 70%;
+    border-radius: .375rem;
+    background: #e2e8f0;
+    animation: navigation-skeleton-pulse 2s ease-in-out infinite;
+}
+.navigation-skeleton-title { height: 1.75rem; width: min(65%, 22rem); }
+.navigation-skeleton-subtitle { margin-top: .75rem; width: min(50%, 15rem); }
+.navigation-skeleton-cards { display: grid; gap: 1rem; margin: 1.5rem 0; }
+.navigation-skeleton-card, .navigation-skeleton-table {
+    border: 1px solid #e2e8f0;
+    border-radius: .75rem;
+    background: #fff;
+}
+.navigation-skeleton-card { padding: 1.25rem; }
+.navigation-skeleton-card .navigation-skeleton-line + .navigation-skeleton-line { margin-top: 1rem; width: 45%; }
+.navigation-skeleton-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; padding: 1.5rem; }
+.navigation-skeleton-row + .navigation-skeleton-row { border-top: 1px solid #f1f5f9; }
+@media (min-width: 640px) { .navigation-skeleton-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@keyframes navigation-skeleton-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .navigation-skeleton-line { animation: none; } }
+
 @layer base {
     html {
-        overflow-y: scroll;
         scrollbar-gutter: stable;
     }
 
@@ -422,6 +493,7 @@
     opacity: 1;
     pointer-events: auto;
     visibility: visible;
+    transition: opacity 200ms ease;
 }
 
 .filter-modal-backdrop {
@@ -518,8 +590,20 @@
     grid-template-columns: minmax(0, 1fr) !important;
 }
 
-body.filter-modal-open {
-    overflow: hidden;
+.filter-modal-body { overscroll-behavior: contain; }
+
+[data-modal-panel] {
+    max-height: calc(100dvh - 3rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .filter-modal-shell, .filter-modal-backdrop, .filter-modal-panel,
+    [data-modal-layer], [data-modal-layer] > div {
+        transition-duration: 0s !important;
+        animation: none !important;
+    }
 }
 
 .filter-modal-active-summary {

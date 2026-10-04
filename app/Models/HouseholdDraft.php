@@ -17,6 +17,10 @@ class HouseholdDraft extends Model
         'submitted_by_user_id',
         'barangay_id',
         'purok_id',
+        'mobile_uuid',
+        'mobile_revision',
+        'proposed_household_no',
+        'target_household_id',
         'draft_reference_code',
         'household_address',
         'drinking_water_source',
@@ -80,6 +84,11 @@ class HouseholdDraft extends Model
     public function approvedHousehold()
     {
         return $this->belongsTo(Household::class, 'approved_household_id');
+    }
+
+    public function targetHousehold()
+    {
+        return $this->belongsTo(Household::class, 'target_household_id');
     }
 
     public function residentDrafts()

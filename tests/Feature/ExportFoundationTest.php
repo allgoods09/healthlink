@@ -181,7 +181,7 @@ class ExportFoundationTest extends TestCase
         $barangay = Barangay::factory()->create();
         $secretary = User::factory()->create(['role' => 'secretary', 'assigned_barangay_id' => $barangay->id]);
 
-        foreach (['certificates', 'drafts', 'update-requests', 'team', 'triage', 'activity'] as $page) {
+        foreach (['certificates', 'drafts', 'update-requests', 'team', 'activity'] as $page) {
             $this->actingAs($secretary)->get(route("secretary.{$page}.index"))
                 ->assertOk()->assertSee('Excel (.xlsx)');
             $this->actingAs($secretary)->get(route("secretary.{$page}.export", ['format' => 'csv']))

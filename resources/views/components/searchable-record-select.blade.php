@@ -20,6 +20,7 @@
             'label' => (string) data_get($option, 'label', ''),
             'search' => (string) data_get($option, 'search', data_get($option, 'label', '')),
             'description' => (string) data_get($option, 'description', ''),
+            'ranking' => data_get($option, 'ranking'),
         ])
         ->filter(fn ($option) => $option['value'] !== '')
         ->values()

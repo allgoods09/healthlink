@@ -10,7 +10,7 @@
         </p>
     </div>
 
-    <div class="mb-6 grid gap-4 md:grid-cols-3">
+    <div class="mb-6 grid gap-4 md:grid-cols-3" data-live-results="admin-reports-index">
         <div class="rounded-2xl bg-white p-5 shadow-sm">
             <p class="text-sm text-slate-500">Active Barangays</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($activeBarangayCount) }}</p>
@@ -26,7 +26,7 @@
     </div>
 
     <div class="mb-6 rounded-2xl bg-white p-5 shadow-sm">
-        <form method="GET" action="{{ route('admin.reports.index') }}" class="grid gap-4 md:grid-cols-4">
+        <form method="GET" action="{{ route('admin.reports.index') }}" class="grid gap-4 md:grid-cols-4" data-live-results-form="admin-reports-index">
             <div>
                 <label for="barangay_id" class="block text-sm font-medium text-slate-700">Barangay</label>
                 <select name="barangay_id" id="barangay_id" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
@@ -70,7 +70,7 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" data-live-results="admin-reports-index">
                     <table class="min-w-full divide-y divide-slate-200">
                         <thead class="bg-slate-50">
                             <tr>

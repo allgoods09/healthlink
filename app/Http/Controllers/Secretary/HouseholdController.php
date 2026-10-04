@@ -13,6 +13,7 @@ use App\Models\Household;
 use App\Support\BarangayOfficialsRegistry;
 use App\Support\ExportAudit;
 use App\Support\ExportDownload;
+use App\Support\HouseholdHeadReview;
 use App\Support\RbiTemplatePdfGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -104,7 +105,7 @@ class HouseholdController extends Controller
 
         $content = $generator->generateHouseholds([$household], [
             'officials' => [
-                'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
                 'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
             ],
         ]);
@@ -127,7 +128,7 @@ class HouseholdController extends Controller
 
         $content = $generator->generateHouseholds([$household], [
             'officials' => [
-                'barangay_secretary_name' => $officials->get(BarangayOfficial::ROLE_BARANGAY_SECRETARY)?->official_name,
+                'barangay_secretary_name' => $officialsRegistry->resolvedSecretaryName($barangay),
                 'punong_barangay_name' => $officials->get(BarangayOfficial::ROLE_PUNONG_BARANGAY)?->official_name,
             ],
         ]);
@@ -190,6 +191,9 @@ class HouseholdController extends Controller
             'pageTitle' => 'Household Details - HealthLink Secretary',
             'pageHeader' => 'Household Details',
             'household' => $household,
+            'visitHistory' => $household->fieldVisits()->with('recordedBy')
+                ->orderByDesc('visited_at')->orderByDesc('id')
+                ->paginate(10, ['*'], 'visits_page'),
         ]);
     }
 
@@ -216,19 +220,25 @@ class HouseholdController extends Controller
         ]);
     }
 
-    public function update(HouseholdUpdateRequest $request, Household $household): RedirectResponse
+    public function update(HouseholdUpdateRequest $request, Household $household): RedirectResponse|View
     {
         Gate::authorize('update', $household);
         $this->ensureHouseholdBelongsToBarangay($household);
 
-        $oldValues = $household->toArray();
         $data = $request->validated();
         $data['is_active'] = $data['is_active'] ?? false;
         $data['is_social_aid_beneficiary'] = $data['is_social_aid_beneficiary'] ?? false;
 
-        $household->update($data);
+        $household = app(HouseholdHeadReview::class)->household($request, $data, $household, function ($data, $household) {
+            $oldValues = $household->toArray();
+            $household->update($data);
+            AuditLog::logMutation('updated', Auth::user(), $household, $oldValues, $household->fresh()->toArray());
 
-        AuditLog::logMutation('updated', Auth::user(), $household, $oldValues, $household->fresh()->toArray());
+            return $household;
+        });
+        if ($household instanceof View) {
+            return $household;
+        }
 
         return redirect()
             ->route('secretary.households.show', $household)

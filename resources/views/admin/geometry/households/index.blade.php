@@ -8,9 +8,13 @@
 @endphp
 
 @section('actions')
+    @if($routePrefix === 'secretary')
+        <x-record-action :href="route('secretary.households.create')" variant="add">Add Household</x-record-action>
+    @else
     <a href="{{ route($routePrefix.'.households.create') }}" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
         Add Household
     </a>
+    @endif
 @endsection
 
 @section('content')
@@ -20,7 +24,7 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Filters</h2>
             </div>
             <div class="p-5">
-                <form method="GET" action="{{ route($routePrefix.'.households.index') }}" class="space-y-4" data-progressive-purok-filter>
+                <form method="GET" action="{{ route($routePrefix.'.households.index') }}" class="space-y-4" data-progressive-purok-filter data-live-results-form="admin-geometry-households-index">
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                         <input type="text" name="search" id="search" value="{{ request('search') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Number or address">
@@ -87,7 +91,7 @@
         </aside>
 
         <div class="overflow-hidden rounded-lg bg-white shadow">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" data-live-results="admin-geometry-households-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -130,22 +134,26 @@
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">
                                     @if(!$household->trashed())
-                                        <a href="{{ route($routePrefix.'.households.show', $household) }}" class="text-blue-600 hover:text-blue-900">View</a>
-                                        <a href="{{ route($routePrefix.'.households.edit', $household) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                        <a href="{{ route($routePrefix.'.residents.create', ['household_id' => $household->id, 'purok_id' => $household->purok_id, 'barangay_id' => $household->purok->barangay_id]) }}" class="text-teal-600 hover:text-teal-900">Add Resident</a>
-                                        <form action="{{ route($routePrefix.'.households.toggle-status', $household) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="{{ $household->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
-                                                {{ $household->is_active ? 'Deactivate' : 'Activate' }}
-                                            </button>
-                                        </form>
-                                        @if($canDelete ?? true)
-                                            <form action="{{ route($routePrefix.'.households.destroy', $household) }}" method="POST" class="inline">
+                                        @if($routePrefix === 'secretary')
+                                            <x-record-action :href="route('secretary.households.show', $household)" size="compact">View</x-record-action>
+                                        @else
+                                            <a href="{{ route($routePrefix.'.households.show', $household) }}" class="text-blue-600 hover:text-blue-900">View</a>
+                                            <a href="{{ route($routePrefix.'.households.edit', $household) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
+                                            <a href="{{ route($routePrefix.'.residents.create', ['household_id' => $household->id, 'purok_id' => $household->purok_id, 'barangay_id' => $household->purok->barangay_id]) }}" class="text-teal-600 hover:text-teal-900">Add Resident</a>
+                                            <form action="{{ route($routePrefix.'.households.toggle-status', $household) }}" method="POST" class="inline">
                                                 @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                @method('PATCH')
+                                                <button type="submit" class="{{ $household->is_active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900' }}">
+                                                    {{ $household->is_active ? 'Deactivate' : 'Activate' }}
+                                                </button>
                                             </form>
+                                            @if($canDelete ?? true)
+                                                <form action="{{ route($routePrefix.'.households.destroy', $household) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                                </form>
+                                            @endif
                                         @endif
                                     @else
                                         @if($canRestore ?? true)
@@ -167,7 +175,7 @@
                 </tbody>
             </table>
             </div>
-            <div class="border-t border-gray-200 px-6 py-4">
+            <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-geometry-households-index">
                 {{ $households->links() }}
             </div>
         </div>

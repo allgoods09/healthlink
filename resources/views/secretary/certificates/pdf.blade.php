@@ -47,6 +47,7 @@
     </style>
 </head>
 <body>
+    @php($issuedAtLocal = $certificate->issued_at?->copy()->timezone('Asia/Manila'))
     <div class="text-center">
         <div class="uppercase muted">Republic of the Philippines</div>
         <div class="uppercase muted">Province of {{ $certificate->barangay?->province ?? 'Bohol' }}</div>
@@ -78,18 +79,19 @@
     @endif
 
     <p class="body-copy">
-        Issued this {{ $certificate->issued_at?->format('jS') }} day of {{ $certificate->issued_at?->format('F Y') }}
+        Issued this {{ $issuedAtLocal?->format('jS') }} day of {{ $issuedAtLocal?->format('F Y') }}
         at Barangay {{ $certificate->barangay?->name ?? 'N/A' }}, for whatever lawful purpose it may serve best.
     </p>
 
     <div class="signature">
         <div class="signature-line"></div>
-        <div><strong>{{ $certificate->issuedBy?->name ?? 'Barangay Secretary' }}</strong></div>
+        {{-- Legacy null snapshots retain the original issuer-name behavior, never today's officeholder. --}}
+        <div><strong>{{ $certificate->signatory_name_at_issuance ?? $certificate->issuedBy?->name ?? 'Barangay Secretary' }}</strong></div>
         <div class="muted">Barangay Secretary</div>
     </div>
 
     <div class="meta">
-        <div>Issued at: {{ $certificate->issued_at?->format('F d, Y h:i A') }}</div>
+        <div>Issued at: {{ $issuedAtLocal?->format('F d, Y h:i A') }}</div>
         <div>Generated from HealthLink barangay certificate log.</div>
     </div>
 </body>

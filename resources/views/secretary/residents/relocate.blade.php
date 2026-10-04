@@ -160,7 +160,7 @@
                                 <input type="checkbox" name="set_as_household_head" value="1" {{ old('set_as_household_head') ? 'checked' : '' }} class="rounded border-slate-300 text-tubigon focus:ring-tubigon">
                                 <span class="ml-3 text-sm font-medium text-slate-700">Set this resident as the target household head</span>
                             </label>
-                            <p class="mt-2 text-sm text-slate-500">If unchecked, a relationship to the existing household head is required instead.</p>
+                            <p class="mt-2 text-sm text-slate-500">If checked, any existing household members must be reviewed relative to this new head. If unchecked, a relationship to the existing household head is required.</p>
                         </div>
                         @error('set_as_household_head')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -258,9 +258,9 @@
                         return;
                     }
 
-                    this.filteredHouseholds = this.households
-                        .filter((household) => [household.household_no, household.household_address].join(' ').toLowerCase().includes(term))
-                        .slice(0, 12);
+                    this.filteredHouseholds = window.rankHouseholdOptions(this.households, term).slice(0, 12);
+
+                    this.highlightedHouseholdIndex = 0;
 
                     if (this.highlightedHouseholdIndex >= this.filteredHouseholds.length) {
                         this.highlightedHouseholdIndex = 0;

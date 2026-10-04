@@ -91,7 +91,7 @@
 
     <div class="mb-6 rounded-lg bg-white shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route('admin.backups.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <form method="GET" action="{{ route('admin.backups.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4" data-live-results-form="admin-maintenance-backups-index">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}"
@@ -135,7 +135,7 @@
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-maintenance-backups-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -218,7 +218,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-gray-200 px-6 py-4">
+        <div class="border-t border-gray-200 px-6 py-4" data-live-results="admin-maintenance-backups-index">
             {{ $backups->links() }}
         </div>
     </div>

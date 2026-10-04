@@ -57,8 +57,7 @@ class RbiTemplatePdfGenerator
         $templateSize = $pdf->getTemplateSize($templateId);
 
         foreach (Collection::make($households) as $household) {
-            $rows = $household->residents
-                ->sortBy(fn (Resident $resident) => Str::lower(trim($resident->last_name.'|'.$resident->first_name.'|'.$resident->middle_name)))
+            $rows = HouseholdMemberOrdering::ordered($household)
                 ->values()
                 ->chunk(12);
 

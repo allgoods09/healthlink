@@ -7,6 +7,7 @@ use App\Http\Requests\Mobile\MobileForgotPasswordRequest;
 use App\Http\Requests\Mobile\MobileLoginRequest;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\MobileBarangayScope;
 use App\Support\MobileReleaseManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -82,7 +83,9 @@ class AuthController extends Controller
             ], 403);
         }
 
-        if (! $user->assigned_barangay_id || ! $user->assigned_purok_id) {
+        MobileBarangayScope::requireBarangayId($user);
+
+        if (! $user->assigned_purok_id) {
             return response()->json([
                 'message' => 'Your BHW account is missing a barangay or purok assignment.',
             ], 403);

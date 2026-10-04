@@ -53,4 +53,7 @@
             </section>
         </aside>
     </div>
+    @if($visitHistory)
+        @include('field-visits.partials.history', ['visitHistory' => $visitHistory, 'routePrefix' => 'bhw'])
+    @endif
 @endsection

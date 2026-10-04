@@ -2,7 +2,7 @@
 
 @section('title', 'Field Draft Details - HealthLink')
 @section('header', 'Field Draft Details')
-@section('subheader', 'Review the full household package submitted from the field before it becomes part of the verified civil registry.')
+@section('subheader', $householdDraft->target_household_id ? 'Review new residents before adding them to an existing verified household.' : 'Review the field submission before it becomes part of the verified civil registry.')
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
@@ -37,13 +37,19 @@
                     <p class="mt-1 text-sm text-slate-900">{{ $householdDraft->purok?->display_name ?? 'No draft purok selected' }}</p>
                 </div>
                 <div>
+                    <p class="text-sm font-medium text-slate-500">{{ $householdDraft->target_household_id ? 'Existing Verified Household' : 'Proposed Household No.' }}</p>
+                    <p class="mt-1 text-sm text-slate-900">{{ $householdDraft->target_household_id ? '#'.$householdDraft->targetHousehold?->household_no : ($householdDraft->proposed_household_no ?: 'To be assigned at verification') }}</p>
+                </div>
+                <div>
                     <p class="text-sm font-medium text-slate-500">Submitted By</p>
                     <p class="mt-1 text-sm text-slate-900">{{ $householdDraft->submittedBy?->name ?? 'Unknown user' }}</p>
                 </div>
+                @if(!$householdDraft->target_household_id)
                 <div class="md:col-span-2">
                     <p class="text-sm font-medium text-slate-500">Household Address</p>
                     <p class="mt-1 text-sm text-slate-900">{{ $householdDraft->household_address }}</p>
                 </div>
+                @endif
                 <div>
                     <p class="text-sm font-medium text-slate-500">Water Source</p>
                     <p class="mt-1 text-sm text-slate-900">{{ $householdDraft->drinking_water_source ?: 'N/A' }}</p>
@@ -82,7 +88,7 @@
             <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-[0.22em] text-tubigon/70">Verified Household</p>
                 <p class="mt-3 text-sm font-semibold text-slate-900">
-                    {{ $householdDraft->approvedHousehold?->household_no ? '#'.$householdDraft->approvedHousehold->household_no : 'Not yet created' }}
+                    {{ $householdDraft->approvedHousehold?->household_no ? '#'.$householdDraft->approvedHousehold->household_no : ($householdDraft->targetHousehold?->household_no ? '#'.$householdDraft->targetHousehold->household_no : 'Not yet created') }}
                 </p>
             </div>
         </section>
@@ -107,7 +113,11 @@
                             @endif
                         </div>
                         <div class="text-sm text-slate-500">
-                            {{ $residentDraft->approved_resident_id ? 'Approved to verified resident' : 'Still pending review' }}
+                            {{ $residentDraft->approved_resident_id ? 'Approved to verified resident' : match ($householdDraft->draft_status) {
+                                \App\Models\HouseholdDraft::STATUS_REJECTED => 'Rejected',
+                                \App\Models\HouseholdDraft::STATUS_APPROVED => 'Approved',
+                                default => 'Still pending review',
+                            } }}
                         </div>
                     </div>
                 </div>

@@ -19,7 +19,7 @@
         </div>
     @endif
 
-    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3" data-live-results="admin-devices-mobile-index">
         <div class="rounded-lg bg-white p-4 shadow">
             <dt class="text-sm font-medium text-gray-500">Issued Tokens</dt>
             <dd class="mt-2 text-2xl font-bold text-gray-900">{{ $devices->count() }}</dd>
@@ -46,7 +46,7 @@
                         : 'This inventory is limited to BHW accounts in your assigned barangay. You can review token health and revoke access when needed.' }}
                 </p>
 
-                <form method="GET" action="{{ route($routePrefix.'.devices.index') }}" class="mt-4 flex flex-col gap-3 md:flex-row">
+                <form method="GET" action="{{ route($routePrefix.'.devices.index') }}" class="mt-4 flex flex-col gap-3 md:flex-row" data-live-results-form="admin-devices-mobile-index">
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Search BHW name or email" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Search</button>
                     <a href="{{ route($routePrefix.'.devices.index') }}" class="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">Reset</a>
@@ -98,7 +98,7 @@
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-devices-mobile-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>

@@ -13,6 +13,7 @@ import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { getHouseholds } from '../lib/storage';
+import { registryStatusLabel } from '../lib/registryStatus';
 import { AppTheme } from '../theme';
 import { HouseholdRecord } from '../types';
 
@@ -91,9 +92,12 @@ export function HouseholdsScreen({ navigation }: any) {
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{item.household_no}</Text>
-                <Text style={styles.badge}>{item.sync_status}</Text>
+                <Text style={styles.badge}>{registryStatusLabel(item)}</Text>
               </View>
               <Text style={styles.cardText}>{item.household_address}</Text>
+              {item.verification_status === 'rejected' && item.verification_notes ? (
+                <Text style={styles.cardText}>{item.verification_notes}</Text>
+              ) : null}
               <Text style={styles.cardMeta}>
                 {item.is_social_aid_beneficiary ? 'Social aid' : 'Standard'} •{' '}
                 {item.is_active ? 'Active' : 'Inactive'}

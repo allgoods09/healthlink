@@ -4,8 +4,11 @@ namespace App\Support;
 
 use App\Models\FieldVisit;
 use App\Models\Household;
+use App\Models\HouseholdDraft;
 use App\Models\PhilpenRiskAssessment;
+use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
+use App\Models\ResidentDraft;
 use App\Models\User;
 
 class MobileBootstrapPayload
@@ -15,12 +18,12 @@ class MobileBootstrapPayload
      */
     public function build(User $user): array
     {
+        $barangayId = MobileBarangayScope::requireBarangayId($user);
+
         $user->loadMissing(['assignedBarangay', 'assignedPurok.barangay']);
 
-        $barangayId = $user->assigned_barangay_id;
-
         $households = Household::query()
-            ->when($barangayId, fn ($query) => $query->whereHas('purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
+            ->whereHas('purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
             ->with([
                 'purok.barangay',
             ])
@@ -29,7 +32,7 @@ class MobileBootstrapPayload
             ->get();
 
         $residents = Resident::query()
-            ->when($barangayId, fn ($query) => $query->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
+            ->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
             ->with([
                 'household:id,mobile_uuid',
             ])
@@ -38,7 +41,7 @@ class MobileBootstrapPayload
             ->get();
 
         $fieldVisits = FieldVisit::query()
-            ->when($barangayId, fn ($query) => $query->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId)))
+            ->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
             ->with([
                 'household:id,mobile_uuid',
                 'recordedBy:id,name',
@@ -47,13 +50,35 @@ class MobileBootstrapPayload
             ->get();
 
         $riskAssessments = PhilpenRiskAssessment::query()
-            ->when($barangayId, fn ($query) => $query->where('barangay_id', $barangayId))
+            ->where('barangay_id', $barangayId)
             ->with([
                 'recordedBy:id,name',
             ])
             ->orderByDesc('assessment_date')
             ->orderByDesc('id')
             ->get();
+
+        $drafts = HouseholdDraft::query()
+            ->where('submitted_by_user_id', $user->id)
+            ->where('barangay_id', $barangayId)
+            ->whereIn('draft_status', [HouseholdDraft::STATUS_PENDING, HouseholdDraft::STATUS_REJECTED])
+            ->with(['purok', 'targetHousehold'])
+            ->get();
+        $residentDrafts = ResidentDraft::query()
+            ->whereHas('householdDraft', fn ($query) => $query
+                ->where('submitted_by_user_id', $user->id)
+                ->where('barangay_id', $barangayId)
+                ->whereIn('draft_status', [HouseholdDraft::STATUS_PENDING, HouseholdDraft::STATUS_REJECTED]))
+            ->whereNotNull('mobile_uuid')
+            ->with('householdDraft.targetHousehold')
+            ->get();
+        $corrections = ProfileUpdateRequest::query()
+            ->where('submitted_by_user_id', $user->id)
+            ->where('barangay_id', $barangayId)
+            ->whereNotNull('mobile_submission_key')
+            ->latest('id')->get()
+            ->unique(fn (ProfileUpdateRequest $item) => $item->subject_type.':'.$item->subject_id)
+            ->keyBy(fn (ProfileUpdateRequest $item) => $item->subject_type.':'.$item->subject_id);
 
         return [
             'server_time' => now()->toIso8601String(),
@@ -81,11 +106,34 @@ class MobileBootstrapPayload
                 ] : null,
             ],
             'households' => $households
-                ->map(fn (Household $household) => $this->householdPayload($household))
+                ->map(function (Household $household) use ($corrections) {
+                    $correction = $corrections->get('household:'.$household->id);
+                    return [...$this->householdPayload($household),
+                        'local_revision' => $this->correctionRevision($correction),
+                        'verification_status' => $this->reviewStatus($correction),
+                        'verification_notes' => $correction?->review_notes];
+                })
+                ->concat($drafts->filter(fn (HouseholdDraft $draft) => $draft->mobile_uuid && ! $draft->target_household_id)
+                    ->map(fn (HouseholdDraft $draft) => [
+                        'id' => null,
+                        'mobile_uuid' => $draft->mobile_uuid,
+                        'purok_id' => $draft->purok_id,
+                        'purok_display_name' => $draft->purok?->display_name,
+                        'household_no' => $draft->proposed_household_no,
+                        'household_address' => $draft->household_address,
+                        'is_social_aid_beneficiary' => $draft->is_social_aid_beneficiary,
+                        'is_active' => true,
+                        'verification_status' => $draft->draft_status === HouseholdDraft::STATUS_PENDING ? 'submitted' : 'rejected',
+                        'local_revision' => $draft->mobile_revision,
+                        'verification_notes' => $draft->verification_notes,
+                        'updated_at' => $draft->updated_at?->toIso8601String(),
+                    ]))
                 ->values()
                 ->all(),
             'residents' => $residents
-                ->map(fn ($resident) => [
+                ->map(function ($resident) use ($corrections) {
+                    $correction = $corrections->get('resident:'.$resident->id);
+                    return [
                     'id' => $resident->id,
                     'mobile_uuid' => $resident->mobile_uuid,
                     'household_id' => $resident->household_id,
@@ -105,8 +153,40 @@ class MobileBootstrapPayload
                     'email_address' => $resident->email_address,
                     'relationship_to_head' => $resident->relationship_to_head,
                     'is_active' => $resident->is_active,
+                    'verification_status' => $this->reviewStatus($correction),
+                    'local_revision' => $this->correctionRevision($correction),
+                    'verification_notes' => $correction?->review_notes,
                     'updated_at' => optional($resident->updated_at)->toIso8601String(),
-                ])
+                    ];
+                })
+                ->concat($residentDrafts->map(function (ResidentDraft $draft) {
+                    $parent = $draft->householdDraft;
+                    return [
+                        'id' => null,
+                        'mobile_uuid' => $draft->mobile_uuid,
+                        'household_id' => $parent->target_household_id,
+                        'household_mobile_uuid' => $parent->mobile_uuid ?? $parent->targetHousehold?->mobile_uuid,
+                        'philsys_card_no' => $draft->philsys_card_no,
+                        'last_name' => $draft->last_name,
+                        'first_name' => $draft->first_name,
+                        'middle_name' => $draft->middle_name,
+                        'suffix' => $draft->suffix,
+                        'birth_date' => $draft->birth_date?->toDateString(),
+                        'birth_place' => $draft->birth_place,
+                        'sex' => $draft->sex,
+                        'civil_status' => $draft->civil_status,
+                        'citizenship' => $draft->citizenship,
+                        'religion' => $draft->religion,
+                        'contact_number' => $draft->contact_number,
+                        'email_address' => $draft->email_address,
+                        'relationship_to_head' => $draft->relationship_to_head,
+                        'is_active' => true,
+                        'verification_status' => $parent->draft_status === HouseholdDraft::STATUS_PENDING ? 'submitted' : 'rejected',
+                        'local_revision' => $draft->mobile_revision,
+                        'verification_notes' => $parent->verification_notes,
+                        'updated_at' => $draft->updated_at?->toIso8601String(),
+                    ];
+                }))
                 ->values()
                 ->all(),
             'field_visits' => $fieldVisits
@@ -195,6 +275,21 @@ class MobileBootstrapPayload
                 'supported_locales' => ['en', 'ceb'],
             ],
         ];
+    }
+
+    private function reviewStatus(?ProfileUpdateRequest $request): string
+    {
+        return match ($request?->request_status) {
+            ProfileUpdateRequest::STATUS_PENDING => 'submitted',
+            ProfileUpdateRequest::STATUS_REJECTED => 'rejected',
+            default => 'approved',
+        };
+    }
+
+    private function correctionRevision(?ProfileUpdateRequest $request): int
+    {
+        if (! $request?->mobile_submission_key) return 0;
+        return (int) str($request->mobile_submission_key)->afterLast(':')->toString();
     }
 
     /**

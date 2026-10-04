@@ -38,7 +38,7 @@
     <!-- Filters -->
     <div class="mb-6 bg-white rounded-lg shadow">
         <div class="p-4">
-            <form method="GET" action="{{ route($routePrefix.'.sync-logs.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
+            <form method="GET" action="{{ route($routePrefix.'.sync-logs.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-6" data-live-results-form="admin-devices-sync-index">
                 <!-- Search -->
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
@@ -117,7 +117,7 @@
 
     <!-- Sync Logs Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-live-results="admin-devices-sync-index">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -175,7 +175,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="px-6 py-4 border-t border-gray-200">
+        <div class="px-6 py-4 border-t border-gray-200" data-live-results="admin-devices-sync-index">
             {{ $logs->links() }}
         </div>
     </div>

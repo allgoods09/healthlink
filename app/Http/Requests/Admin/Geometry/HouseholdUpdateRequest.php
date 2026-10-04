@@ -2,9 +2,12 @@
 
 namespace App\Http\Requests\Admin\Geometry;
 
+use App\Models\Purok;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class HouseholdUpdateRequest extends FormRequest
 {
@@ -14,7 +17,7 @@ class HouseholdUpdateRequest extends FormRequest
     public function authorize(): bool
     {
         $user = Auth::user();
-        
+
         // Allow admin, mho, phn, secretary, bns, bhw to update
         return in_array($user->role, ['admin', 'mho', 'phn', 'secretary', 'bns', 'bhw']);
     }
@@ -22,7 +25,7 @@ class HouseholdUpdateRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -34,18 +37,18 @@ class HouseholdUpdateRequest extends FormRequest
                 'exists:puroks,id',
                 function ($attribute, $value, $fail) {
                     $user = Auth::user();
-                    
+
                     if ($user->role === 'bhw' && $user->assigned_purok_id != $value) {
                         $fail('You can only update households in your assigned purok.');
                     }
-                    
+
                     if (in_array($user->role, ['secretary', 'bns'])) {
-                        $purok = \App\Models\Purok::find($value);
+                        $purok = Purok::find($value);
                         if ($purok && $purok->barangay_id != $user->assigned_barangay_id) {
                             $fail('You can only update households in your assigned barangay.');
                         }
                     }
-                }
+                },
             ],
             'household_no' => [
                 'required',
@@ -53,7 +56,7 @@ class HouseholdUpdateRequest extends FormRequest
                 'max:50',
                 Rule::unique('households')->where(function ($query) {
                     return $query->where('purok_id', $this->input('purok_id'));
-                })->ignore($householdId)
+                })->ignore($householdId),
             ],
             'household_address' => ['required', 'string'],
             'head_resident_id' => ['nullable', 'exists:residents,id'],

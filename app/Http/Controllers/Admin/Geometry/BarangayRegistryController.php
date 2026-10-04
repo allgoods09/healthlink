@@ -144,7 +144,8 @@ class BarangayRegistryController extends Controller
             ->map(fn (?string $name) => $name ?? '')
             ->all();
 
-        return view('admin.geometry.barangays.edit', compact('barangay', 'officialDefinitions', 'officialNames'));
+        return view('admin.geometry.barangays.edit', compact('barangay', 'officialDefinitions', 'officialNames')
+            + app(\App\Support\BarangayOfficialsRegistry::class)->secretaryPresentation($barangay));
     }
 
     /**
@@ -287,9 +288,15 @@ class BarangayRegistryController extends Controller
 
     private function syncOfficials(Barangay $barangay, array $officialNames): void
     {
+        $locked = Barangay::query()->whereKey($barangay->id)->lockForUpdate()->firstOrFail();
+        $linked = app(\App\Support\BarangayOfficialsRegistry::class)->operationalSecretary($locked, true) !== null;
         $barangay->loadMissing('officials');
 
         foreach (BarangayOfficial::ROLE_DEFINITIONS as $roleKey => $definition) {
+            if ($roleKey === BarangayOfficial::ROLE_BARANGAY_SECRETARY
+                && ($linked || ! array_key_exists($roleKey, $officialNames))) {
+                continue;
+            }
             $official = $barangay->officials->firstWhere('role_key', $roleKey)
                 ?? $barangay->officials()->firstOrCreate(
                     ['role_key' => $roleKey],
