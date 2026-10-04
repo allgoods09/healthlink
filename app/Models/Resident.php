@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ResidentCodeAllocator;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -61,31 +62,9 @@ class Resident extends Model
 
     protected $hidden = ['lifecycle_version'];
 
-    protected static function booted(): void
+    public function save(array $options = [])
     {
-        static::created(function (Resident $resident): void {
-            if ($resident->official_resident_code || ! $resident->household_id) {
-                return;
-            }
-
-            $barangayId = Household::query()
-                ->whereKey($resident->household_id)
-                ->join('puroks', 'puroks.id', '=', 'households.purok_id')
-                ->value('puroks.barangay_id');
-
-            if (! $barangayId) {
-                return;
-            }
-
-            $sequence = static::query()
-                ->whereNotNull('official_resident_code')
-                ->whereHas('household.purok', fn ($query) => $query->where('barangay_id', $barangayId))
-                ->count() + 1;
-
-            $resident->forceFill([
-                'official_resident_code' => sprintf('RS-%04d-%05d', $barangayId, $sequence),
-            ])->saveQuietly();
-        });
+        return app(ResidentCodeAllocator::class)->saveResident($this, fn () => parent::save($options));
     }
 
     public const STATUS_ACTIVE = 'active';

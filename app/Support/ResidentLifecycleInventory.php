@@ -78,6 +78,20 @@ class ResidentLifecycleInventory
                     'resident_ids' => $ids->take(self::ID_LIMIT)->all()];
             }
             $this->inspectOwnership($report);
+            if (Schema::hasTable('resident_code_sequences')) {
+                $observed = app(ResidentCodeAllocator::class)->observed();
+                $sequences = DB::table('resident_code_sequences')->orderBy('origin_barangay_id')->pluck('last_value', 'origin_barangay_id')->all();
+                $report['identity']['code_sequences'] = ['malformed_standard_codes' => $observed['malformed_standard_codes'], 'namespaces' => []];
+                foreach (array_unique([...array_keys($sequences), ...array_keys($observed['maxima'])]) as $namespace) {
+                    $high = isset($sequences[$namespace]) ? (int) $sequences[$namespace] : null;
+                    $issued = $observed['maxima'][$namespace] ?? 0;
+                    $report['identity']['code_sequences']['namespaces'][] = ['namespace' => (int) $namespace, 'last_value' => $high,
+                        'highest_observed_suffix' => $issued, 'behind_observed' => $high === null || $high < $issued];
+                    if ($high === null || $high < $issued) {
+                        $report['blockers'][] = ['reason' => 'resident_code_sequence_behind_issuance', 'namespace' => (int) $namespace];
+                    }
+                }
+            }
             $report['corrections']['states'] = DB::table('profile_update_requests')
                 ->whereIn('subject_type', [ProfileUpdateRequest::SUBJECT_RESIDENT, ProfileUpdateRequest::SUBJECT_HOUSEHOLD])
                 ->select('subject_type', 'request_status')->selectRaw('COUNT(*) AS count')

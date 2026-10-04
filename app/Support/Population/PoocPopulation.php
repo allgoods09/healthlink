@@ -14,7 +14,7 @@ use RuntimeException;
 class PoocPopulation
 {
     public const FOUNDATION_TABLES = ['migrations', 'barangays', 'barangay_officials', 'puroks', 'users', 'households', 'residents',
-        'resident_socio_economic_profiles', 'child_nutrition_profiles', 'settings', 'cache', 'cache_locks', 'sessions'];
+        'resident_socio_economic_profiles', 'child_nutrition_profiles', 'settings', 'cache', 'cache_locks', 'sessions', 'resident_code_sequences'];
 
     public static function operationalCounts(): array
     {
