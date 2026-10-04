@@ -104,6 +104,14 @@ class Household extends Model
     }
 
     /**
+     * Get current members without changing the broad historical attachment.
+     */
+    public function currentMembers()
+    {
+        return $this->hasMany(Resident::class)->currentPopulation();
+    }
+
+    /**
      * Get the designated head resident for this household.
      */
     public function headResident()
@@ -243,6 +251,16 @@ class Household extends Model
     // =============================================
     // HELPER METHODS
     // =============================================
+
+    public function currentMemberCount(): int
+    {
+        return $this->currentMembers()->count();
+    }
+
+    public function isVacant(): bool
+    {
+        return ! $this->currentMembers()->exists();
+    }
 
     /**
      * Check if the household is active.

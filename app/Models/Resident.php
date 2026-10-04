@@ -212,6 +212,15 @@ class Resident extends Model
     // =============================================
 
     /**
+     * Current population follows lifecycle status, not legacy availability.
+     */
+    public function scopeCurrentPopulation($query)
+    {
+        return $query->where($this->qualifyColumn('resident_status'), self::STATUS_ACTIVE)
+            ->whereNull($this->qualifyColumn('deleted_at'));
+    }
+
+    /**
      * Scope a query to only include active residents.
      */
     public function scopeActive($query)
@@ -416,6 +425,11 @@ class Resident extends Model
     // =============================================
     // HELPER METHODS
     // =============================================
+
+    public function isCurrentPopulation(): bool
+    {
+        return ! $this->trashed() && $this->resident_status === self::STATUS_ACTIVE;
+    }
 
     /**
      * Check if the resident is active.
