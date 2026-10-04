@@ -11,17 +11,19 @@ use App\Models\FieldVisit;
 use App\Models\Household;
 use App\Models\Purok;
 use App\Models\Resident;
+use App\Models\ResidentLifecycleEvent;
 use App\Models\Setting;
 use App\Models\SyncLog;
 use App\Models\User;
 use App\Policies\ArchivedRecordPolicy;
 use App\Policies\AuditLogPolicy;
 use App\Policies\BackupPolicy;
-use App\Policies\BarangayPolicy;
 use App\Policies\BarangayCertificatePolicy;
+use App\Policies\BarangayPolicy;
 use App\Policies\FieldVisitPolicy;
 use App\Policies\HouseholdPolicy;
 use App\Policies\PurokPolicy;
+use App\Policies\ResidentLifecycleEventPolicy;
 use App\Policies\ResidentPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\SyncLogPolicy;
@@ -43,6 +45,7 @@ class AuthServiceProvider extends ServiceProvider
         Household::class => HouseholdPolicy::class,
         FieldVisit::class => FieldVisitPolicy::class,
         Resident::class => ResidentPolicy::class,
+        ResidentLifecycleEvent::class => ResidentLifecycleEventPolicy::class,
         BarangayCertificate::class => BarangayCertificatePolicy::class,
         AuditLog::class => AuditLogPolicy::class,
         SyncLog::class => SyncLogPolicy::class,
@@ -59,7 +62,11 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerPolicies();
 
         // Implicitly grant "Super Admin" role all permissions
-        Gate::before(function ($user, $ability) {
+        Gate::before(function ($user, $ability, $arguments) {
+            if (($arguments[0] ?? null) instanceof ResidentLifecycleEvent
+                || ($arguments[0] ?? null) === ResidentLifecycleEvent::class) {
+                return null;
+            }
             if ($user->role === 'admin') {
                 return true;
             }
