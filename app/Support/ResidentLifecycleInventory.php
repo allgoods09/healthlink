@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\ProfileUpdateRequest;
 use App\Models\Resident;
+use App\Support\Lifecycle\RegistryCaptureBootstrap;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ class ResidentLifecycleInventory
     {
         $report = ['summary' => ['read_only' => true, 'captured_at' => CarbonImmutable::now('UTC')->toIso8601String(),
             'sample_id_limit' => self::ID_LIMIT], 'status_inventory' => [], 'ambiguous' => [],
-            'identity' => [], 'ownership' => [], 'corrections' => [], 'blockers' => []];
+            'identity' => [], 'ownership' => [], 'corrections' => [], 'history' => [], 'blockers' => []];
         try {
             $required = ['residents' => ['id', 'resident_status', 'is_active', 'deleted_at', 'birth_date',
                 'date_of_death', 'moved_out_at', 'official_resident_code', 'household_id', 'mobile_uuid', 'philsys_card_no'],
@@ -78,6 +79,8 @@ class ResidentLifecycleInventory
                     'resident_ids' => $ids->take(self::ID_LIMIT)->all()];
             }
             $this->inspectOwnership($report);
+            $report['history'] = app(RegistryCaptureBootstrap::class)->coverage();
+            $report['blockers'] = [...$report['blockers'], ...$report['history']['blockers']];
             if (Schema::hasTable('resident_code_sequences')) {
                 $observed = app(ResidentCodeAllocator::class)->observed();
                 $sequences = DB::table('resident_code_sequences')->orderBy('origin_barangay_id')->pluck('last_value', 'origin_barangay_id')->all();

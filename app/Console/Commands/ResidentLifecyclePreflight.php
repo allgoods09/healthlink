@@ -19,9 +19,10 @@ class ResidentLifecyclePreflight extends Command
         } else {
             foreach (['SUMMARY' => 'summary', 'STATUS INVENTORY' => 'status_inventory',
                 'LEGACY / AMBIGUOUS RECORDS' => 'ambiguous', 'IDENTITY / CODE CHECKS' => 'identity',
-                'OWNERSHIP CHECKS' => 'ownership', 'CORRECTION CHECKS' => 'corrections', 'BLOCKERS' => 'blockers'] as $title => $key) {
+                'OWNERSHIP CHECKS' => 'ownership', 'CORRECTION CHECKS' => 'corrections',
+                'LIFECYCLE HISTORY COVERAGE' => 'history', 'BLOCKERS' => 'blockers'] as $title => $key) {
                 $this->info($title);
-                $this->line(json_encode($report[$key], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+                $this->line(json_encode($report[$key] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             }
         }
 
