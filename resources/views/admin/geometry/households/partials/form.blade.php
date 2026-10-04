@@ -64,7 +64,9 @@
     <div>
         <label for="head_resident_id" class="block text-sm font-medium text-gray-700">Head of Household</label>
         @php
-            $headCandidates = $headCandidates ?? ($household->relationLoaded('residents') ? $household->residents : collect());
+            $headMemberRelation = ($routePrefix ?? 'admin') === 'bns' ? 'residents' : 'currentMembers';
+            $headCandidates = $headCandidates ?? ($household->relationLoaded($headMemberRelation) ? $household->{$headMemberRelation} : collect());
+            $selectedHead = ($routePrefix ?? 'admin') === 'bns' ? $household->head_resident_id : $household->currentHeadResident()?->id;
             $headResidentSearchOptions = $headCandidates->map(fn ($candidate) => [
                 'value' => $candidate->id,
                 'label' => $candidate->formal_name ?? $candidate->full_name,
@@ -83,7 +85,7 @@
             name="head_resident_id"
             id="head_resident_id"
             :options="$headResidentSearchOptions"
-            :selected="old('head_resident_id', $household->head_resident_id ?? '')"
+            :selected="old('head_resident_id', $selectedHead ?? '')"
             placeholder="{{ $headCandidates->isEmpty() ? 'Add residents first' : 'Search resident name' }}"
             empty-message="No resident matches your search."
             :disabled="$headCandidates->isEmpty()"

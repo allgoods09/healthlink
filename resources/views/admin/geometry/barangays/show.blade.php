@@ -59,7 +59,7 @@
                             <dd class="mt-1 text-sm text-gray-900">{{ $totalHouseholds ?? 0 }}</dd>
                         </div>
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Total Residents</dt>
+                            <dt class="text-sm font-medium text-gray-500">Current Residents</dt>
                             <dd class="mt-1 text-sm text-gray-900">{{ $totalResidents ?? 0 }}</dd>
                         </div>
                         <div>
@@ -93,7 +93,7 @@
                                         <div>
                                             <p class="text-sm font-medium text-gray-900">{{ $purok->display_name }}</p>
                                             <p class="text-sm text-gray-500">
-                                                Households: {{ $purok->households->count() }} · Residents: {{ $purok->total_residents ?? 0 }}
+                                                Households: {{ $purok->households->count() }} · Current Residents: {{ $purok->households->sum('current_members_count') }}
                                             </p>
                                         </div>
                                         <div class="flex items-center space-x-2">

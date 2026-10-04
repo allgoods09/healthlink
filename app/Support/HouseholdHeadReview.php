@@ -33,7 +33,7 @@ class HouseholdHeadReview
             $binding = hash('sha256', json_encode([$request->user()->id, $request->path(), $request->method(), $this->normalized($payload), $plans]));
             $snapshots = $households->map(fn ($h) => $this->heads->snapshot($h))->all();
             $needsReview = collect($plans)->contains(function ($plan, $id) use ($households) {
-                return $households[$id]->residents->where('id', '!=', $plan['exclude_id'] ?? 0)
+                return $households[$id]->currentMembers->where('id', '!=', $plan['exclude_id'] ?? 0)
                     ->where('id', '!=', $plan['candidate_id'] ?? 0)->isNotEmpty();
             }) || collect($plans)->contains(fn ($plan) => $plan['choose_candidate'] ?? false);
             $token = $request->input('head_review_token');
@@ -58,7 +58,7 @@ class HouseholdHeadReview
             foreach ($plans as $id => &$plan) {
                 if ($plan['choose_candidate'] ?? false) {
                     $plan['candidate_id'] = filter_var(data_get($reviews, $id.'.candidate_id'), FILTER_VALIDATE_INT);
-                    if (! $plan['candidate_id'] || ! $households[$id]->residents->where('id', '!=', $plan['exclude_id'])->contains('id', $plan['candidate_id'])) {
+                    if (! $plan['candidate_id'] || ! $households[$id]->currentMembers->where('id', '!=', $plan['exclude_id'])->contains('id', $plan['candidate_id'])) {
                         throw ValidationException::withMessages(['head_reviews' => 'Choose a replacement head from the remaining members.']);
                     }
                 }
@@ -87,13 +87,13 @@ class HouseholdHeadReview
         $source = $resident?->household;
         $sourceId = $source?->id;
         $moving = $resident && $targetId !== (int) $resident->household_id;
-        $retaining = $resident && ! $moving && $resident->is_household_head;
+        $retaining = $resident && ! $moving && $resident->is_household_head && $resident->isCurrentPopulation();
         $designating = $request->boolean('set_as_household_head') && ! $retaining;
         $plans = [];
         if ($designating) {
             $plans[$targetId] = ['candidate_id' => $resident?->id, 'candidate_name' => trim($data['first_name'].' '.$data['last_name'])];
         }
-        if ($moving && $resident->is_household_head && $source->residents()->whereKeyNot($resident->id)->exists()) {
+        if ($moving && $resident->is_household_head && $source->currentMembers()->whereKeyNot($resident->id)->exists()) {
             $plans[$source->id] = ['choose_candidate' => true, 'exclude_id' => $resident->id];
         }
         if ($designating || $retaining) {
@@ -116,7 +116,7 @@ class HouseholdHeadReview
                     && ! isset($plans[$targetId]) && HouseholdRelationships::isHead($data['relationship_to_head'])) {
                     throw ValidationException::withMessages(['relationship_to_head' => 'Choose an ordinary relationship in the destination household, or explicitly designate this resident as its head.']);
                 }
-                if ($lockedResident && ! $moving && (int) $households[$targetId]->head_resident_id === (int) $resident->id) {
+                if ($lockedResident && $lockedResident->isCurrentPopulation() && ! $moving && (int) $households[$targetId]->head_resident_id === (int) $resident->id) {
                     $data['relationship_to_head'] = HouseholdRelationships::HEAD;
                 } elseif ($retaining) {
                     throw ValidationException::withMessages(['head_reviews' => 'The household head changed. Reload the form.']);
@@ -137,20 +137,22 @@ class HouseholdHeadReview
 
     public function household(Request $request, array $data, Household $household, callable $save): mixed
     {
-        $head = array_key_exists('head_resident_id', $data) ? $data['head_resident_id'] : $household->head_resident_id;
-        if ($household->head_resident_id && ! $head) {
+        $head = array_key_exists('head_resident_id', $data) ? $data['head_resident_id'] : $household->currentHeadResident()?->id;
+        if ($household->currentHeadResident() && ! $head) {
             throw ValidationException::withMessages(['head_resident_id' => 'Select a replacement household head. The current head cannot be removed here.']);
         }
         $plans = $head && (int) $head !== (int) $household->head_resident_id
             ? [$household->id => ['candidate_id' => (int) $head, 'candidate_name' => Resident::find($head)?->full_name]] : [];
 
-        return $this->run($request, [$household->id], $plans, function ($households, $plans, $heads) use ($data, $household, $save) {
+        return $this->run($request, [$household->id], $plans, function ($households, $plans, $heads) use ($data, $household, $save, $head) {
+            if ($head && ! $households[$household->id]->currentMembers->contains('id', (int) $head)) {
+                throw ValidationException::withMessages(['head_resident_id' => 'The selected household head must be a current member of this household.']);
+            }
             $saved = $save(Arr::except($data, ['head_resident_id']), $households[$household->id]);
             foreach ($plans as $id => $plan) {
                 $heads->designate($saved, Resident::findOrFail($plan['candidate_id']), $plan['relationships']);
             }
-            if ($saved->head_resident_id) {
-                $member = $saved->residents()->findOrFail($saved->head_resident_id);
+            if ($member = $saved->currentHeadResident()) {
                 if ($member->relationship_to_head !== HouseholdRelationships::HEAD) {
                     $old = $member->toArray();
                     $member->update(['relationship_to_head' => HouseholdRelationships::HEAD]);

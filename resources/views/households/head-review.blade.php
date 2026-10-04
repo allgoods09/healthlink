@@ -15,8 +15,8 @@
     @foreach($plans as $id => $plan)
         @php
             $household = $households[$id];
-            $members = $household->residents->where('id', '!=', $plan['exclude_id'] ?? 0);
-            $currentHead = $household->residents->firstWhere('id', $household->head_resident_id);
+            $members = $household->currentMembers->where('id', '!=', $plan['exclude_id'] ?? 0);
+            $currentHead = $household->currentHeadResident();
         @endphp
         <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm" x-data="{ replacement: '{{ old('head_reviews.'.$id.'.candidate_id', $plan['candidate_id'] ?? '') }}' }">
             <h3 class="font-semibold text-slate-900">Household #{{ $household->household_no }}</h3>

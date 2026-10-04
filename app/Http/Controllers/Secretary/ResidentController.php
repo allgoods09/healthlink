@@ -366,7 +366,7 @@ class ResidentController extends Controller
         $sourceId = $resident->household_id;
         $targetId = $payload['destination'] === 'existing_household' ? (int) $payload['target_household_id'] : null;
         $plans = [];
-        if ($resident->is_household_head && $resident->household->residents()->whereKeyNot($resident->id)->exists()) {
+        if ($resident->is_household_head && $resident->household->currentMembers()->whereKeyNot($resident->id)->exists()) {
             $plans[$sourceId] = ['choose_candidate' => true, 'exclude_id' => $resident->id];
         }
         if ($targetId && ($payload['set_as_household_head'] ?? false)) {

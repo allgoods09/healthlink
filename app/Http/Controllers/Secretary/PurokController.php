@@ -100,7 +100,7 @@ class PurokController extends Controller
         Gate::authorize('view', $purok);
         $this->ensurePurokBelongsToBarangay($purok);
 
-        $purok->load(['barangay', 'households.residents', 'assignedUsers']);
+        $purok->load(['barangay', 'households' => fn ($query) => $query->withCount('currentMembers'), 'assignedUsers']);
 
         return view('admin.geometry.puroks.show', [
             'layout' => 'layouts.portal',
@@ -109,7 +109,7 @@ class PurokController extends Controller
             'pageHeader' => 'Purok Details',
             'purok' => $purok,
             'totalHouseholds' => $purok->households->count(),
-            'totalResidents' => $purok->households->flatMap(fn ($household) => $household->residents)->count(),
+            'totalResidents' => $purok->households->sum('current_members_count'),
             'bhws' => $purok->assignedUsers->where('role', 'bhw')->values(),
         ]);
     }

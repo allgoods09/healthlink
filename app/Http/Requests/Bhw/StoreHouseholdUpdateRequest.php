@@ -4,7 +4,6 @@ namespace App\Http\Requests\Bhw;
 
 use App\Models\Household;
 use App\Models\Purok;
-use App\Models\Resident;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -62,10 +61,10 @@ class StoreHouseholdUpdateRequest extends FormRequest
             }
 
             if ($household && $this->filled('head_resident_id')) {
-                $belongsToHousehold = $household->residents->contains(fn (Resident $resident) => (int) $resident->id === (int) $this->input('head_resident_id'));
+                $belongsToHousehold = $household->currentMembers()->whereKey($this->input('head_resident_id'))->exists();
 
                 if (! $belongsToHousehold) {
-                    $validator->errors()->add('head_resident_id', 'The selected household head must belong to this household.');
+                    $validator->errors()->add('head_resident_id', 'The selected household head must be a current member of this household.');
                 }
             }
         });

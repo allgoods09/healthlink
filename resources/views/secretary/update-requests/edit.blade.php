@@ -37,7 +37,7 @@
                 'secondaryFields' => [$household->purok?->display_name, $household->household_address, $household->headResident?->formal_name],
             ],
         ])->values()->all();
-        $headResidentSearchOptions = collect($subject?->residents ?? [])->map(fn ($resident) => [
+        $headResidentSearchOptions = collect($subject?->currentMembers ?? [])->map(fn ($resident) => [
             'value' => $resident->id,
             'label' => $resident->formal_name,
             'search' => collect([

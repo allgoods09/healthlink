@@ -2,6 +2,10 @@
     $containerClass = $containerClass ?? 'rounded-[28px] border border-slate-200 bg-white shadow-sm';
     $purok = $household->purok;
     $barangay = $purok?->barangay;
+    $currentMembership = $currentMembership ?? true;
+    $memberCount = ($currentMembership ? $household->currentMembers : $household->residents)->count();
+    $currentHead = $currentMembership ? $household->currentHeadResident() : $household->headResident;
+    $recordedHead = $household->residents->firstWhere('id', $household->head_resident_id);
     $toiletStatus = is_null($household->has_sanitary_toilet)
         ? 'Not recorded'
         : ($household->has_sanitary_toilet ? 'Has sanitary toilet' : 'No sanitary toilet');
@@ -21,7 +25,10 @@
             </div>
             <div class="flex flex-wrap gap-2 sm:justify-end">
                 <span class="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $household->is_active ? 'Active household' : 'Inactive household' }}</span>
-                <span class="inline-flex rounded-md border border-tubigon/20 bg-tubigon/10 px-2.5 py-1 text-xs font-semibold text-tubigon">{{ number_format($household->residents->count()) }} member{{ $household->residents->count() === 1 ? '' : 's' }}</span>
+                <span class="inline-flex rounded-md border border-tubigon/20 bg-tubigon/10 px-2.5 py-1 text-xs font-semibold text-tubigon">{{ number_format($memberCount) }} {{ $currentMembership ? 'current ' : '' }}member{{ $memberCount === 1 ? '' : 's' }}</span>
+                @if($currentMembership && $household->isVacant())
+                    <span class="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">Vacant</span>
+                @endif
             </div>
         </div>
     </div>
@@ -47,11 +54,14 @@
                 </div>
                 <div class="min-w-0 bg-white px-4 py-3">
                     <dt class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Head of Household</dt>
-                    <dd class="mt-1 break-words text-sm font-medium text-slate-900">{{ $household->headResident?->formal_name ?: 'Not assigned' }}</dd>
+                    <dd class="mt-1 break-words text-sm font-medium text-slate-900">{{ $currentHead?->formal_name ?: 'Not assigned' }}</dd>
+                    @if($currentMembership && ! $currentHead && $recordedHead)
+                        <p class="mt-1 text-xs text-slate-500">Recorded head (not current): {{ $recordedHead->formal_name }}</p>
+                    @endif
                 </div>
                 <div class="min-w-0 bg-white px-4 py-3">
-                    <dt class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Registered Members</dt>
-                    <dd class="mt-1 text-sm font-medium text-slate-900">{{ number_format($household->residents->count()) }}</dd>
+                    <dt class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{{ $currentMembership ? 'Current Members' : 'Registered Members' }}</dt>
+                    <dd class="mt-1 text-sm font-medium text-slate-900">{{ number_format($memberCount) }}</dd>
                 </div>
             </dl>
         </section>

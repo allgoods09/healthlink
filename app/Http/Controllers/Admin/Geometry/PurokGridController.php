@@ -98,9 +98,9 @@ class PurokGridController extends Controller
     {
         Gate::authorize('view', $purok);
 
-        $purok->load(['barangay', 'households.residents', 'assignedUsers']);
+        $purok->load(['barangay', 'households' => fn ($query) => $query->withCount('currentMembers'), 'assignedUsers']);
         $totalHouseholds = $purok->total_households;
-        $totalResidents = $purok->total_residents;
+        $totalResidents = $purok->households->sum('current_members_count');
         $bhws = $purok->assignedUsers->where('role', 'bhw')->values();
 
         return view('admin.geometry.puroks.show', compact('purok', 'totalHouseholds', 'totalResidents', 'bhws'));

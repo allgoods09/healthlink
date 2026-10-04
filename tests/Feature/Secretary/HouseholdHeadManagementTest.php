@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Support\HouseholdHeadManager;
 use App\Support\HouseholdRelationships;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -502,5 +504,163 @@ class HouseholdHeadManagementTest extends TestCase
         $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
         $this->assertSame($this->household->id, $this->head->fresh()->household_id);
         $this->assertNull($target->fresh()->head_resident_id);
+    }
+
+    public function test_unavailable_active_candidate_can_be_designated_with_current_member_review(): void
+    {
+        $this->candidate->update(['is_active' => false]);
+        $data = ['purok_id' => $this->household->purok_id, 'household_no' => '001',
+            'household_address' => 'Pilot street', 'head_resident_id' => $this->candidate->id, 'is_active' => 1];
+        $review = $this->put(route('secretary.households.update', $this->household), $data)->assertOk();
+        $this->put(route('secretary.households.update', $this->household), $data + [
+            'head_review_token' => $review->viewData('token'),
+            'head_reviews' => [$this->household->id => ['relationships' => [$this->head->id => 'Father']]],
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame($this->candidate->id, $this->household->fresh()->currentHeadResident()->id);
+        $this->assertFalse($this->candidate->fresh()->is_active);
+    }
+
+    public static function noncurrentStates(): array
+    {
+        return [['deceased', false], ['moved_out', false], ['relocated', false], ['active', true]];
+    }
+
+    #[DataProvider('noncurrentStates')]
+    public function test_noncurrent_candidate_is_rejected_by_request_and_authoritative_service(string $status, bool $deleted): void
+    {
+        $this->candidate->update(['resident_status' => $status]);
+        if ($deleted) {
+            $this->candidate->delete();
+        }
+        $this->put(route('secretary.households.update', $this->household), ['purok_id' => $this->household->purok_id,
+            'household_no' => '001', 'household_address' => 'Unchanged', 'head_resident_id' => $this->candidate->id])
+            ->assertSessionHasErrors('head_resident_id');
+        try {
+            app(HouseholdHeadManager::class)->designate($this->household, $this->candidate, [$this->head->id => 'Father']);
+            $this->fail('A non-current candidate cannot become head.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('head_reviews', $exception->errors());
+        }
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+        $this->assertSame(0, AuditLog::count());
+    }
+
+    public function test_review_and_relationship_rewrites_exclude_all_historical_members(): void
+    {
+        $history = [];
+        foreach (['deceased', 'moved_out', 'relocated', 'deleted'] as $status) {
+            $member = $this->person($this->household, 'Historical'.$status, 'Other Relative');
+            if ($status === 'deleted') {
+                $member->delete();
+            } else {
+                $member->update(['resident_status' => $status]);
+            }
+            $history[$member->id] = Resident::withTrashed()->findOrFail($member->id)->getAttributes();
+        }
+        [$data, $token, $response] = $this->review();
+        foreach ($history as $id => $attributes) {
+            $response->assertDontSee('name="head_reviews['.$this->household->id.'][relationships]['.$id.']"', false);
+        }
+        $this->confirm($data, $token, [$this->head->id => 'Father'])->assertSessionHasNoErrors()->assertRedirect();
+        foreach ($history as $id => $attributes) {
+            $this->assertSame($attributes, Resident::withTrashed()->findOrFail($id)->getAttributes());
+        }
+        $this->assertSame(0, $this->candidate->fresh()->lifecycle_version);
+        $this->assertDatabaseCount('resident_lifecycle_events', 0);
+    }
+
+    #[DataProvider('noncurrentStates')]
+    public function test_historical_member_changes_invalidate_frozen_review_even_when_not_a_candidate(string $status, bool $deleted): void
+    {
+        $historical = $this->person($this->household, 'Historical', 'Other Relative');
+        $historical->update(['resident_status' => $status]);
+        if ($deleted) {
+            $historical->delete();
+        }
+        [$data, $token] = $this->review();
+        $historical->update(['middle_name' => 'Changed after review']);
+        $this->confirm($data, $token, [$this->head->id => 'Father'])->assertSessionHasErrors('head_reviews');
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+    }
+
+    public function test_ordinary_household_edit_preserves_invalid_historical_head_without_rewriting_relationship(): void
+    {
+        $this->head->update(['resident_status' => 'deceased', 'relationship_to_head' => 'Father']);
+        $this->put(route('secretary.households.update', $this->household), ['purok_id' => $this->household->purok_id,
+            'household_no' => '001', 'household_address' => 'Corrected address', 'head_resident_id' => null, 'is_active' => 1])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+        $this->assertNull($this->household->fresh()->currentHeadResident());
+        $this->assertSame('Father', $this->head->fresh()->relationship_to_head);
+        $this->assertTrue($this->household->fresh()->is_active);
+    }
+
+    public function test_departing_last_current_head_leaves_historical_relationships_untouched(): void
+    {
+        $this->candidate->update(['resident_status' => 'relocated']);
+        $target = $this->home($this->household->purok, '002');
+        $this->patch(route('secretary.residents.relocate.update', $this->head), $this->relocation($this->head, $target))
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertTrue($this->household->fresh()->isVacant());
+        $this->assertNull($this->household->fresh()->head_resident_id);
+        $this->assertSame('Spouse', $this->candidate->fresh()->relationship_to_head);
+        $this->assertTrue($this->household->fresh()->is_active);
+    }
+
+    public function test_historical_relationship_injection_is_rejected_without_partial_mutations(): void
+    {
+        $historical = $this->person($this->household, 'Historical', 'Other Relative');
+        $historical->update(['resident_status' => 'moved_out']);
+        [$data, $token] = $this->review();
+        $this->confirm($data, $token, [$this->head->id => 'Father', $historical->id => 'Child'])
+            ->assertSessionHasErrors('head_reviews');
+        $this->assertSame('Other Relative', $historical->fresh()->relationship_to_head);
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+        $this->assertSame(0, AuditLog::count());
+    }
+
+    public function test_candidate_lifecycle_change_invalidates_frozen_head_review(): void
+    {
+        [$data, $token] = $this->review();
+        $this->candidate->update(['resident_status' => 'deceased']);
+        $this->confirm($data, $token, [$this->head->id => 'Father'])->assertSessionHasErrors('head_reviews');
+        $this->assertSame('deceased', $this->candidate->fresh()->resident_status);
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+    }
+
+    public function test_secretary_correction_approval_cannot_select_a_historical_head(): void
+    {
+        $this->candidate->update(['resident_status' => 'relocated']);
+        $correction = ProfileUpdateRequest::create(['submitted_by_user_id' => $this->secretary->id,
+            'barangay_id' => $this->secretary->assigned_barangay_id, 'subject_type' => 'household',
+            'subject_id' => $this->household->id, 'current_snapshot' => $this->household->toArray(),
+            'proposed_changes' => ['head_resident_id' => $this->candidate->id], 'request_reason' => 'Review head', 'request_status' => 'pending']);
+        $this->patch(route('secretary.update-requests.approve', $correction), ['purok_id' => $this->household->purok_id,
+            'household_no' => '001', 'household_address' => 'Pilot street', 'head_resident_id' => $this->candidate->id])
+            ->assertSessionHasErrors('head_resident_id');
+        $this->assertSame('pending', $correction->fresh()->request_status);
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+    }
+
+    public function test_direct_service_cannot_designate_a_member_of_another_household(): void
+    {
+        $foreign = $this->person($this->home($this->household->purok, '002'), 'Foreign');
+        try {
+            app(HouseholdHeadManager::class)->designate($this->household, $foreign, [$this->head->id => 'Father', $this->candidate->id => 'Child']);
+            $this->fail('A foreign household member cannot become head.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('head_reviews', $exception->errors());
+        }
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+    }
+
+    public function test_ordinary_update_omitting_head_selection_keeps_historical_context(): void
+    {
+        $this->head->update(['resident_status' => 'moved_out', 'relationship_to_head' => 'Father']);
+        $this->put(route('secretary.households.update', $this->household), ['purok_id' => $this->household->purok_id,
+            'household_no' => '001', 'household_address' => 'Corrected address', 'is_active' => 1])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame($this->head->id, $this->household->fresh()->head_resident_id);
+        $this->assertSame('Father', $this->head->fresh()->relationship_to_head);
     }
 }

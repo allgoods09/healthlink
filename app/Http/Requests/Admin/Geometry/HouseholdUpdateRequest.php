@@ -6,7 +6,6 @@ use App\Models\Purok;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class HouseholdUpdateRequest extends FormRequest
@@ -74,13 +73,15 @@ class HouseholdUpdateRequest extends FormRequest
                 return;
             }
 
-            $belongsToHousehold = DB::table('residents')
-                ->where('id', $this->input('head_resident_id'))
-                ->where('household_id', $household->id)
-                ->exists();
+            // BNS shares this request but retains its legacy contract until its approved slice.
+            $legacyBns = $this->user()->role === 'bns';
+            $members = $legacyBns ? $household->residents()->withTrashed() : $household->currentMembers();
+            $belongsToHousehold = $members->whereKey($this->input('head_resident_id'))->exists();
 
             if (! $belongsToHousehold) {
-                $validator->errors()->add('head_resident_id', 'The selected household head must belong to this household.');
+                $validator->errors()->add('head_resident_id', $legacyBns
+                    ? 'The selected household head must belong to this household.'
+                    : 'The selected household head must be a current member of this household.');
             }
         });
     }

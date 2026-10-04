@@ -56,7 +56,7 @@ class HouseholdController extends Controller
             'Barangay' => fn (Household $household) => $household->purok?->barangay?->name,
             'Purok' => fn (Household $household) => $household->purok?->display_name,
             'Address' => 'household_address',
-            'Residents' => 'residents_count',
+            'Residents' => 'current_members_count',
             'Social Aid' => fn (Household $household) => $household->is_social_aid_beneficiary ? 'Yes' : 'No',
             'Status' => fn (Household $household) => $household->is_active ? 'Active' : 'Inactive',
             'Created At' => fn (Household $household) => optional($household->created_at)?->format('Y-m-d H:i:s'),
@@ -181,7 +181,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('view', $household);
 
-        $household->load(['purok.barangay', 'headResident', 'residents.socioEconomicProfile']);
+        $household->load(['purok.barangay', 'headResident', 'residents.socioEconomicProfile', 'currentMembers.socioEconomicProfile']);
 
         return view('admin.geometry.households.show', [
             'household' => $household,
@@ -198,7 +198,7 @@ class HouseholdController extends Controller
     {
         Gate::authorize('update', $household);
 
-        $household->load(['purok.barangay', 'headResident', 'residents']);
+        $household->load(['purok.barangay', 'headResident', 'currentMembers']);
         $availablePuroks = Purok::where('barangay_id', $household->purok->barangay_id)
             ->active()
             ->orderBy('purok_number')
@@ -312,7 +312,7 @@ class HouseholdController extends Controller
     {
         return $this->filteredQuery($request)
             ->with(['purok.barangay'])
-            ->withCount('residents')
+            ->withCount('currentMembers')
             ->orderBy('purok_id')
             ->orderBy('household_no')
             ->orderBy('id');

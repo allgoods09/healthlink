@@ -26,7 +26,7 @@
                 $householdOption->purok?->display_name,
             ])->filter()->implode(' '),
         ])->values()->all();
-        $headResidentSearchOptions = collect($selectedHousehold?->residents ?? collect())->map(fn ($resident) => [
+        $headResidentSearchOptions = collect($selectedHousehold?->currentMembers ?? collect())->map(fn ($resident) => [
             'value' => $resident->id,
             'label' => $resident->formal_name,
             'search' => collect([
@@ -88,7 +88,7 @@
                     <x-searchable-record-select
                         name="head_resident_id"
                         :options="$headResidentSearchOptions"
-                        :selected="old('head_resident_id', $selectedHousehold?->head_resident_id)"
+                        :selected="old('head_resident_id', $selectedHousehold?->currentHeadResident()?->id)"
                         placeholder="Search resident name"
                         empty-message="No resident matches your search."
                     />

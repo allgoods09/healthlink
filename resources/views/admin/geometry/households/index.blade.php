@@ -116,7 +116,7 @@
                                 <span class="text-gray-500">{{ $household->purok->display_name }}</span>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-600">
-                                {{ $household->residents_count }}
+                                {{ $routePrefix === 'bns' ? $household->residents_count : $household->current_members_count }}
                             </td>
                             <td class="px-6 py-4 text-sm">
                                 <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $household->is_social_aid_beneficiary ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700' }}">

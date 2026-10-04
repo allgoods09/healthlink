@@ -89,13 +89,10 @@ class ApplyProfileUpdateRequestRequest extends FormRequest
                     return;
                 }
 
-                $belongsToHousehold = Resident::query()
-                    ->whereKey($this->input('head_resident_id'))
-                    ->where('household_id', $household->id)
-                    ->exists();
+                $belongsToHousehold = $household->currentMembers()->whereKey($this->input('head_resident_id'))->exists();
 
                 if (! $belongsToHousehold) {
-                    $validator->errors()->add('head_resident_id', 'The selected household head must belong to this household.');
+                    $validator->errors()->add('head_resident_id', 'The selected household head must be a current member of this household.');
                 }
             }
         });

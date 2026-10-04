@@ -5,6 +5,7 @@
 
 @php
     $routePrefix = $routePrefix ?? 'admin';
+    $currentMembership = in_array($routePrefix, ['admin', 'secretary'], true);
 @endphp
 
 @section('actions')
@@ -40,15 +41,16 @@
         @include('households.partials.profile-details', [
             'household' => $household,
             'containerClass' => 'rounded-lg bg-white shadow',
+            'currentMembership' => $currentMembership,
         ])
 
         <div class="rounded-lg bg-white shadow">
             <div class="border-b border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-900">Residents</h2>
-                <p class="mt-1 text-sm text-gray-500">People currently linked to this household.</p>
+                <h2 class="text-lg font-semibold text-gray-900">{{ $currentMembership ? 'Current Members' : 'Residents' }}</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ $currentMembership ? 'Current residents of this household.' : 'People currently linked to this household.' }}</p>
             </div>
             <div class="divide-y divide-gray-200">
-                @forelse(\App\Support\HouseholdMemberOrdering::ordered($household) as $resident)
+                @forelse(\App\Support\HouseholdMemberOrdering::ordered($household, $currentMembership ? $household->currentMembers : $household->residents) as $resident)
                     <div class="flex items-start justify-between p-6">
                         <div>
                             <p class="text-sm font-semibold text-gray-900">{{ $resident->full_name }}</p>
@@ -72,11 +74,14 @@
                         </div>
                     </div>
                 @empty
-                    <div class="p-6 text-sm text-gray-500">No residents have been linked to this household yet.</div>
+                    <div class="p-6 text-sm text-gray-500">{{ $currentMembership ? 'This household has no current members.' : 'No residents have been linked to this household yet.' }}</div>
                 @endforelse
             </div>
         </div>
     </div>
+    @if($currentMembership)
+        @include('households.partials.historical-members', ['household' => $household])
+    @endif
     @isset($visitHistory)
         @include('field-visits.partials.history', ['visitHistory' => $visitHistory, 'routePrefix' => $routePrefix])
     @endisset

@@ -262,6 +262,20 @@ class Household extends Model
         return ! $this->currentMembers()->exists();
     }
 
+    public function currentHeadResident(): ?Resident
+    {
+        if (! $this->head_resident_id) {
+            return null;
+        }
+        $head = $this->headResident;
+        if ($head && (int) $head->id !== (int) $this->head_resident_id) {
+            $head = $this->headResident()->first();
+        }
+
+        return $head && (int) $head->household_id === (int) $this->id && $head->isCurrentPopulation()
+            ? $head : null;
+    }
+
     /**
      * Check if the household is active.
      */

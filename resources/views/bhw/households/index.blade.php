@@ -55,10 +55,10 @@
                                 <p class="mt-1 text-sm text-slate-500">{{ $household->official_household_code ?? 'No code yet' }} · {{ $household->purok?->display_name ?? 'Unknown purok' }}</p>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
-                                {{ $household->headResident?->formal_name ?? 'No household head assigned' }}
+                                {{ $household->currentHeadResident()?->formal_name ?? 'No current household head assigned' }}
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
-                                {{ number_format($household->residents_count) }} resident(s)
+                                {{ number_format($household->current_members_count) }} current resident(s)
                             </td>
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">

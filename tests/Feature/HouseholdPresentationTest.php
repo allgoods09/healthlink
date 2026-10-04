@@ -80,7 +80,7 @@ class HouseholdPresentationTest extends TestCase
     {
         $member = $this->member('Missing', 'Child');
         $member->setRawAttributes(array_replace($member->getAttributes(), ['sex' => null, 'birth_date' => null]));
-        $home = $this->home->setRelation('residents', collect([$member]));
+        $home = $this->home->setRelation('residents', collect([$member]))->setRelation('currentMembers', collect([$member]));
         $source = file_get_contents(resource_path('views/households/head-review.blade.php'));
         $source = substr($source, strpos($source, '<form'));
         $source = substr($source, 0, strrpos($source, '@endsection'));

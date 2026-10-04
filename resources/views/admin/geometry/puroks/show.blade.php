@@ -59,7 +59,7 @@
                             <dd class="mt-1 text-sm text-gray-900">{{ $totalHouseholds ?? 0 }}</dd>
                         </div>
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Total Residents</dt>
+                            <dt class="text-sm font-medium text-gray-500">Current Residents</dt>
                             <dd class="mt-1 text-sm text-gray-900">{{ $totalResidents ?? 0 }}</dd>
                         </div>
                         <div>
@@ -94,7 +94,7 @@
                                             <p class="text-sm font-medium text-gray-900">Household #{{ $household->household_no }}</p>
                                             <p class="text-sm text-gray-500">
                                                 {{ $household->household_address }} · 
-                                                Residents: {{ $household->residents->count() }}
+                                                Current Residents: {{ $household->current_members_count }}
                                                 @if($household->is_social_aid_beneficiary)
                                                     <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                         Social Aid

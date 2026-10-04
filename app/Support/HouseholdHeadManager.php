@@ -20,9 +20,11 @@ class HouseholdHeadManager
                 abort_unless($households->has($id), 404);
                 Gate::authorize('update', $households[$id]);
             }
-            $members = Resident::query()->whereIn('household_id', $householdIds)->orderBy('id')->lockForUpdate()->get();
+            $members = Resident::withTrashed()->whereIn('household_id', $householdIds)->orderBy('id')->lockForUpdate()->get();
             foreach ($households as $household) {
-                $household->setRelation('residents', $members->where('household_id', $household->id)->values());
+                $attached = $members->where('household_id', $household->id)->values();
+                $household->setRelation('residents', $attached);
+                $household->setRelation('currentMembers', $attached->filter->isCurrentPopulation()->values());
             }
 
             return $operation($households);
@@ -46,9 +48,11 @@ class HouseholdHeadManager
     private function applyDesignation(Household $household, Resident $candidate, array $relationships): void
     {
         Gate::authorize('update', $household);
-        $members = $household->residents()->orderBy('id')->lockForUpdate()->get();
+        // Lock historical attachments too; only current members are eligible for structural changes.
+        $attached = $household->residents()->withTrashed()->orderBy('id')->lockForUpdate()->get();
+        $members = $attached->filter->isCurrentPopulation();
         if (! $members->contains('id', $candidate->id)) {
-            throw ValidationException::withMessages(['head_reviews' => 'The new household head must belong to this household.']);
+            throw ValidationException::withMessages(['head_reviews' => 'The new household head must be a current member of this household.']);
         }
         $others = $members->where('id', '!=', $candidate->id);
         foreach (array_keys($relationships) as $id) {
@@ -72,6 +76,7 @@ class HouseholdHeadManager
         }
         $old = $household->toArray();
         $household->update(['head_resident_id' => $candidate->id]);
+        $household->unsetRelation('headResident');
         $audit = AuditLog::logMutation('updated', auth()->user(), $household, $old, $household->fresh()->toArray());
         $audit->update(['metadata' => ['operation' => 'household_head_designated', 'household_id' => $household->id,
             'old_head_resident_id' => $oldHead, 'new_head_resident_id' => $candidate->id,
@@ -89,7 +94,7 @@ class HouseholdHeadManager
 
     private function clearLockedEmpty(Household $household): void
     {
-        if ($household->residents()->exists()) {
+        if (! $household->isVacant()) {
             throw ValidationException::withMessages(['head_reviews' => 'Choose a replacement head and review the remaining household members.']);
         }
         $old = $household->toArray();

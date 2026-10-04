@@ -123,9 +123,9 @@ class BarangayRegistryController extends Controller
     {
         Gate::authorize('view', $barangay);
 
-        $barangay->load(['puroks', 'assignedUsers']);
+        $barangay->load(['puroks.households' => fn ($query) => $query->withCount('currentMembers'), 'assignedUsers']);
         $totalHouseholds = $barangay->total_households;
-        $totalResidents = $barangay->total_residents;
+        $totalResidents = $barangay->puroks->sum(fn ($purok) => $purok->households->sum('current_members_count'));
 
         return view('admin.geometry.barangays.show', compact('barangay', 'totalHouseholds', 'totalResidents'));
     }

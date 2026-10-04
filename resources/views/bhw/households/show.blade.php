@@ -17,10 +17,10 @@
 
             <div class="rounded-[28px] border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-6 py-5">
-                    <h3 class="text-lg font-semibold text-slate-900">Household Members</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Current Household Members</h3>
                 </div>
                 <div class="divide-y divide-slate-200">
-                    @forelse($household->residents as $resident)
+                    @forelse(\App\Support\HouseholdMemberOrdering::ordered($household, $household->currentMembers) as $resident)
                         <div class="flex items-center justify-between gap-4 px-6 py-4">
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">{{ $resident->formal_name }}</p>
@@ -29,10 +29,11 @@
                             <a href="{{ route('bhw.residents.show', $resident) }}" class="text-sm font-medium text-tubigon hover:text-tubigon-hover">Open</a>
                         </div>
                     @empty
-                        <div class="px-6 py-10 text-center text-sm text-slate-500">This household has no linked residents yet.</div>
+                        <div class="px-6 py-10 text-center text-sm text-slate-500">This household has no current members.</div>
                     @endforelse
                 </div>
             </div>
+            @include('households.partials.historical-members', ['household' => $household])
         </section>
 
         <aside class="space-y-6">

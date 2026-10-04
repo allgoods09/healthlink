@@ -34,8 +34,8 @@ class HouseholdController extends Controller
             'Household No.' => 'household_no',
             'Purok' => fn (Household $household) => $household->purok?->display_name,
             'Address' => 'household_address',
-            'Head of Household' => fn (Household $household) => $household->headResident?->formal_name ?? 'Unassigned',
-            'Residents' => 'residents_count',
+            'Head of Household' => fn (Household $household) => $household->currentHeadResident()?->formal_name ?? 'Unassigned',
+            'Residents' => 'current_members_count',
             'Social Aid' => fn (Household $household) => $household->is_social_aid_beneficiary ? 'Yes' : 'No',
             'Status' => fn (Household $household) => $household->is_active ? 'Active' : 'Inactive',
         ];
@@ -51,7 +51,7 @@ class HouseholdController extends Controller
     {
         $query = $this->bhwHouseholdsQuery()
             ->with(['purok', 'headResident'])
-            ->withCount('residents')
+            ->withCount('currentMembers')
             ->latest('id');
 
         if ($request->filled('search')) {
@@ -61,8 +61,11 @@ class HouseholdController extends Controller
                     ->orWhere('household_no', 'like', "%{$search}%")
                     ->orWhere('household_address', 'like', "%{$search}%")
                     ->orWhereHas('headResident', function ($residentQuery) use ($search): void {
-                        $residentQuery->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%");
+                        $residentQuery->currentPopulation()->whereColumn('residents.household_id', 'households.id');
+                        $residentQuery->where(function ($names) use ($search): void {
+                            $names->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%");
+                        });
                     });
             });
         }
@@ -78,7 +81,7 @@ class HouseholdController extends Controller
     {
         $this->ensureHouseholdBelongsToBarangay($household);
 
-        $household->load(['purok.barangay', 'headResident', 'residents']);
+        $household->load(['purok.barangay', 'headResident', 'residents', 'currentMembers']);
 
         return view('bhw.households.show', [
             'household' => $household,

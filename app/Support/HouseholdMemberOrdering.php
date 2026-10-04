@@ -11,9 +11,9 @@ use Illuminate\Support\Str;
 class HouseholdMemberOrdering
 {
     /** Presentation only: retain every supplied member and never mutate the relationship or head FK. */
-    public static function ordered(Household $household): Collection
+    public static function ordered(Household $household, ?Collection $members = null): Collection
     {
-        return $household->residents->sortBy(function (Resident $resident) use ($household) {
+        return ($members ?? $household->residents)->sortBy(function (Resident $resident) use ($household) {
             $category = $household->head_resident_id && (int) $resident->id === (int) $household->head_resident_id
                 ? 0 : HouseholdRelationships::presentationCategory($resident->relationship_to_head);
             $name = Str::lower(Str::ascii(preg_replace('/\s+/u', ' ', trim(
