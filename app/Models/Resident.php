@@ -48,6 +48,7 @@ class Resident extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'lifecycle_version' => 'integer',
         'birth_date' => 'date',
         'moved_in_at' => 'date',
         'moved_out_at' => 'date',
@@ -57,6 +58,8 @@ class Resident extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    protected $hidden = ['lifecycle_version'];
 
     protected static function booted(): void
     {
@@ -90,6 +93,8 @@ class Resident extends Model
     public const STATUS_DECEASED = 'deceased';
 
     public const STATUS_RELOCATED = 'relocated';
+
+    public const STATUS_MOVED_OUT = 'moved_out';
 
     // =============================================
     // RELATIONSHIPS
@@ -416,6 +421,7 @@ class Resident extends Model
             self::STATUS_ACTIVE => 'Active Resident',
             self::STATUS_DECEASED => 'Deceased',
             self::STATUS_RELOCATED => 'Relocated',
+            self::STATUS_MOVED_OUT => 'Moved Out',
             default => 'Unknown',
         };
     }
@@ -472,6 +478,11 @@ class Resident extends Model
     public function isRelocated(): bool
     {
         return $this->resident_status === self::STATUS_RELOCATED;
+    }
+
+    public function isMovedOut(): bool
+    {
+        return $this->resident_status === self::STATUS_MOVED_OUT;
     }
 
     /**
