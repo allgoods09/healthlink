@@ -14,6 +14,10 @@ const css = readFileSync(`${root}/public/build/${manifest['resources/css/app.css
 const js = readFileSync(`${root}/public/build/${manifest['resources/js/app.js'].file}`);
 // Generate the Blade fixture with PORTAL_PROFILE_BROWSER_HTML on PortalSidebarTest, or the existing wizard fixture.
 const rendered = readFileSync(process.env.PORTAL_PROFILE_BROWSER_HTML || process.env.CERTIFICATE_BROWSER_HTML || '/tmp/healthlink-certificate-wizard.html', 'utf8');
+const notificationFixtures = process.env.NOTIFICATION_BROWSER_DIR ? {
+    portal: readFileSync(process.env.NOTIFICATION_BROWSER_DIR + '/secretary.html', 'utf8'),
+    admin: readFileSync(process.env.NOTIFICATION_BROWSER_DIR + '/admin.html', 'utf8'),
+} : null;
 let assetGate = Promise.resolve(), releaseAssets = () => {};
 const holdAssets = () => { assetGate = new Promise(resolve => { releaseAssets = resolve; }); };
 const server = createServer(async (req, res) => {
@@ -23,7 +27,8 @@ const server = createServer(async (req, res) => {
         res.setHeader('Content-Type', 'text/javascript'); return res.end(js);
     }
     res.setHeader('Content-Type', 'text/html');
-    res.end(rendered.replaceAll(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/g, base));
+    const fixture = notificationFixtures?.[req.url === '/notification-admin' ? 'admin' : req.url === '/notification-portal' ? 'portal' : ''] ?? rendered;
+    res.end(fixture.replaceAll(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/g, base));
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -181,6 +186,74 @@ try {
             await wait(`!${state}.sidebarOpen`);
         }
         console.log('Profile browser checks passed: 320/375px sidebar entry, 640/1280px header-only entry, no added overflow, visible footer, native Tab/focus/Enter, preserved close-on-navigation.');
+    }
+
+    if (notificationFixtures) {
+        const key = async (key, modifiers = 0) => {
+            const code = { Enter: 13, ' ': 32, Tab: 9, Escape: 27 }[key];
+            await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key === ' ' ? 'Space' : key, text: key === 'Enter' ? '\r' : key === ' ' ? ' ' : '', modifiers, windowsVirtualKeyCode: code });
+            await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key === ' ' ? 'Space' : key, modifiers, windowsVirtualKeyCode: code });
+        };
+        const trigger = `document.querySelector('[aria-label="Open notifications"]')`;
+        const panel = `document.getElementById(${trigger}.getAttribute('aria-controls'))`;
+        const closed = `${trigger}.getAttribute('aria-expanded')==='false' && getComputedStyle(${panel}).display==='none'`;
+        const opened = `${trigger}.getAttribute('aria-expanded')==='true' && getComputedStyle(${panel}).display!=='none' && getComputedStyle(${panel}).opacity==='1'`;
+        for (const theme of ['portal', 'admin']) {
+            for (const [width, height] of [[320, 812], [360, 812], [375, 812], [390, 812], [1280, 812], [390, 320]]) {
+                await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 640 });
+                await call('Page.navigate', { url: base + '/notification-' + theme });
+                await wait(`window.Alpine && ${trigger}?.parentElement._x_dataStack`);
+                await wait(closed);
+                const panelId = await evaluate(`${trigger}.getAttribute('aria-controls')`);
+                const baselineWidth = await evaluate('document.documentElement.scrollWidth');
+                assert.equal(await evaluate(`${panel}.getAttribute('aria-labelledby')===${panel}.id+'-title'`), true);
+                assert.equal(await evaluate(`${trigger}.getBoundingClientRect().right<=innerWidth`), true);
+                await evaluate(`${trigger}.focus()`); await key('Enter'); await wait(opened);
+                assert.equal(await evaluate(`${trigger}.getAttribute('aria-controls')`), panelId);
+                const bounds = await evaluate(`(() => {
+                    const r=${panel}.getBoundingClientRect();
+                    return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};
+                })()`);
+                assert.ok(bounds.left >= 0 && bounds.right <= width, theme + ' ' + width + 'px horizontal bounds');
+                assert.ok(bounds.top >= 0 && bounds.bottom <= height, theme + ' ' + height + 'px vertical bounds');
+                if (width === 1280) assert.equal(Math.round(bounds.width), 352);
+                assert.equal(await evaluate('document.documentElement.scrollWidth'), baselineWidth, 'No added document overflow');
+                const list = `${panel}.querySelector('.overflow-y-auto')`;
+                assert.equal(await evaluate(`${list}.scrollHeight>${list}.clientHeight`), true);
+                await evaluate(`${list}.scrollTop=${list}.scrollHeight`);
+                assert.equal(await evaluate(`(() => {
+                    const last=${list}.querySelector('form:last-child button').getBoundingClientRect();
+                    const footer=${panel}.querySelector('a').getBoundingClientRect();
+                    return last.bottom<=${panel}.getBoundingClientRect().bottom && footer.bottom<=innerHeight;
+                })()`), true);
+                await evaluate(`${trigger}.focus()`); await key('Tab');
+                assert.equal(await evaluate(`document.activeElement===${panel}.querySelector('button')`), true);
+                await key('Tab', 8);
+                assert.equal(await evaluate(`document.activeElement===${trigger}`), true);
+                // Normal Tab must leave the disclosure after its seven buttons and View All link.
+                for (let i = 0; i < 9; i++) await key('Tab');
+                assert.equal(await evaluate(`${trigger}.parentElement.contains(document.activeElement)`), false);
+                await key('Escape'); await wait(closed);
+                assert.equal(await evaluate(`document.activeElement===${trigger}`), true);
+                await key(' '); await wait(opened);
+                await key(' '); await wait(closed);
+                await evaluate(`${trigger}.click()`); await wait(opened);
+                await evaluate(`document.body.insertAdjacentHTML('beforeend','<button id="notification-fixture-outside" style="position:fixed;bottom:0;left:0;z-index:100">Outside</button>')`);
+                const outside = await evaluate(`(() => { const r=document.getElementById('notification-fixture-outside').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}; })()`);
+                await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...outside, button: 'left', clickCount: 1 });
+                await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...outside, button: 'left', clickCount: 1 });
+                await wait(closed);
+                assert.equal(await evaluate('document.activeElement.id'), 'notification-fixture-outside');
+                await key('Escape');
+                assert.equal(await evaluate('document.activeElement.id'), 'notification-fixture-outside', 'Closed Escape must not steal focus');
+            }
+            await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+            await evaluate(`${trigger}.focus()`); await key('Enter'); await wait(opened);
+            assert.equal(await evaluate(`getComputedStyle(${panel}).transitionDuration`), '0s');
+            await key('Escape'); await wait(closed);
+            await call('Emulation.setEmulatedMedia', { features: [] });
+        }
+        console.log('Notification browser checks passed: portal/Admin at 320/360/375/390/1280px and 320px height; stable controls, Enter/Space, Escape/focus, Tab exit, outside click, bounds, no added overflow, internal scrolling and reduced motion.');
     }
 
 } finally {
