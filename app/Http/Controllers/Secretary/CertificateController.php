@@ -103,12 +103,12 @@ class CertificateController extends Controller
                 'barangay_id' => $barangay->id, 'signatory' => $officialSecretary], JSON_THROW_ON_ERROR)),
             'residents' => $this->secretaryResidentsQuery()
                 ->with('household.purok')
-                ->where('resident_status', Resident::STATUS_ACTIVE)
-                ->active()
+                ->currentPopulation()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get(),
             'households' => $this->secretaryHouseholdsQuery()
+                ->whereHas('currentMembers')
                 ->with(['purok', 'headResident'])
                 ->active()
                 ->orderBy('household_no')
@@ -267,9 +267,9 @@ class CertificateController extends Controller
     private function resolveActiveRecipient(array $data): Resident|Household
     {
         if (($data['recipient_type'] ?? null) === BarangayCertificate::RECIPIENT_RESIDENT) {
-            $recipient = $this->secretaryResidentsQuery()->active()->where('resident_status', Resident::STATUS_ACTIVE)->find($data['resident_id']);
+            $recipient = $this->secretaryResidentsQuery()->currentPopulation()->find($data['resident_id']);
         } else {
-            $recipient = $this->secretaryHouseholdsQuery()->active()->with('headResident')->find($data['household_id']);
+            $recipient = $this->secretaryHouseholdsQuery()->active()->whereHas('currentMembers')->with('headResident')->find($data['household_id']);
         }
         if (! $recipient) {
             throw ValidationException::withMessages([$data['recipient_type'].'_id' => 'This recipient is no longer an available active record in your assigned barangay. Select it again.']);

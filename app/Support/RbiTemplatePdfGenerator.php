@@ -34,6 +34,7 @@ class RbiTemplatePdfGenerator
         $templateSize = $pdf->getTemplateSize($templateId);
 
         foreach (Collection::make($residents) as $resident) {
+            CurrentRbiEligibility::ensureResident($resident);
             $pdf->AddPage($templateSize['orientation'], [$templateSize['width'], $templateSize['height']]);
             $pdf->useTemplate($templateId);
             $this->drawResidentPage($pdf, $resident, $context);
@@ -57,13 +58,11 @@ class RbiTemplatePdfGenerator
         $templateSize = $pdf->getTemplateSize($templateId);
 
         foreach (Collection::make($households) as $household) {
-            $rows = HouseholdMemberOrdering::ordered($household)
+            CurrentRbiEligibility::ensureHousehold($household);
+            $household->load('currentMembers.socioEconomicProfile');
+            $rows = HouseholdMemberOrdering::ordered($household, $household->currentMembers)
                 ->values()
                 ->chunk(12);
-
-            if ($rows->isEmpty()) {
-                $rows = collect([collect()]);
-            }
 
             $lastChunkIndex = $rows->count() - 1;
 
@@ -176,7 +175,7 @@ class RbiTemplatePdfGenerator
         $this->writeLineText($pdf, strtoupper((string) ($barangay?->municipality ?? 'TUBIGON')), 324, 305, 432, scale: self::HOUSEHOLD_SCALE, size: 10, lift: 3.2);
         $this->writeLineText($pdf, strtoupper((string) ($barangay?->name ?? '')), 324, 339, 432, scale: self::HOUSEHOLD_SCALE, size: 10, lift: 3.2);
         $this->writeLineText($pdf, $household->household_address, 324, 372, 432, scale: self::HOUSEHOLD_SCALE, size: 8.4, lift: 4.1);
-        $this->writeLineText($pdf, (string) max($household->residents->count(), 1), 338, 405, 418, scale: self::HOUSEHOLD_SCALE, size: 10, lift: 2.9);
+        $this->writeLineText($pdf, (string) $household->currentMembers->count(), 338, 405, 418, scale: self::HOUSEHOLD_SCALE, size: 10, lift: 2.9);
 
         $rowBounds = [
             [582, 608],
@@ -330,7 +329,7 @@ class RbiTemplatePdfGenerator
 
     private function resolveHouseholdPreparedBy(Household $household): ?string
     {
-        return $household->headResident?->full_name
+        return $household->currentHeadResident()?->full_name
             ?: $this->resolveCreatedByName(Household::class, $household->id)
             ?: Auth::user()?->name;
     }

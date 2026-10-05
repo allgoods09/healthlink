@@ -67,7 +67,7 @@ class DocumentController extends Controller
 
         if ($filters['document_type'] === 'household_rbi') {
             $records = $this->householdQuery($filters)
-                ->with(['purok.barangay', 'headResident', 'residents.socioEconomicProfile'])
+                ->with(['purok.barangay', 'headResident', 'currentMembers.socioEconomicProfile'])
                 ->get();
 
             if ($records->isEmpty()) {
@@ -155,21 +155,20 @@ class DocumentController extends Controller
             'purok_id' => ['nullable', 'integer'],
             'household_id' => ['nullable', 'integer'],
             'sex' => ['nullable', 'in:Male,Female'],
-            'resident_status' => ['nullable', 'in:active,deceased,relocated'],
-            'record_status' => ['nullable', 'in:all,active,inactive'],
+            'record_status' => $request->input('document_type', 'resident_rbi') === 'household_rbi' ? ['nullable', 'in:all,active,inactive'] : ['exclude'],
             'social_aid' => ['nullable', 'in:all,yes,no'],
             'age_min' => ['nullable', 'integer', 'min:0', 'max:150'],
             'age_max' => ['nullable', 'integer', 'min:0', 'max:150'],
         ]) + [
             'document_type' => $request->input('document_type', 'resident_rbi'),
-            'record_status' => $request->input('record_status', 'active'),
+            'record_status' => $request->input('document_type', 'resident_rbi') === 'household_rbi' ? $request->input('record_status', 'active') : 'all',
             'social_aid' => $request->input('social_aid', 'all'),
         ];
     }
 
     private function residentQuery(array $filters): Builder
     {
-        $query = Resident::query()->orderBy('last_name')->orderBy('first_name');
+        $query = Resident::currentPopulation()->orderBy('last_name')->orderBy('first_name');
 
         if (! empty($filters['barangay_id'])) {
             $query->whereHas('household.purok', fn (Builder $builder) => $builder->where('barangay_id', $filters['barangay_id']));
@@ -187,14 +186,6 @@ class DocumentController extends Controller
             $query->where('sex', $filters['sex']);
         }
 
-        if (! empty($filters['resident_status'])) {
-            $query->where('resident_status', $filters['resident_status']);
-        }
-
-        if (($filters['record_status'] ?? 'active') !== 'all') {
-            $query->where('is_active', ($filters['record_status'] ?? 'active') === 'active');
-        }
-
         if (isset($filters['age_min']) && $filters['age_min'] !== null) {
             $query->whereDate('birth_date', '<=', now()->subYears((int) $filters['age_min'])->endOfDay());
         }
@@ -208,7 +199,7 @@ class DocumentController extends Controller
 
     private function householdQuery(array $filters): Builder
     {
-        $query = Household::query()->orderBy('purok_id')->orderBy('household_no');
+        $query = Household::query()->whereHas('currentMembers')->orderBy('purok_id')->orderBy('household_no');
 
         if (! empty($filters['barangay_id'])) {
             $query->whereHas('purok', fn (Builder $builder) => $builder->where('barangay_id', $filters['barangay_id']));
@@ -236,6 +227,7 @@ class DocumentController extends Controller
     private function availableHouseholds(array $filters)
     {
         $query = Household::query()
+            ->whereHas('currentMembers')
             ->with('purok')
             ->active()
             ->orderBy('household_no');

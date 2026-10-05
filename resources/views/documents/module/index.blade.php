@@ -80,9 +80,9 @@
                         </div>
 
                         <div class="grid gap-4 sm:grid-cols-2">
-                            <div>
+                            <div x-show="documentType === 'household_rbi'" x-cloak>
                                 <label for="record_status" class="block text-sm font-medium text-slate-700">Record Status</label>
-                                <select id="record_status" name="record_status" class="mt-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-tubigon focus:ring-tubigon">
+                                <select id="record_status" name="record_status" :disabled="documentType !== 'household_rbi'" class="mt-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-tubigon focus:ring-tubigon">
                                     <option value="active" @selected(($filters['record_status'] ?? 'active') === 'active')>Active only</option>
                                     <option value="inactive" @selected(($filters['record_status'] ?? 'active') === 'inactive')>Inactive only</option>
                                     <option value="all" @selected(($filters['record_status'] ?? 'active') === 'all')>All</option>
@@ -110,15 +110,6 @@
 
                         <div x-show="documentType === 'resident_rbi'" x-cloak class="grid gap-4 sm:grid-cols-3">
                             <div>
-                                <label for="resident_status" class="block text-sm font-medium text-slate-700">Resident Status</label>
-                                <select id="resident_status" name="resident_status" class="mt-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-tubigon focus:ring-tubigon">
-                                    <option value="">All</option>
-                                    <option value="active" @selected(($filters['resident_status'] ?? null) === 'active')>Active</option>
-                                    <option value="deceased" @selected(($filters['resident_status'] ?? null) === 'deceased')>Deceased</option>
-                                    <option value="relocated" @selected(($filters['resident_status'] ?? null) === 'relocated')>Relocated</option>
-                                </select>
-                            </div>
-                            <div>
                                 <label for="age_min" class="block text-sm font-medium text-slate-700">Min Age</label>
                                 <input id="age_min" name="age_min" type="number" min="0" max="150" value="{{ $filters['age_min'] ?? '' }}" class="mt-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-tubigon focus:ring-tubigon">
                             </div>
@@ -130,6 +121,7 @@
                     </div>
 
                     <div class="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5">
+                        <p class="text-sm text-slate-500">Current residents only. Household forms require at least one current member.</p>
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900">Export Summary</h3>
                             <p class="mt-2 text-sm leading-7 text-slate-600">

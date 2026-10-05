@@ -155,7 +155,9 @@ class HouseholdPresentationTest extends TestCase
             $text->mustRun();
             $pages = array_values(array_filter(explode("\f", $text->getOutput()), fn ($page) => trim($page) !== ''));
             $this->assertCount(2, $pages);
-            $ordered = HouseholdMemberOrdering::ordered($this->home)->chunk(12);
+            $ordered = HouseholdMemberOrdering::ordered($this->home, $this->home->currentMembers)->chunk(12);
+            $this->assertStringNotContainsString('Child13', $text->getOutput());
+            $this->assertStringNotContainsString('Child14', $text->getOutput());
             foreach ($pages as $index => $page) {
                 $previous = -1;
                 foreach ($ordered[$index] as $resident) {

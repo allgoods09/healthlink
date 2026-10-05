@@ -8,12 +8,12 @@
     $steps = [1 => 'Document', 2 => 'Coverage', 3 => 'Filters', 4 => 'Review'];
     $isHousehold = $state['document_type'] === 'household_rbi';
     $fields = $state;
-    foreach ($isHousehold ? ['sex', 'resident_status', 'age_min', 'age_max'] : ['social_aid'] as $field) {
+    foreach ($isHousehold ? ['sex', 'resident_status', 'age_min', 'age_max'] : ['social_aid', 'record_status', 'resident_status'] as $field) {
         unset($fields[$field]);
     }
     $visibleFields = match ($step) {
         1 => ['document_type'], 2 => ['coverage', 'purok_ids', 'household_ids'],
-        3 => ['record_status', 'social_aid', 'sex', 'resident_status', 'age_min', 'age_max'], default => [],
+        3 => ['record_status', 'social_aid', 'sex', 'age_min', 'age_max'], default => [],
     };
     $unit = $isHousehold ? 'households' : 'residents';
 @endphp
@@ -123,6 +123,8 @@
                     </div>
                 @else
                     <div class="grid max-w-3xl gap-5 sm:grid-cols-2">
+                        <p class="text-sm text-slate-500 sm:col-span-2">Current residents only. Household forms require at least one current member.</p>
+                        @if($isHousehold)
                         <div>
                             <label for="record_status" class="block text-sm font-medium text-slate-700">{{ $isHousehold ? 'Household' : 'Resident' }} Record Status</label>
                             <select id="record_status" name="record_status" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-tubigon focus:ring-tubigon">
@@ -132,6 +134,7 @@
                             </select>
                             <x-input-error :messages="$errors->get('record_status')" class="mt-2" />
                         </div>
+                        @endif
                         @if($isHousehold)
                             <div>
                                 <label for="social_aid" class="block text-sm font-medium text-slate-700">Social Aid Beneficiary</label>
@@ -151,15 +154,6 @@
                                     @endforeach
                                 </select>
                                 <x-input-error :messages="$errors->get('sex')" class="mt-2" />
-                            </div>
-                            <div>
-                                <label for="resident_status" class="block text-sm font-medium text-slate-700">Resident Lifecycle Status</label>
-                                <select id="resident_status" name="resident_status" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-tubigon focus:ring-tubigon">
-                                    @foreach(['' => 'All', 'active' => 'Active', 'deceased' => 'Deceased', 'relocated' => 'Relocated'] as $value => $label)
-                                        <option value="{{ $value }}" @selected($state['resident_status'] === $value)>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                                <x-input-error :messages="$errors->get('resident_status')" class="mt-2" />
                             </div>
                             @foreach(['age_min' => 'Minimum Age', 'age_max' => 'Maximum Age'] as $field => $label)
                                 <div>
@@ -201,7 +195,7 @@
                 </dd></div>
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wider text-slate-500">Output</dt><dd class="mt-2 text-sm text-slate-700">One locked RBI PDF download. {{ $isHousehold ? 'Households with more than 12 members use continuation pages.' : $previewCount.' individual pages.' }}</dd></div>
             </dl>
-            @if($isHousehold)<p class="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Household forms include the household's recorded non-deleted members.</p>@endif
+            @if($isHousehold)<p class="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Household forms include only current household members.</p>@endif
             <p class="mt-5 text-sm text-slate-500">This review reflects current records. Generation checks the selection again; records and official names may have changed since review.</p>
             @if($previewCount === 0)<p role="status" class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">No {{ $unit }} match this selection. Go Back to adjust coverage or filters.</p>@endif
             <div class="mt-6 flex flex-wrap justify-between gap-3 border-t border-slate-200 pt-5">

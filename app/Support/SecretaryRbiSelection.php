@@ -59,13 +59,13 @@ class SecretaryRbiSelection
             return $selection;
         }
 
-        $rules = ['record_status' => ['nullable', 'in:all,active,inactive']];
+        $rules = [];
         if ($selection['document_type'] === 'household_rbi') {
+            $rules['record_status'] = ['nullable', 'in:all,active,inactive'];
             $rules['social_aid'] = ['nullable', 'in:all,yes,no'];
         } else {
             $rules += [
                 'sex' => ['nullable', 'in:Male,Female'],
-                'resident_status' => ['nullable', 'in:active,deceased,relocated'],
                 'age_min' => ['nullable', 'integer', 'min:0', 'max:150'],
                 'age_max' => ['nullable', 'integer', 'min:0', 'max:150'],
             ];
@@ -80,8 +80,8 @@ class SecretaryRbiSelection
             }
         });
         $filters = $validator->validate();
-        $filters['record_status'] = $filters['record_status'] ?? 'active';
         if ($selection['document_type'] === 'household_rbi') {
+            $filters['record_status'] = $filters['record_status'] ?? 'active';
             $filters['social_aid'] = $filters['social_aid'] ?? 'all';
         }
 
@@ -97,8 +97,8 @@ class SecretaryRbiSelection
     {
         $isHousehold = $selection['document_type'] === 'household_rbi';
         $query = $isHousehold
-            ? $this->households($barangayId)->orderBy('purok_id')->orderBy('household_no')
-            : Resident::query()->whereHas('household.purok', fn (Builder $query) => $query->where('barangay_id', $barangayId))
+            ? $this->households($barangayId)->whereHas('currentMembers')->orderBy('purok_id')->orderBy('household_no')
+            : Resident::currentPopulation()->whereHas('household.purok', fn (Builder $query) => $query->where('barangay_id', $barangayId))
                 ->orderBy('last_name')->orderBy('first_name');
 
         if ($selection['coverage'] === 'puroks') {
@@ -110,7 +110,7 @@ class SecretaryRbiSelection
         } elseif ($selection['coverage'] === 'households') {
             $query->whereIn($isHousehold ? 'id' : 'household_id', $selection['household_ids']);
         }
-        if ($selection['record_status'] !== 'all') {
+        if ($isHousehold && $selection['record_status'] !== 'all') {
             $query->where('is_active', $selection['record_status'] === 'active');
         }
         if ($isHousehold) {
@@ -118,7 +118,7 @@ class SecretaryRbiSelection
                 $query->where('is_social_aid_beneficiary', $selection['social_aid'] === 'yes');
             }
         } else {
-            foreach (['sex', 'resident_status'] as $field) {
+            foreach (['sex'] as $field) {
                 if (isset($selection[$field])) {
                     $query->where($field, $selection[$field]);
                 }
@@ -136,15 +136,14 @@ class SecretaryRbiSelection
 
     public function filterLabels(array $selection): array
     {
-        $labels = [
-            ($selection['document_type'] === 'household_rbi' ? 'Household' : 'Resident').' Record Status' => ucfirst($selection['record_status']).($selection['record_status'] === 'all' ? ' records' : ' only'),
-        ];
+        $labels = ['Eligibility' => 'Current residents only; household forms require current members'];
         if ($selection['document_type'] === 'household_rbi') {
+            $labels['Household Record Status'] = ucfirst($selection['record_status']).($selection['record_status'] === 'all' ? ' records' : ' only');
             $labels['Social Aid Beneficiary'] = match ($selection['social_aid']) {
                 'yes' => 'Beneficiary only', 'no' => 'Non-beneficiary only', default => 'All households',
             };
         } else {
-            $labels += ['Sex' => $selection['sex'] ?? 'All', 'Resident Lifecycle Status' => ucfirst($selection['resident_status'] ?? 'all')];
+            $labels['Sex'] = $selection['sex'] ?? 'All';
             foreach (['age_min' => 'Minimum Age', 'age_max' => 'Maximum Age'] as $key => $label) {
                 if (isset($selection[$key])) {
                     $labels[$label] = $selection[$key].' years';

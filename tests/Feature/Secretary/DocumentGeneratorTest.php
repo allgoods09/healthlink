@@ -20,7 +20,7 @@ class DocumentGeneratorTest extends TestCase
     {
         $f = $this->fixture();
         $this->assertDataset(['document_type' => 'household_rbi'], [$f['households'][0]->id, $f['households'][1]->id]);
-        $this->assertDataset(['document_type' => 'resident_rbi'], [$f['residents'][0]->id, $f['residents'][2]->id, $f['residents'][3]->id]);
+        $this->assertDataset(['document_type' => 'resident_rbi'], [$f['residents'][0]->id, $f['residents'][2]->id, $f['residents'][3]->id, $f['residents'][4]->id]);
     }
 
     public function test_single_and_multiple_puroks_use_or_within_scoped_coverage(): void
@@ -48,7 +48,7 @@ class DocumentGeneratorTest extends TestCase
         $ids = [$f['households'][0]->id, $f['households'][1]->id];
         $this->assertDataset(['document_type' => 'household_rbi', 'coverage' => 'households', 'household_ids' => $ids, 'social_aid' => 'yes'], [$ids[0]]);
         $this->assertDataset(['document_type' => 'resident_rbi', 'coverage' => 'puroks', 'purok_ids' => [$f['puroks'][0]->id, $f['puroks'][1]->id], 'sex' => 'Female', 'age_min' => 18, 'age_max' => 59, 'resident_status' => 'active'], [$f['residents'][3]->id]);
-        $this->assertDataset(['document_type' => 'resident_rbi', 'coverage' => 'households', 'household_ids' => [$ids[0]], 'record_status' => 'inactive', 'resident_status' => 'deceased'], [$f['residents'][1]->id]);
+        $this->assertDataset(['document_type' => 'resident_rbi', 'coverage' => 'households', 'household_ids' => [$ids[0]], 'record_status' => 'inactive', 'resident_status' => 'deceased'], [$f['residents'][0]->id, $f['residents'][2]->id]);
         $this->assertDataset(['document_type' => 'household_rbi', 'record_status' => 'inactive'], [$f['households'][2]->id]);
     }
 
@@ -103,7 +103,7 @@ class DocumentGeneratorTest extends TestCase
         $f['barangay']->officials()->where('role_key', 'barangay_secretary')->update(['official_name' => 'Elena Secretary']);
         $f['barangay']->officials()->where('role_key', 'punong_barangay')->update(['official_name' => 'Pedro Captain']);
         $this->review(['document_type' => 'household_rbi'])->assertSee($f['user']->display_name)->assertSee('Pedro Captain')
-            ->assertSee("Household forms include the household's recorded non-deleted members.", false);
+            ->assertSee('Household forms include only current household members.', false);
         $this->review(['document_type' => 'resident_rbi'])->assertSee($f['user']->display_name)->assertDontSee('Pedro Captain');
         $f['barangay']->officials()->where('role_key', 'barangay_secretary')->delete();
         $count = $f['barangay']->officials()->count();
@@ -144,7 +144,7 @@ class DocumentGeneratorTest extends TestCase
         $f = $this->fixture();
         $review = $this->review(['coverage' => 'households', 'household_ids' => [$f['households'][0]->id]]);
         $this->assertSame(2, $review->viewData('previewCount'));
-        $f['residents'][0]->update(['is_active' => false]);
+        $f['residents'][0]->update(['resident_status' => 'moved_out']);
         $this->mock(RbiTemplatePdfGenerator::class)->shouldReceive('generateResidents')->once()
             ->withArgs(fn ($records) => $records->pluck('id')->all() === [$f['residents'][2]->id])->andReturn('%PDF-test');
         $this->get(route('secretary.documents.export', ['review' => $review->viewData('reviewToken')]))->assertOk();
@@ -177,7 +177,7 @@ class DocumentGeneratorTest extends TestCase
         $f = $this->fixture();
         $review = $this->review(['barangay_id' => $f['foreignHousehold']->purok->barangay_id,
             'purok_ids' => [$f['foreignHousehold']->purok_id], 'household_ids' => [$f['foreignHousehold']->id]]);
-        $this->assertSame(3, $review->viewData('previewCount'));
+        $this->assertSame(4, $review->viewData('previewCount'));
         $this->assertSame($f['barangay']->id, $review->viewData('barangay')->id);
         $this->assertArrayNotHasKey('purok_ids', $review->viewData('selection'));
         $this->assertArrayNotHasKey('household_ids', $review->viewData('selection'));
@@ -205,15 +205,16 @@ class DocumentGeneratorTest extends TestCase
             ->assertSee('name="sex" value="Female"', false)->assertSee('name="step" value="1"', false);
     }
 
-    public function test_form_a_preserves_all_nondeleted_members_and_original_order(): void
+    public function test_form_a_uses_current_members_and_preserves_historical_attachments(): void
     {
         $f = $this->fixture();
         $deleted = $this->resident($f['households'][0], 'Deleted', 'Female', 5);
         $deleted->delete();
         $review = $this->review(['document_type' => 'household_rbi', 'coverage' => 'households', 'household_ids' => [$f['households'][0]->id]]);
         $this->mock(RbiTemplatePdfGenerator::class)->shouldReceive('generateHouseholds')->once()->withArgs(function ($records) use ($f, $deleted) {
-            $members = $records->first()->residents->pluck('id')->all();
-            $this->assertEqualsCanonicalizing(array_map(fn ($r) => $r->id, array_slice($f['residents'], 0, 3)), $members);
+            $members = $records->first()->currentMembers->pluck('id')->all();
+            $this->assertEqualsCanonicalizing([$f['residents'][0]->id, $f['residents'][2]->id], $members);
+            $this->assertContains($f['residents'][1]->id, $records->first()->residents->pluck('id')->all());
             $this->assertNotContains($deleted->id, $members);
 
             return true;

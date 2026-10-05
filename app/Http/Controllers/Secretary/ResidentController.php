@@ -15,6 +15,7 @@ use App\Models\Household;
 use App\Models\Resident;
 use App\Models\ResidentSocioEconomicProfile;
 use App\Support\BarangayOfficialsRegistry;
+use App\Support\CurrentRbiEligibility;
 use App\Support\ExportAudit;
 use App\Support\ExportDownload;
 use App\Support\HouseholdHeadReview;
@@ -126,6 +127,7 @@ class ResidentController extends Controller
         Gate::authorize('view', $resident);
         $this->ensureResidentBelongsToBarangay($resident);
 
+        CurrentRbiEligibility::ensureResident($resident);
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
         $barangay = $resident->household->purok->barangay;
         $officials = $officialsRegistry->keyed($barangay);
@@ -155,6 +157,7 @@ class ResidentController extends Controller
         Gate::authorize('view', $resident);
         $this->ensureResidentBelongsToBarangay($resident);
 
+        CurrentRbiEligibility::ensureResident($resident);
         $resident->load(['household.purok.barangay', 'socioEconomicProfile']);
         $barangay = $resident->household->purok->barangay;
         $officials = $officialsRegistry->keyed($barangay);

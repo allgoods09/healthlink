@@ -40,7 +40,7 @@ class CertificateWizardTest extends TestCase
 
     public static function residentStates(): array
     {
-        return ['inactive' => ['inactive'], 'deceased' => ['deceased'], 'relocated' => ['relocated'],
+        return ['moved_out' => ['moved_out'], 'deceased' => ['deceased'], 'relocated' => ['relocated'],
             'deleted' => ['deleted'], 'foreign' => ['foreign']];
     }
 
@@ -51,7 +51,6 @@ class CertificateWizardTest extends TestCase
         $payload = $this->payload($actor, $resident);
         if ($state === 'foreign') [, $resident] = $this->fixture();
         elseif ($state === 'deleted') $resident->delete();
-        elseif ($state === 'inactive') $resident->update(['is_active' => false]);
         else $resident->update(['resident_status' => $state]);
         $payload['resident_id'] = $resident->id;
         $this->post(route('secretary.certificates.store'), $payload)->assertSessionHasErrors('resident_id');
@@ -155,7 +154,7 @@ class CertificateWizardTest extends TestCase
         $payload = $this->payload($actor, $resident) + ['use_printed_name' => '1', 'issued_to_name' => 'Override'];
         $this->mock(BarangayOfficialsRegistry::class, function ($mock) use ($resident, $actor) {
             $mock->shouldReceive('resolvedSecretaryName')->once()->andReturnUsing(function () use ($resident, $actor) {
-                $resident->update(['is_active' => false]);
+                $resident->update(['resident_status' => 'moved_out']);
                 return $actor->display_name;
             });
         });

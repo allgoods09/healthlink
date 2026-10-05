@@ -66,8 +66,8 @@ class IssueBarangayCertificateRequest extends FormRequest
                     $validator->errors()->add('resident_id', 'You can only issue certificates for residents in your assigned barangay.');
                 }
 
-                if ($resident->trashed() || ! $resident->is_active || $resident->resident_status !== Resident::STATUS_ACTIVE) {
-                    $validator->errors()->add('resident_id', 'Certificates may only be issued to active resident records.');
+                if (! $resident->isCurrentPopulation()) {
+                    $validator->errors()->add('resident_id', 'Certificates may only be issued to current residents.');
                 }
             }
 
@@ -90,6 +90,9 @@ class IssueBarangayCertificateRequest extends FormRequest
 
                 if ($household->trashed() || ! $household->is_active) {
                     $validator->errors()->add('household_id', 'Certificates may only be issued to active households.');
+                }
+                if ($household->isVacant()) {
+                    $validator->errors()->add('household_id', 'This household currently has no registered members.');
                 }
             }
         });

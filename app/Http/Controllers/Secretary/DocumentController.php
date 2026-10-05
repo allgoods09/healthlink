@@ -39,7 +39,7 @@ class DocumentController extends Controller
         }
         $state = $this->draftState($request->all());
         $puroks = $this->secretaryPuroksQuery()->orderBy('purok_number')->get();
-        $households = $selector->households($barangay->id)->with('purok')->orderBy('purok_id')->orderBy('household_no')->get();
+        $households = $selector->households($barangay->id)->whereHas('currentMembers')->with('purok')->orderBy('purok_id')->orderBy('household_no')->get();
         $officials = $barangay->officials()->get()->keyBy('role_key');
         $count = $step === 4 ? $selector->query($selection, $barangay->id)->count() : null;
         $reviewToken = $step === 4 && $count > 0 ? Crypt::encryptString(json_encode([
@@ -100,7 +100,7 @@ class DocumentController extends Controller
 
         if ($filters['document_type'] === 'household_rbi') {
             $records = $selector->query($filters, $barangay->id)
-                ->with(['purok.barangay', 'headResident', 'residents.socioEconomicProfile'])
+                ->with(['purok.barangay', 'headResident', 'currentMembers.socioEconomicProfile'])
                 ->get();
 
             if ($records->isEmpty()) {
