@@ -12,8 +12,8 @@ assert.ok(browserBin, 'Set BROWSER_BIN to an installed Chromium-compatible brows
 const manifest = JSON.parse(readFileSync(`${root}/public/build/manifest.json`));
 const css = readFileSync(`${root}/public/build/${manifest['resources/css/app.css'].file}`);
 const js = readFileSync(`${root}/public/build/${manifest['resources/js/app.js'].file}`);
-// Generate the actual Blade fixture with CERTIFICATE_BROWSER_HTML set on the wizard render test.
-const rendered = readFileSync(process.env.CERTIFICATE_BROWSER_HTML || '/tmp/healthlink-certificate-wizard.html', 'utf8');
+// Generate the Blade fixture with PORTAL_PROFILE_BROWSER_HTML on PortalSidebarTest, or the existing wizard fixture.
+const rendered = readFileSync(process.env.PORTAL_PROFILE_BROWSER_HTML || process.env.CERTIFICATE_BROWSER_HTML || '/tmp/healthlink-certificate-wizard.html', 'utf8');
 let assetGate = Promise.resolve(), releaseAssets = () => {};
 const holdAssets = () => { assetGate = new Promise(resolve => { releaseAssets = resolve; }); };
 const server = createServer(async (req, res) => {
@@ -145,6 +145,43 @@ try {
     assert.equal(await evaluate('sessionStorage.getItem("healthlink.sidebar.scroll.portal-secretary")'), saved);
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     console.log('Sidebar browser fixture passed: delayed-JS pre-paint default/open/collapsed/storage failure, matching Alpine handoff, real Certificate portal context, full-document scroll restoration, collapse/navigate/reopen, clamping and active visibility, unchanged window scroll, mobile isolation.');
+
+    if (process.env.PORTAL_PROFILE_BROWSER_HTML) {
+        for (const width of [320, 375, 640, 1280]) {
+            await call('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: width < 640 });
+            await navigate(); releaseAssets(); await wait('document.body.hasAttribute("data-sidebar-ready")');
+            const mobileLink = 'document.querySelector("[data-mobile-profile-link]")';
+            const headerLink = `document.querySelector('[data-sidebar-content] > nav a[href$="/profile"]')`;
+            assert.equal(await evaluate(`getComputedStyle(${mobileLink}).display === 'none'`), width >= 640);
+            assert.equal(await evaluate(`getComputedStyle(${headerLink}).display === 'none'`), width < 640);
+            // Compare against the same shell without the new link, including any existing narrow-header overflow.
+            assert.equal(await evaluate(`(() => {
+                const link=${mobileLink}, original=document.documentElement.scrollWidth;
+                link.hidden=true; link.style.display='none';
+                const baseline=document.documentElement.scrollWidth;
+                link.hidden=false; link.style.removeProperty('display');
+                return original === baseline;
+            })()`), true, `Profile must not introduce overflow at ${width}px`);
+            if (width >= 640) continue;
+            await evaluate(`if (!${state}.sidebarOpen) document.querySelector('[aria-label="Toggle sidebar"]').click();`);
+            await wait(`${state}.sidebarOpen && ${mobileLink}.getClientRects().length > 0`);
+            assert.equal(await evaluate(`(() => {
+                const r=${mobileLink}.getBoundingClientRect();
+                return r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight;
+            })()`), true);
+            await evaluate(`document.querySelector('[aria-label="Close sidebar"]').focus()`);
+            await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+            await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+            assert.equal(await evaluate(`document.activeElement === ${mobileLink}`), true);
+            assert.equal(await evaluate(`getComputedStyle(${mobileLink}).outlineStyle !== 'none'`), true);
+            // Keep the fixture on this document while exercising native keyboard activation and existing close-on-nav.
+            await evaluate(`${mobileLink}.addEventListener('click',e=>e.preventDefault(),{once:true})`);
+            await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+            await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+            await wait(`!${state}.sidebarOpen`);
+        }
+        console.log('Profile browser checks passed: 320/375px sidebar entry, 640/1280px header-only entry, no added overflow, visible footer, native Tab/focus/Enter, preserved close-on-navigation.');
+    }
 
 } finally {
     socket?.close();

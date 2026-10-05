@@ -252,6 +252,9 @@
                         </svg>
                     </button>
                 </div>
+                <a href="{{ route('profile.edit') }}" data-mobile-profile-link class="mt-3 flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-white/85 transition hover:bg-white/12 hover:text-white focus:underline sm:hidden">
+                    Profile
+                </a>
             </div>
         </aside>
 
