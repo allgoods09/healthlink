@@ -100,7 +100,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">No field draft packages matched the current filters.</td>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">{{ request()->anyFilled(['search', 'purok_id', 'status']) ? 'No field drafts match the current search or filters.' : 'No field drafts are available yet.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

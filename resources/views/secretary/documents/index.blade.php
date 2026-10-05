@@ -99,7 +99,7 @@
                             <legend class="px-2 text-sm font-semibold text-slate-800">Households (for Selected Households coverage)</legend>
                             <div x-cloak class="mb-4">
                                 <label for="household_search" class="block text-sm font-medium text-slate-700">Search household number or purok</label>
-                                <input id="household_search" type="search" x-model="query" @input="page = 1" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-tubigon focus:ring-tubigon" autocomplete="off">
+                                <input id="household_search" type="search" x-model="query" @input="updateSearch()" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-tubigon focus:ring-tubigon" autocomplete="off">
                             </div>
                             <p class="mb-3 text-sm font-medium text-slate-700" role="status" x-text="selected.length + ' households selected'">{{ count($state['household_ids']) }} households selected</p>
                             <div class="max-h-80 space-y-3 overflow-y-auto">
@@ -114,9 +114,9 @@
                                 <p x-cloak x-show="matches.length === 0" class="text-sm text-slate-500">No households match your search.</p>
                             </div>
                             <div x-cloak class="mt-4 flex flex-wrap items-center justify-between gap-3">
-                                <button type="button" @click="page--" :disabled="page <= 1" class="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-40">Previous</button>
+                                <button type="button" @click="changePage(-1)" :disabled="page <= 1" class="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-40">Previous</button>
                                 <span class="text-sm text-slate-500" x-text="'Page ' + page + ' of ' + pageCount"></span>
-                                <button type="button" @click="page++" :disabled="page >= pageCount" class="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-40">Next households</button>
+                                <button type="button" @click="changePage(1)" :disabled="page >= pageCount" class="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-40">Next households</button>
                             </div>
                             <noscript><p class="mt-3 text-sm text-slate-500">Scroll the household list to select records. Only the chosen coverage mode will be used.</p></noscript>
                         </fieldset>

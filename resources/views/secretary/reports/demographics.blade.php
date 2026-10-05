@@ -1,7 +1,7 @@
 @extends('layouts.portal')
 
-@section('title', 'Demographic Report - HealthLink Secretary')
-@section('header', 'Local Demographic Export')
+@section('title', 'Demographics - HealthLink Secretary')
+@section('header', 'Demographics')
 @section('subheader', 'Report current residents, including legacy inactive records, by sex, age and purok. Historical residents remain available in the Resident Directory.')
 
 @section('content')
@@ -123,7 +123,7 @@
         <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Filtered Roster</h3>
-                <p class="text-sm text-slate-500">Export-ready resident list based on the current demographic filter set.</p>
+                <p class="text-sm text-slate-500">Registry status reflects resident lifecycle; Active/Inactive record reflects the separate legacy availability flag.</p>
             </div>
             <x-export-dropdown route="secretary.reports.demographics.export" dataset="Barangay Demographic Roster" :parameters="['dataset' => 'roster']" />
         </div>

@@ -105,7 +105,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">No certificate records match the current filter.</td>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">{{ request()->anyFilled(['search', 'certificate_type', 'recipient_type', 'purok_id', 'date_from', 'date_to']) ? 'No certificates match the current search or filters.' : 'No certificates have been issued yet.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

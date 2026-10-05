@@ -98,7 +98,8 @@ class HouseholdVisitWebTest extends TestCase
             'role' => 'bhw', 'assigned_barangay_id' => $otherBarangay->id,
             'assigned_purok_id' => $otherPurok->id,
         ]);
-        $sameBarangayOtherPurok = Purok::factory()->create(['barangay_id' => $household->purok->barangay_id]);
+        $sameBarangayOtherPurok = Purok::factory()->create(['barangay_id' => $household->purok->barangay_id,
+            'purok_number' => $household->purok->purok_number + 1]);
         $sameBarangayBhw = User::factory()->create([
             'role' => 'bhw', 'assigned_barangay_id' => $household->purok->barangay_id,
             'assigned_purok_id' => $sameBarangayOtherPurok->id,

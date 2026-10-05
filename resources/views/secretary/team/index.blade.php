@@ -132,7 +132,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">No frontline users matched the current filters.</td>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">{{ request()->anyFilled(['search', 'role', 'purok_id', 'approval_status', 'status']) ? 'No frontline users match the current search or filters.' : 'No frontline users are available yet.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

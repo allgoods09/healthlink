@@ -121,6 +121,52 @@ test('shared selector still notifies live filters on selection and clearing', ()
     assert.deepEqual(events, ['live-results:filter-change', 'live-results:filter-change']);
 });
 
+test('closed selector opens on arrows without skipping the first result; existing boundaries wrap', () => {
+    const selector = sharedSelector([household('5'), household('50')], '5');
+    selector.move(1);
+    assert.equal(selector.isOpen, true);
+    assert.equal(selector.highlightedIndex, 0);
+    selector.move(-1);
+    assert.equal(selector.highlightedIndex, 1);
+    selector.move(1);
+    assert.equal(selector.highlightedIndex, 0);
+    selector.selectHighlighted();
+    assert.equal(selector.selectedValue, '5');
+    assert.equal(selector.isOpen, false);
+});
+
+test('closed, disabled and empty selectors cannot activate nonexistent or stale options', () => {
+    const selector = sharedSelector([household('5')], '5');
+    selector.selectHighlighted();
+    assert.equal(selector.selectedValue, '5');
+    selector.disabled = true;
+    selector.move(1);
+    assert.equal(selector.isOpen, false);
+    selector.disabled = false;
+    selector.query = 'missing'; selector.handleInput();
+    selector.move(1); selector.move(-1); selector.selectHighlighted();
+    assert.equal(selector.filteredOptions.length, 0);
+    assert.equal(selector.highlightedIndex, 0);
+    assert.equal(selector.selectedValue, '');
+});
+
+test('keyboard highlight scrolls only the option into view and preserves input validity', () => {
+    const selector = sharedSelector([household('5'), household('50')]);
+    const scrolled = [];
+    const validity = [];
+    selector.$refs = {
+        listbox: { querySelectorAll: () => [null, { scrollIntoView: options => scrolled.push(options.block) }] },
+        searchInput: { setCustomValidity: message => validity.push(message) },
+    };
+    selector.required = true;
+    selector.query = '5'; selector.handleInput(); selector.move(1);
+    assert.deepEqual(scrolled, ['nearest']);
+    assert.equal(validity.at(-1), 'Please select a record from the search results.');
+    selector.selectHighlighted();
+    assert.equal(selector.selectedValue, '50');
+    assert.equal(validity.at(-1), '');
+});
+
 for (const page of ['create', 'edit', 'relocate']) {
     test(`${page} bespoke Household selector ranks before cap and selects the right ID`, () => {
         const path = page === 'relocate' ? 'secretary/residents/relocate' : `admin/geometry/residents/${page}`;

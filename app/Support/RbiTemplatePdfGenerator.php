@@ -368,6 +368,7 @@ class RbiTemplatePdfGenerator
             return;
         }
 
+        $value = $this->pdfFontText($value);
         $x = $this->scale($xPx, $scale);
         $y = $this->scale($yPx, $scale);
         $w = $this->scale($wPx, $scale);
@@ -399,6 +400,7 @@ class RbiTemplatePdfGenerator
             return;
         }
 
+        $value = $this->pdfFontText($value);
         $x = $this->scale($xPx, $scale);
         $y = $this->scale($yPx, $scale);
         $w = $this->scale($wPx, $scale);
@@ -409,6 +411,22 @@ class RbiTemplatePdfGenerator
         $pdf->SetTextColor(0, 0, 0);
         $pdf->SetXY($x + 2, $y - $lineHeight - $lift);
         $pdf->Cell($w - 4, $lineHeight, $value, 0, 0, $align);
+    }
+
+    private function pdfFontText(string $value): string
+    {
+        // FPDF's core Helvetica measures and draws WinAnsi glyph bytes, not UTF-8.
+        if (! mb_check_encoding($value, 'UTF-8')) {
+            throw new \InvalidArgumentException('RBI text must be valid UTF-8.');
+        }
+
+        $encoded = mb_convert_encoding($value, 'Windows-1252', 'UTF-8');
+
+        if (mb_convert_encoding($encoded, 'UTF-8', 'Windows-1252') !== $value) {
+            throw new \InvalidArgumentException('RBI text contains characters unsupported by the template font.');
+        }
+
+        return $encoded;
     }
 
     private function drawCheckboxMark(Fpdi $pdf, float $xPx, float $yPx, float $scale): void

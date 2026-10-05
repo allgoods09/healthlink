@@ -126,6 +126,7 @@ window.searchableRecordSelect = (config = {}) => ({
 
         if (!this.isOpen) {
             this.openIfSearching();
+            return;
         }
 
         if (this.filteredOptions.length === 0) {
@@ -134,10 +135,13 @@ window.searchableRecordSelect = (config = {}) => ({
 
         const total = this.filteredOptions.length;
         this.highlightedIndex = (this.highlightedIndex + step + total) % total;
+        this.$nextTick(() => {
+            this.$refs.listbox?.querySelectorAll('[role="option"]')[this.highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+        });
     },
 
     selectHighlighted() {
-        if (!this.filteredOptions[this.highlightedIndex]) {
+        if (this.disabled || !this.isOpen || !this.filteredOptions[this.highlightedIndex]) {
             return;
         }
 

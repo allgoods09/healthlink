@@ -35,6 +35,23 @@ class SearchRankingTest extends TestCase
         $this->assertStringContainsString('@keydown.enter.prevent="selectHighlighted()"', $html);
     }
 
+    public function test_shared_selector_exposes_accessible_structure_without_changing_form_binding(): void
+    {
+        view()->share('errors', new ViewErrorBag);
+        $html = Blade::render('<x-searchable-record-select name="resident_id" selected="05" :options="$options" required />', [
+            'options' => [['value' => '05', 'label' => 'Selected Resident']],
+        ]);
+
+        foreach (['role="combobox"', 'aria-autocomplete="list"', 'role="listbox"', 'role="option"',
+            'x-id="[\'record-listbox\']"', ':aria-expanded=', ':aria-controls=', ':aria-activedescendant=',
+            ':aria-selected=', 'tabindex="-1"', '@keydown.tab="isOpen = false"',
+            '@keydown.escape.prevent="isOpen = false"', '@click.prevent="if (isOpen) selectOption(option)"',
+            'type="hidden" name="resident_id" x-model="selectedValue"', 'Selected Resident'] as $markup) {
+            $this->assertStringContainsString($markup, $html);
+        }
+        $this->assertStringNotContainsString('@keydown.tab.prevent', $html);
+    }
+
     public function test_secretary_forms_and_directory_opt_in_without_changing_admin_forms(): void
     {
         [$secretary, $household, $resident] = $this->fixture();

@@ -1,20 +1,32 @@
 export function rbiHouseholdSelector(options = [], selected = []) {
+    const searchOptions = options.map(option => ({ option, text: option.label.toLocaleLowerCase() }));
+
     return {
         options,
         selected,
         query: '',
         page: 1,
         pageSize: 12,
-        get matches() {
+        matches: [],
+        pageCount: 1,
+        visibleIds: [],
+        init() {
+            this.updateSearch();
+        },
+        updateSearch() {
             const words = this.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-            return this.options.filter(option => words.every(word => option.label.toLocaleLowerCase().includes(word)));
+            this.matches = searchOptions.filter(({ text }) => words.every(word => text.includes(word))).map(({ option }) => option);
+            this.page = 1;
+            this.pageCount = Math.max(1, Math.ceil(this.matches.length / this.pageSize));
+            this.updatePage();
         },
-        get pageCount() {
-            return Math.max(1, Math.ceil(this.matches.length / this.pageSize));
+        changePage(step) {
+            this.page = Math.max(1, Math.min(this.page + step, this.pageCount));
+            this.updatePage();
         },
-        get visibleIds() {
+        updatePage() {
             const page = Math.max(1, Math.min(this.page, this.pageCount));
-            return this.matches.slice((page - 1) * this.pageSize, page * this.pageSize).map(option => option.id);
+            this.visibleIds = this.matches.slice((page - 1) * this.pageSize, page * this.pageSize).map(option => option.id);
         },
     };
 }

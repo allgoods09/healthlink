@@ -32,6 +32,13 @@ class CurrentPopulationTest extends TestCase
 
         $this->assertSame($expected, $resident->isCurrentPopulation());
         $this->assertSame($expected, Resident::currentPopulation()->whereKey($resident->id)->exists());
+        $this->assertSame($expected, Resident::withTrashed()->currentPopulation()->whereKey($resident->id)->exists());
+        $this->assertSame($expected, Resident::currentPopulation()->withTrashed()->whereKey($resident->id)->exists());
+        $this->assertSame($expected, $household->currentMembers()->withTrashed()->whereKey($resident->id)->exists());
+        $loaded = $household->fresh()->load('currentMembers')->loadCount('currentMembers');
+        $this->assertSame($expected ? [$resident->id] : [], $loaded->currentMembers->modelKeys());
+        $this->assertSame($expected ? 1 : 0, $loaded->current_members_count);
+        $this->assertSame([$resident->id], $household->residents()->withTrashed()->pluck('id')->all());
         $this->assertSame($expected ? 1 : 0, $household->currentMemberCount());
         $this->assertSame(! $expected, $household->isVacant());
         $this->assertSame($isActive && $status === Resident::STATUS_ACTIVE && ! $deleted, $resident->isActive());
@@ -42,15 +49,12 @@ class CurrentPopulationTest extends TestCase
         $states = [];
         foreach ([Resident::STATUS_ACTIVE, Resident::STATUS_DECEASED, Resident::STATUS_RELOCATED, Resident::STATUS_MOVED_OUT] as $status) {
             foreach ([true, false] as $isActive) {
-                $states[$status.' / '.($isActive ? 'available' : 'unavailable')] = [
-                    $status, $isActive, false, $status === Resident::STATUS_ACTIVE,
-                ];
+                foreach ([false, true] as $deleted) {
+                    $states[$status.' / '.($isActive ? 'available' : 'unavailable').' / '.($deleted ? 'deleted' : 'present')] = [
+                        $status, $isActive, $deleted, ! $deleted && $status === Resident::STATUS_ACTIVE,
+                    ];
+                }
             }
-        }
-        foreach ([true, false] as $isActive) {
-            $states['soft-deleted active / '.($isActive ? 'available' : 'unavailable')] = [
-                Resident::STATUS_ACTIVE, $isActive, true, false,
-            ];
         }
 
         return $states;

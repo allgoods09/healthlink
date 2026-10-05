@@ -36,6 +36,7 @@
         required: @js((bool) $required),
         disabled: @js((bool) $disabled),
     })"
+    x-id="['record-listbox']"
     class="relative"
 >
     <input type="hidden" name="{{ $name }}" x-model="selectedValue">
@@ -51,6 +52,12 @@
         x-bind:disabled="disabled"
         x-bind:placeholder="placeholder"
         autocomplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-haspopup="listbox"
+        :aria-expanded="isOpen ? 'true' : 'false'"
+        :aria-controls="$id('record-listbox')"
+        :aria-activedescendant="isOpen && filteredOptions[highlightedIndex] ? $id('record-listbox') + '-option-' + highlightedIndex : null"
         @focus="openIfSearching()"
         @input="handleInput()"
         @blur="handleBlur()"
@@ -58,6 +65,7 @@
         @keydown.arrow-up.prevent="move(-1)"
         @keydown.enter.prevent="selectHighlighted()"
         @keydown.escape.prevent="isOpen = false"
+        @keydown.tab="isOpen = false"
     >
 
     <div
@@ -65,7 +73,7 @@
         x-show="isOpen"
         class="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
     >
-        <div class="max-h-72 overflow-y-auto py-2">
+        <div :id="$id('record-listbox')" x-ref="listbox" role="listbox" class="max-h-72 overflow-y-auto py-2">
             <template x-if="filteredOptions.length === 0">
                 <div class="px-4 py-3 text-sm text-slate-500" x-text="emptyMessage"></div>
             </template>
@@ -73,9 +81,14 @@
             <template x-for="(option, index) in filteredOptions" :key="option.value">
                 <button
                     type="button"
+                    role="option"
+                    tabindex="-1"
+                    :id="$id('record-listbox') + '-option-' + index"
+                    :aria-selected="option.value === selectedValue ? 'true' : 'false'"
                     class="block w-full px-4 py-3 text-left transition"
                     :class="index === highlightedIndex ? 'bg-tubigon/10 text-tubigon' : 'text-slate-700 hover:bg-slate-50'"
                     @mousedown.prevent="selectOption(option)"
+                    @click.prevent="if (isOpen) selectOption(option)"
                 >
                     <span class="block text-sm font-medium" x-text="option.label"></span>
                     <template x-if="option.description">

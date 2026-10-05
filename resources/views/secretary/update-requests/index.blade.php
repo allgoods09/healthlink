@@ -89,7 +89,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">No correction requests matched the current filters.</td>
+                            <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">{{ request()->anyFilled(['search', 'subject_type', 'status']) ? 'No correction requests match the current search or filters.' : 'No correction requests are available yet.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -89,7 +89,7 @@ const server = createServer((req, res) => {
     const controls = kind === 'certificate' ? fragments.certificate : kind === 'relocate' ? fragments.relocation
         : `<select id="purok" x-model="purokId" @change="loadHouseholds()"><option value="">Choose Purok</option><option value="${fragments.purok}">Selected Purok</option></select>${fragments.control}`;
     res.setHeader('Content-Type', 'text/html');
-    res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"></head><body><main class="p-4"><form method="GET" x-data="${state}">${controls}</form></main><script>${fragments.scripts[kind] ?? ''}</script><script type="module" src="/app.js"></script></body></html>`);
+    res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"></head><body><main class="p-4"><form method="${kind === 'certificate' ? 'POST' : 'GET'}" x-data="${state}">${controls}</form></main><script>${fragments.scripts[kind] ?? ''}</script><script type="module" src="/app.js"></script></body></html>`);
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -168,13 +168,61 @@ try {
     await type('#resident_id', fragments.name);
     await wait(`Alpine.$data(document.querySelector('#resident_id').parentElement).filteredOptions[0]?.label === ${JSON.stringify(fragments.name)}`);
     const residentTimings = await evaluate(`{ const selector=Alpine.$data(document.querySelector('#resident_id').parentElement);const start=performance.now();for(let i=0;i<20;i++)selector.refreshResults();window.residentRankingMs=(performance.now()-start)/20; } window.residentRankingMs`);
+    // Exercise the shared Blade/Alpine combobox with real keyboard focus and form bindings.
+    await evaluate(`window.selectorSubmits=0;document.querySelector('form').addEventListener('submit',event=>{event.preventDefault();window.selectorSubmits++;});`);
+    const key = async (key, modifiers = 0) => {
+        const code = { Enter: 13, Tab: 9, Escape: 27, ArrowDown: 40, ArrowUp: 38 }[key];
+        await call('Input.dispatchKeyEvent', { type: 'keyDown', key, modifiers, windowsVirtualKeyCode: code });
+        await call('Input.dispatchKeyEvent', { type: 'keyUp', key, modifiers, windowsVirtualKeyCode: code });
+    };
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('role')"), 'combobox');
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('aria-autocomplete')"), 'list');
+    assert.equal(await evaluate("new Set([...document.querySelectorAll('[role=listbox]')].map(list=>list.id)).size"), 2);
+    const active = () => evaluate("document.querySelector('#resident_id').getAttribute('aria-activedescendant')");
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('aria-expanded')"), 'true');
+    assert.equal(await evaluate("document.getElementById(document.querySelector('#resident_id').getAttribute('aria-activedescendant')).getAttribute('role')"), 'option');
+    assert.equal(await evaluate("[...document.querySelectorAll('[role=option]')].every(option=>option.tabIndex===-1)"), true);
+    assert.equal(await evaluate('document.activeElement.id'), 'resident_id', 'Input must have focus before native keyboard events');
+    await key('ArrowDown'); await key('ArrowUp');
+    const chosen = await evaluate("Alpine.$data(document.querySelector('#resident_id').parentElement).filteredOptions[0].value");
+    await key('Enter');
+    assert.equal(await evaluate("new FormData(document.querySelector('form')).get('resident_id')"), chosen);
+    assert.equal(await evaluate('window.selectorSubmits'), 0);
+    assert.equal(await evaluate("document.activeElement.id"), 'resident_id');
+    assert.equal(await active(), null);
+    await key('ArrowDown');
+    await wait("document.querySelector('#resident_id').getAttribute('aria-expanded')==='true'");
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('aria-activedescendant')===document.querySelector('#resident_id').getAttribute('aria-controls')+'-option-0'"), true);
+    assert.equal(await evaluate("document.getElementById(document.querySelector('#resident_id').getAttribute('aria-activedescendant')).getAttribute('aria-selected')"), 'true');
+    await key('Escape');
+    assert.equal(await evaluate("new FormData(document.querySelector('form')).get('resident_id')"), chosen);
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('aria-expanded')"), 'false');
+    await key('ArrowUp'); await key('Tab');
+    assert.equal(await evaluate('document.activeElement.id'), 'household_id');
+    assert.equal(await evaluate("document.querySelector('#resident_id').getAttribute('aria-expanded')"), 'false');
+    await key('Tab', 8);
+    assert.equal(await evaluate('document.activeElement.id'), 'resident_id');
+    await type('#resident_id', 'no-such-fixture-resident');
+    await wait("Alpine.$data(document.querySelector('#resident_id').parentElement).filteredOptions.length===0");
+    await key('ArrowDown'); await key('ArrowUp'); await key('Enter');
+    assert.equal(await active(), null);
+    assert.equal(await evaluate('window.selectorSubmits'), 0);
+    await type('#resident_id', fragments.name);
+    await wait("document.querySelector('#resident_id').getAttribute('aria-activedescendant')!==null");
+    await evaluate("document.querySelector('#resident_id').parentElement.querySelector('[role=option]').click()");
+    assert.equal(await evaluate("new FormData(document.querySelector('form')).get('resident_id')"), chosen);
+    await type('#resident_id', fragments.name);
+    await wait("document.querySelector('#resident_id').getAttribute('aria-expanded')==='true'");
+    await evaluate("document.querySelector('#resident_id').parentElement.querySelector('[role=option]').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}))");
+    assert.equal(await evaluate("new FormData(document.querySelector('form')).get('resident_id')"), chosen);
+    assert.deepEqual(errors, []);
     await call('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     assert.equal(requests.length, 3);
     console.log(JSON.stringify({ result: 'passed', mode: process.env.SEARCH_RANKING_PILOT === '1' ? 'read-only pilot data' : 'synthetic fixture',
         households: fragments.householdCount, residents: fragments.residentCount, originalExactPosition: fragments.oldPosition,
         rankedExactPosition: 1, householdRankMs: Number(timings.toFixed(2)), residentRankMs: Number(residentTimings.toFixed(2)),
-        paths: ['create', 'edit', 'relocation', 'certificate household', 'certificate resident'] }));
+        paths: ['create', 'edit', 'relocation', 'certificate household', 'certificate resident'], selectorAccessibility: 'passed' }));
 } finally {
     await closeBrowser?.().catch(() => {});
     socket?.close();

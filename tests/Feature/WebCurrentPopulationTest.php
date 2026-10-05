@@ -247,7 +247,8 @@ class WebCurrentPopulationTest extends TestCase
 
     public function test_purok_availability_does_not_hide_current_population_from_geographic_metrics(): void
     {
-        $purok = Purok::factory()->create(['barangay_id' => $this->home->purok->barangay_id, 'is_active' => false]);
+        $purok = Purok::factory()->create(['barangay_id' => $this->home->purok->barangay_id,
+            'purok_number' => $this->home->purok->purok_number + 1, 'is_active' => false]);
         $person = $this->person($this->household($purok, '001'), 'unavailable', 'InactivePurok');
         $this->actingAs($this->user('secretary'));
         $dashboard = $this->get(route('secretary.dashboard'))->assertOk();

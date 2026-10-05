@@ -100,7 +100,7 @@
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-slate-900">Purok Density Snapshot</h3>
-                    <p class="text-sm text-slate-500">Population, household count, and civil status mix across your barangay.</p>
+                    <p class="text-sm text-slate-500">Population, household count, and resident status mix across your barangay.</p>
                 </div>
                 <a href="{{ route('secretary.reports.demographics') }}" class="text-sm font-medium text-tubigon hover:text-tubigon-hover">Open Demographics</a>
             </div>
