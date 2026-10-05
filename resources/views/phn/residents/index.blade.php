@@ -32,10 +32,7 @@
             <div>
                 <label for="resident_status" class="block text-sm font-medium text-slate-700">Residency Status</label>
                 <select id="resident_status" name="resident_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                    <option value="">All</option>
-                    <option value="active" @selected(request('resident_status') === 'active')>Active</option>
-                    <option value="deceased" @selected(request('resident_status') === 'deceased')>Deceased</option>
-                    <option value="relocated" @selected(request('resident_status') === 'relocated')>Relocated</option>
+                    @include('residents.partials.population-options')
                 </select>
             </div>
             <div>
@@ -78,7 +75,7 @@
                                 <div class="mt-1 text-slate-500">{{ $resident->household?->purok?->display_name ?? 'Unknown purok' }} · Household #{{ $resident->household?->household_no ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
-                                {{ $resident->resident_status_label }}
+                                {{ \App\Support\WebResidentPopulation::label($resident) }}
                                 <div class="mt-1 text-slate-500">{{ $resident->is_active ? 'Active in registry' : 'Inactive in registry' }}</div>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">

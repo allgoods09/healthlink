@@ -85,7 +85,7 @@ class OptCycleController extends Controller
 
         return [
             'cycle' => $optCycle, 'entry' => $entry,
-            'caregivers' => Resident::query()->with('household.purok')->where('is_active', true)->where('resident_status', Resident::STATUS_ACTIVE)
+            'caregivers' => Resident::currentPopulation()->with('household.purok')
                 ->whereHas('household.purok', fn ($q) => $q->where('barangay_id', $optCycle->barangay_id))
                 ->whereKeyNot($entry->resident_id)->orderBy('last_name')->orderBy('first_name')->get(),
             'canUpdateProfile' => $entry->resident && ! $entry->resident->trashed()

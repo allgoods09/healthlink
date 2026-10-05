@@ -71,13 +71,13 @@ class OptCycleWorkflowTest extends TestCase
         $almostFive = $this->child(['first_name' => 'AlmostFive', 'birth_date' => '2021-07-02']);
         $this->child(['first_name' => 'Five', 'birth_date' => '2021-07-01']);
         $this->child(['first_name' => 'Future', 'birth_date' => '2026-07-02']);
-        $this->child(['first_name' => 'Inactive', 'is_active' => false]);
+        $unavailable = $this->child(['first_name' => 'Inactive', 'is_active' => false]);
         $this->child(['first_name' => 'Moved', 'resident_status' => 'relocated']);
         $other = Purok::factory()->create();
         $foreignHouse = Household::create(['purok_id' => $other->id, 'household_no' => '99', 'household_address' => 'Other address', 'is_active' => true]);
         $this->child(['first_name' => 'Other', 'household_id' => $foreignHouse->id]);
         $cycle = $this->cycle();
-        $this->assertEqualsCanonicalizing([$newborn->id, $almostFive->id], $cycle->entries->pluck('resident_key')->all());
+        $this->assertEqualsCanonicalizing([$newborn->id, $almostFive->id, $unavailable->id], $cycle->entries->pluck('resident_key')->all());
         $this->assertSame('July 2026 OPT+', $cycle->title);
         $this->assertSame('Unmeasured', $cycle->entries->first()->measurement_status);
     }

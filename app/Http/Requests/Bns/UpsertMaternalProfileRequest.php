@@ -42,7 +42,8 @@ class UpsertMaternalProfileRequest extends FormRequest
                 $validator->errors()->add('resident_id', 'Maternal tracking is currently limited to verified female residents.');
             }
 
-            if ($resident->resident_status !== Resident::STATUS_ACTIVE || ! $resident->is_active) {
+            // Existing maternal records remain correctable; only new enrollment requires current population.
+            if (! $resident->isCurrentPopulation() && (! $this->route('resident') || ! $resident->maternalNutritionProfile)) {
                 $validator->errors()->add('resident_id', 'Only active verified residents can be tracked here.');
             }
 

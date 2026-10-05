@@ -36,10 +36,10 @@ class BhwTriageEditTest extends TestCase
             ->assertDontSee('name="resident_id"', false);
 
         $options = $edit->viewData('residentOptions');
-        $this->assertEqualsCanonicalizing([$triage->resident_id, $sameBarangay->id], $options->modelKeys());
+        $this->assertEqualsCanonicalizing([$triage->resident_id, $sameBarangay->id, $inactive->id], $options->modelKeys());
         $this->assertSame($create->viewData('residentOptions')->modelKeys(), $options->modelKeys());
         $this->assertFalse($options->contains('id', $foreign->id));
-        $this->assertFalse($options->contains('id', $inactive->id));
+        $this->assertTrue($options->contains('id', $inactive->id));
     }
 
     public function test_edit_still_rejects_another_recorder_and_another_barangay(): void

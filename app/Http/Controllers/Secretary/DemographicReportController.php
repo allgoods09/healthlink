@@ -59,13 +59,7 @@ class DemographicReportController extends Controller
                 'senior' => 'Seniors (60+)',
                 default => null,
             },
-            'Civil Registry Status' => match ($request->input('resident_status')) {
-                Resident::STATUS_ACTIVE => 'Active Resident',
-                Resident::STATUS_DECEASED => 'Deceased',
-                Resident::STATUS_RELOCATED => 'Relocated',
-                default => null,
-            },
-            'Availability' => $request->input('status'),
+            'Population' => 'Current residents',
         ];
 
         if ($request->input('dataset', 'roster') === 'breakdown') {
@@ -73,9 +67,6 @@ class DemographicReportController extends Controller
                 'Purok' => 'purok',
                 'Households' => 'households',
                 'Residents' => 'residents',
-                'Active' => 'active',
-                'Deceased' => 'deceased',
-                'Relocated' => 'relocated',
                 'Minors' => 'minors',
                 'Seniors' => 'seniors',
             ];
@@ -99,7 +90,7 @@ class DemographicReportController extends Controller
 
     private function filteredResidentsQuery(Request $request): Builder
     {
-        $query = $this->secretaryResidentsQuery();
+        $query = $this->secretaryResidentsQuery()->currentPopulation();
 
         if ($request->filled('purok_id')) {
             $query->whereHas('household', function (Builder $builder) use ($request): void {
@@ -109,14 +100,6 @@ class DemographicReportController extends Controller
 
         if ($request->filled('sex')) {
             $query->where('sex', $request->input('sex'));
-        }
-
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->input('status') === 'active');
-        }
-
-        if ($request->filled('resident_status')) {
-            $query->where('resident_status', $request->input('resident_status'));
         }
 
         if ($request->filled('age_group')) {

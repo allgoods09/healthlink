@@ -19,13 +19,15 @@ class DashboardController extends Controller
 
     public function __invoke(): View
     {
-        $activeResidents = $this->secretaryResidentsQuery()->where('resident_status', Resident::STATUS_ACTIVE)->count();
+        $activeResidents = $this->secretaryResidentsQuery()->currentPopulation()->count();
         $deceasedResidents = $this->secretaryResidentsQuery()->where('resident_status', Resident::STATUS_DECEASED)->count();
         $relocatedResidents = $this->secretaryResidentsQuery()->where('resident_status', Resident::STATUS_RELOCATED)->count();
+        $movedOutResidents = $this->secretaryResidentsQuery()->where('resident_status', Resident::STATUS_MOVED_OUT)->count();
         $households = $this->secretaryHouseholdsQuery()->count();
-        $seniors = $this->secretaryResidentsQuery()->whereDate('birth_date', '<=', now()->subYears(60))->count();
-        $minors = $this->secretaryResidentsQuery()->whereDate('birth_date', '>', now()->subYears(18))->count();
-        $headlessHouseholds = $this->secretaryHouseholdsQuery()->whereNull('head_resident_id')->count();
+        $seniors = $this->secretaryResidentsQuery()->currentPopulation()->whereDate('birth_date', '<=', now()->subYears(60))->count();
+        $minors = $this->secretaryResidentsQuery()->currentPopulation()->whereDate('birth_date', '>', now()->subYears(18))->count();
+        $headlessHouseholds = $this->secretaryHouseholdsQuery()->with('headResident')->whereHas('currentMembers')->get()
+            ->filter(fn ($household) => ! $household->currentHeadResident())->count();
         $pendingFrontlineApprovals = $this->secretaryFrontlineUsersQuery()
             ->where('approval_status', User::APPROVAL_PENDING)
             ->count();
@@ -37,8 +39,7 @@ class DashboardController extends Controller
             ->count();
 
         $purokDensity = $this->secretaryPuroksQuery()
-            ->with(['households.residents'])
-            ->active()
+            ->with(['households.residents', 'households.currentMembers'])
             ->orderBy('purok_number')
             ->get()
             ->map(function (Purok $purok): array {
@@ -46,8 +47,8 @@ class DashboardController extends Controller
 
                 return [
                     'purok' => $purok,
-                    'households' => $purok->households->count(),
-                    'active_residents' => $residents->where('resident_status', Resident::STATUS_ACTIVE)->count(),
+                    'households' => $purok->households->filter(fn ($household) => $household->currentMembers->isNotEmpty())->count(),
+                    'active_residents' => $purok->households->sum(fn ($household) => $household->currentMembers->count()),
                     'deceased' => $residents->where('resident_status', Resident::STATUS_DECEASED)->count(),
                     'relocated' => $residents->where('resident_status', Resident::STATUS_RELOCATED)->count(),
                 ];
@@ -61,7 +62,10 @@ class DashboardController extends Controller
             'activeResidents' => $activeResidents,
             'deceasedResidents' => $deceasedResidents,
             'relocatedResidents' => $relocatedResidents,
+            'movedOutResidents' => $movedOutResidents,
             'householdCount' => $households,
+            'occupiedHouseholdCount' => $this->secretaryHouseholdsQuery()->whereHas('currentMembers')->count(),
+            'vacantHouseholdCount' => $this->secretaryHouseholdsQuery()->whereDoesntHave('currentMembers')->count(),
             'seniorCount' => $seniors,
             'minorCount' => $minors,
             'headlessHouseholdCount' => $headlessHouseholds,

@@ -38,6 +38,9 @@ class StoreNutritionAssessmentFlagRequest extends FormRequest
             }
 
             $ageInMonths = $resident->birth_date->copy()->startOfDay()->diffInMonths(Carbon::today(), false);
+            if (! $resident->isCurrentPopulation()) {
+                $validator->errors()->add('resident_id', 'Select a current child from your assigned barangay.');
+            }
 
             if ($ageInMonths < 0 || $ageInMonths > 71) {
                 $validator->errors()->add('resident_id', 'Nutrition assessment flags are limited to verified children aged 0 to 71 months.');

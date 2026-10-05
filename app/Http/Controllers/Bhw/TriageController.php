@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Bhw\StoreTriageRecordRequest;
 use App\Http\Requests\Bhw\UpdateTriageRecordRequest;
 use App\Models\AuditLog;
-use App\Models\Resident;
 use App\Models\TriageRecord;
 use App\Support\ExportDownload;
 use App\Support\RoleNotificationService;
@@ -83,6 +82,7 @@ class TriageController extends Controller
 
         if ($request->filled('resident_id')) {
             $selectedResident = $this->bhwResidentsQuery()
+                ->currentPopulation()
                 ->with('household.purok')
                 ->find($request->integer('resident_id'));
         }
@@ -91,8 +91,7 @@ class TriageController extends Controller
             'selectedResident' => $selectedResident,
             'residentOptions' => $this->bhwResidentsQuery()
                 ->with('household.purok')
-                ->where('resident_status', Resident::STATUS_ACTIVE)
-                ->where('is_active', true)
+                ->currentPopulation()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get(),
@@ -156,8 +155,7 @@ class TriageController extends Controller
             'triageRecord' => $triageRecord,
             'residentOptions' => $this->bhwResidentsQuery()
                 ->with('household.purok')
-                ->where('resident_status', Resident::STATUS_ACTIVE)
-                ->where('is_active', true)
+                ->currentPopulation()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get(),

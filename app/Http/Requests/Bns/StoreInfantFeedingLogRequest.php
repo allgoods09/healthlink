@@ -31,7 +31,12 @@ class StoreInfantFeedingLogRequest extends FormRequest
             $mother = $this->route('resident');
             $infant = Resident::query()->with('household.purok')->find($this->integer('resident_id'));
 
-            if (! $mother || ! $infant || ! $this->filled('observed_on')) {
+            if (! $infant) {
+                $validator->errors()->add('resident_id', 'Select a current child from your assigned barangay.');
+                return;
+            }
+
+            if (! $mother || ! $this->filled('observed_on')) {
                 return;
             }
 
@@ -46,6 +51,10 @@ class StoreInfantFeedingLogRequest extends FormRequest
             }
 
             $observedOn = Carbon::parse($this->input('observed_on'))->startOfDay();
+            if (! $infant->isCurrentPopulation()) {
+                $validator->errors()->add('resident_id', 'Select a current child from your assigned barangay.');
+            }
+
             $ageInMonths = $infant->birth_date->copy()->startOfDay()->diffInMonths($observedOn, false);
 
             if ($ageInMonths < 0 || $ageInMonths > 24) {

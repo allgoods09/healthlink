@@ -21,6 +21,7 @@ use App\Support\ExportDownload;
 use App\Support\HouseholdHeadReview;
 use App\Support\HouseholdRelationships;
 use App\Support\RbiTemplatePdfGenerator;
+use App\Support\WebResidentPopulation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -84,7 +85,7 @@ class ResidentController extends Controller
             'Education' => fn (Resident $resident) => $resident->socioEconomicProfile?->highest_education_level ?: 'N/A',
             'Occupation' => fn (Resident $resident) => $resident->socioEconomicProfile?->occupation ?: 'N/A',
             'Availability' => fn (Resident $resident) => $resident->is_active ? 'Active' : 'Inactive',
-            'Civil Status' => fn (Resident $resident) => $resident->resident_status_label,
+            'Civil Status' => fn (Resident $resident) => WebResidentPopulation::label($resident),
         ];
 
         $filters = [
@@ -95,11 +96,12 @@ class ResidentController extends Controller
             'Sex' => $request->input('sex'),
             'Status' => $request->input('status'),
             'Age Group' => $request->input('age_group'),
-            'Lifecycle' => $request->input('lifecycle') ?: 'Current',
+            'Lifecycle' => WebResidentPopulation::description($request, true),
             'Civil Status' => match ($request->input('resident_status')) {
                 Resident::STATUS_ACTIVE => 'Active Resident',
                 Resident::STATUS_DECEASED => 'Deceased',
-                Resident::STATUS_RELOCATED => 'Relocated',
+                Resident::STATUS_RELOCATED => 'Relocated (Legacy)',
+                Resident::STATUS_MOVED_OUT => 'Moved Out',
                 default => null,
             },
         ];
@@ -480,7 +482,7 @@ class ResidentController extends Controller
 
     private function filteredQuery(Request $request)
     {
-        $query = $this->secretaryResidentsQuery();
+        $query = WebResidentPopulation::directory($this->secretaryResidentsQuery(), $request, true);
 
         if ($request->filled('purok_id')) {
             $query->whereHas('household', function ($builder) use ($request): void {
@@ -498,10 +500,6 @@ class ResidentController extends Controller
 
         if ($request->filled('status')) {
             $query->where('is_active', $request->input('status') === 'active');
-        }
-
-        if ($request->filled('resident_status')) {
-            $query->where('resident_status', $request->input('resident_status'));
         }
 
         if ($request->filled('age_group')) {
@@ -524,12 +522,6 @@ class ResidentController extends Controller
                     ->orWhere('middle_name', 'like', "%{$search}%")
                     ->orWhere('philsys_card_no', 'like', "%{$search}%");
             });
-        }
-
-        if ($request->input('lifecycle') === 'all') {
-            $query->withTrashed();
-        } elseif ($request->input('lifecycle') === 'deleted') {
-            $query->onlyTrashed();
         }
 
         return $query;

@@ -2,7 +2,7 @@
 
 @section('title', 'Demographic Report - HealthLink Secretary')
 @section('header', 'Local Demographic Export')
-@section('subheader', 'Generate filtered civil roster reports such as seniors in a specific purok, then export them as CSV, Excel, or PDF.')
+@section('subheader', 'Report current residents, including legacy inactive records, by sex, age and purok. Historical residents remain available in the Resident Directory.')
 
 @section('content')
     <div class="mb-6 rounded-[24px] border border-slate-200 bg-white shadow-sm">
@@ -39,25 +39,6 @@
                     </select>
                 </div>
 
-                <div>
-                    <label for="resident_status" class="block text-sm font-medium text-slate-700">Civil Registry Status</label>
-                    <select name="resident_status" id="resident_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All statuses</option>
-                        <option value="active" {{ request('resident_status') === 'active' ? 'selected' : '' }}>Active Resident</option>
-                        <option value="deceased" {{ request('resident_status') === 'deceased' ? 'selected' : '' }}>Deceased</option>
-                        <option value="relocated" {{ request('resident_status') === 'relocated' ? 'selected' : '' }}>Relocated</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="status" class="block text-sm font-medium text-slate-700">Availability</label>
-                    <select name="status" id="status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All records</option>
-                        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-                    </select>
-                </div>
-
                 <div class="md:col-span-5 flex gap-2">
                     <button type="submit" class="rounded-xl bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">Apply Filter</button>
                     <a href="{{ route('secretary.reports.demographics') }}" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">Reset</a>
@@ -66,7 +47,7 @@
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6" data-live-results="secretary-reports-demographics">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-live-results="secretary-reports-demographics">
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Residents</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['residents']) }}</p>
@@ -74,18 +55,6 @@
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Households</p>
             <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['households']) }}</p>
-        </div>
-        <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <p class="text-sm text-slate-500">Active Residents</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['active']) }}</p>
-        </div>
-        <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <p class="text-sm text-slate-500">Deceased</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['deceased']) }}</p>
-        </div>
-        <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <p class="text-sm text-slate-500">Relocated</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($summary['relocated']) }}</p>
         </div>
         <div class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-sm text-slate-500">Seniors</p>
@@ -127,9 +96,6 @@
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Purok</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Households</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Residents</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Active</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Deceased</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Relocated</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Minors</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Seniors</th>
                     </tr>
@@ -140,15 +106,12 @@
                             <td class="px-6 py-4 text-sm font-semibold text-slate-900">{{ $row['purok'] }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['households']) }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['residents']) }}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['active']) }}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['deceased']) }}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['relocated']) }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['minors']) }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600">{{ number_format($row['seniors']) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-8 text-center text-sm text-slate-500">No purok breakdown is available for the current filters.</td>
+                            <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">No purok breakdown is available for the current filters.</td>
                         </tr>
                     @endforelse
                 </tbody>

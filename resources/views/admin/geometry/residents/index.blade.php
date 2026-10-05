@@ -92,7 +92,7 @@
                 </div>
 
                 <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+                    <label for="status" class="block text-sm font-medium text-gray-700">Legacy Availability</label>
                     <select name="status" id="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">All</option>
                         <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
@@ -103,10 +103,7 @@
                 <div>
                     <label for="resident_status" class="block text-sm font-medium text-gray-700">Residency Status</label>
                     <select name="resident_status" id="resident_status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">All statuses</option>
-                        <option value="active" {{ request('resident_status') === 'active' ? 'selected' : '' }}>Active Resident</option>
-                        <option value="deceased" {{ request('resident_status') === 'deceased' ? 'selected' : '' }}>Deceased</option>
-                        <option value="relocated" {{ request('resident_status') === 'relocated' ? 'selected' : '' }}>Relocated</option>
+                        @include('residents.partials.population-options')
                     </select>
                 </div>
 
@@ -123,9 +120,8 @@
                 <div>
                     <label for="lifecycle" class="block text-sm font-medium text-gray-700">Lifecycle</label>
                     <select name="lifecycle" id="lifecycle" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">Current</option>
-                        <option value="all" {{ request('lifecycle') === 'all' ? 'selected' : '' }}>All</option>
-                        <option value="deleted" {{ request('lifecycle') === 'deleted' ? 'selected' : '' }}>Deleted Only</option>
+                        <option value="">Excluding archived</option>
+                        <option value="deleted" {{ request('lifecycle') === 'deleted' ? 'selected' : '' }}>Archived Only</option>
                     </select>
                 </div>
 
@@ -177,8 +173,8 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-600">
-                                <div>{{ $resident->resident_status_label }}</div>
-                                <div class="mt-1 text-xs text-gray-400">{{ $resident->trashed() ? 'Deleted' : 'Current record' }}</div>
+                                <div>{{ \App\Support\WebResidentPopulation::label($resident) }}</div>
+                                <div class="mt-1 text-xs text-gray-400">{{ $resident->trashed() ? 'Archived' : ($resident->isCurrentPopulation() ? 'Current population' : 'Historical record') }}</div>
                             </td>
                             <td class="table-actions-cell px-6 py-4 text-right text-sm font-medium">
                                 <div class="table-actions">

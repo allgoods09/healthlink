@@ -158,8 +158,7 @@ class OptCycleWorkflow
 
     private function caregiverValues(OptCycle $cycle, OptCycleEntry $entry, array $data): array
     {
-        $caregiver = empty($data['caregiver_resident_id']) ? null : Resident::query()
-            ->where('is_active', true)->where('resident_status', Resident::STATUS_ACTIVE)
+        $caregiver = empty($data['caregiver_resident_id']) ? null : Resident::currentPopulation()
             ->whereHas('household.purok', fn ($q) => $q->where('barangay_id', $cycle->barangay_id))
             ->findOrFail($data['caregiver_resident_id']);
         if ($caregiver && $caregiver->id === $entry->resident_key) {
@@ -233,7 +232,7 @@ class OptCycleWorkflow
             $entry = OptCycleEntry::query()->lockForUpdate()->findOrFail($entry->id);
             $resident = Resident::query()->whereKey($entry->resident_id)
                 ->whereHas('household.purok', fn ($q) => $q->where('barangay_id', $cycle->barangay_id))->firstOrFail();
-            $caregiver = empty($data['caregiver_resident_id']) ? null : Resident::query()
+            $caregiver = empty($data['caregiver_resident_id']) ? null : Resident::currentPopulation()
                 ->whereHas('household.purok', fn ($q) => $q->where('barangay_id', $cycle->barangay_id))
                 ->findOrFail($data['caregiver_resident_id']);
             if ($caregiver?->id === $resident->id) {

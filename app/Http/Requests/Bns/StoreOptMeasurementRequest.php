@@ -53,7 +53,7 @@ class StoreOptMeasurementRequest extends FormRequest
                 $validator->errors()->add('resident_id', 'This resident is missing a birth date and cannot be assessed in OPT+ yet.');
             }
 
-            if ($resident && ($resident->resident_status !== Resident::STATUS_ACTIVE || ! $resident->is_active)) {
+            if ($resident && ! $resident->isCurrentPopulation()) {
                 $validator->errors()->add('resident_id', 'Only active verified residents can receive new OPT+ measurements.');
             }
 

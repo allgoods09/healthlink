@@ -6,6 +6,7 @@ use App\Http\Controllers\Bhw\Concerns\InteractsWithBhwScope;
 use App\Http\Controllers\Controller;
 use App\Models\Resident;
 use App\Support\ExportDownload;
+use App\Support\WebResidentPopulation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -34,12 +35,12 @@ class ResidentController extends Controller
             'Age' => 'age',
             'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
             'Household' => fn (Resident $resident) => $resident->household?->household_no,
-            'Residency Status' => fn (Resident $resident) => $resident->resident_status_label,
+            'Residency Status' => fn (Resident $resident) => WebResidentPopulation::label($resident),
         ];
         $filters = [
             'Search' => $request->input('search'),
             'Purok' => $this->bhwPuroksQuery()->find($request->integer('purok_id'))?->display_name,
-            'Residency Status' => $request->input('resident_status'),
+            'Residency Status' => WebResidentPopulation::description($request),
         ];
 
         return ExportDownload::make($format, 'BHW Residents Directory', 'Community Records', 'bhw_residents', $columns, $this->listingQuery($request)->get(), $filters, $this->bhwUser()->assignedBarangay?->name, Resident::class);
@@ -47,7 +48,7 @@ class ResidentController extends Controller
 
     private function listingQuery(Request $request): Builder
     {
-        $query = $this->bhwResidentsQuery()
+        $query = WebResidentPopulation::directory($this->bhwResidentsQuery(), $request)
             ->with(['household.purok'])
             ->latest('last_name')
             ->latest('first_name')
@@ -65,10 +66,6 @@ class ResidentController extends Controller
 
         if ($request->filled('purok_id')) {
             $query->whereHas('household', fn ($householdQuery) => $householdQuery->where('purok_id', $request->integer('purok_id')));
-        }
-
-        if ($request->filled('resident_status')) {
-            $query->where('resident_status', $request->string('resident_status')->toString());
         }
 
         return $query;

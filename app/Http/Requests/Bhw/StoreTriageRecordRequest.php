@@ -30,13 +30,14 @@ class StoreTriageRecordRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator): void {
-            $resident = Resident::query()->with('household.purok')->find($this->integer('resident_id'));
+            $existing = $this->route('triageRecord');
+            $resident = $existing?->resident ?? Resident::query()->with('household.purok')->find($this->integer('resident_id'));
 
             if (! $resident || (int) $resident->household?->purok?->barangay_id !== (int) $this->user()->assigned_barangay_id) {
                 $validator->errors()->add('resident_id', 'Select a verified resident from your assigned barangay.');
             }
 
-            if ($resident && ($resident->resident_status !== Resident::STATUS_ACTIVE || ! $resident->is_active)) {
+            if (! $existing && $resident && ! $resident->isCurrentPopulation()) {
                 $validator->errors()->add('resident_id', 'Only active verified residents can receive clinic triage entries.');
             }
 

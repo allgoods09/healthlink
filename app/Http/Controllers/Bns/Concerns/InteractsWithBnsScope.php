@@ -63,8 +63,7 @@ trait InteractsWithBnsScope
     protected function bnsOptEligibleChildrenQuery(): Builder
     {
         return $this->bnsResidentsQuery()
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->whereNotNull('birth_date')
             ->whereIn('sex', ['Male', 'Female'])
             ->whereDate('birth_date', '>', now()->subMonths(60)->startOfDay());
@@ -107,8 +106,7 @@ trait InteractsWithBnsScope
     protected function bnsFeedingEligibleChildrenQuery(): Builder
     {
         return $this->bnsResidentsQuery()
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->whereNotNull('birth_date')
             ->whereIn('sex', ['Male', 'Female'])
             ->whereDate('birth_date', '>', now()->subMonths(72)->startOfDay());
@@ -117,16 +115,14 @@ trait InteractsWithBnsScope
     protected function bnsMaternalEligibleResidentsQuery(): Builder
     {
         return $this->bnsResidentsQuery()
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->where('sex', 'Female');
     }
 
     protected function bnsInfantEligibleResidentsQuery(): Builder
     {
         return $this->bnsResidentsQuery()
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->whereNotNull('birth_date')
             ->whereDate('birth_date', '>', now()->subMonths(24)->startOfDay());
     }

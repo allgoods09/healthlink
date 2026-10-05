@@ -63,10 +63,7 @@
                 <div>
                     <label for="resident_status" class="block text-sm font-medium text-slate-700">Status</label>
                     <select id="resident_status" name="resident_status" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
-                        <option value="">All statuses</option>
-                        <option value="active" @selected(request('resident_status') === 'active')>Active</option>
-                        <option value="relocated" @selected(request('resident_status') === 'relocated')>Relocated</option>
-                        <option value="deceased" @selected(request('resident_status') === 'deceased')>Deceased</option>
+                        @include('residents.partials.population-options')
                     </select>
                 </div>
                 <div class="flex items-end gap-2 xl:col-span-6">
@@ -107,7 +104,7 @@
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 <div>{{ $resident->sex }} · Age {{ $resident->age }}</div>
-                                <div class="mt-1 text-slate-500">{{ $resident->resident_status_label }}</div>
+                                <div class="mt-1 text-slate-500">{{ \App\Support\WebResidentPopulation::label($resident) }}</div>
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 @if($resident->latestOptMeasurement)

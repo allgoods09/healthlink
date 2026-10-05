@@ -15,6 +15,7 @@
 @endsection
 
 @section('content')
+    <p class="mb-4 text-sm text-gray-500">Current population: {{ number_format($currentResidents) }} residents / {{ number_format($occupiedHouseholds) }} occupied households / {{ number_format($vacantHouseholds) }} vacant households. Registry totals: {{ number_format($totalResidents) }} residents / {{ number_format($totalHouseholds) }} households.</p>
     <div class="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-tubigon p-6 text-white shadow-xl">
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-white/60">Municipality-Wide Oversight</p>
         <h2 class="mt-3 text-3xl font-semibold tracking-tight">Live Operations Across Tubigon</h2>

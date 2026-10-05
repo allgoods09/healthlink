@@ -56,8 +56,7 @@ trait InteractsWithBhwScope
     protected function bhwEligibleChildrenQuery(): Builder
     {
         return $this->bhwResidentsQuery()
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->whereNotNull('birth_date')
             ->whereIn('sex', ['Male', 'Female'])
             ->whereDate('birth_date', '>', now()->subMonths(72)->startOfDay());

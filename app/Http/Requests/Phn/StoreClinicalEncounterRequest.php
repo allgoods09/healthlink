@@ -48,7 +48,7 @@ class StoreClinicalEncounterRequest extends FormRequest
                 $validator->errors()->add('resident_id', 'Select a verified resident from the municipal registry.');
             }
 
-            if ($resident && ($resident->resident_status !== Resident::STATUS_ACTIVE || ! $resident->is_active)) {
+            if ($resident && ! $resident->isCurrentPopulation()) {
                 $validator->errors()->add('resident_id', 'Only active verified residents can receive PHN clinical encounters.');
             }
 

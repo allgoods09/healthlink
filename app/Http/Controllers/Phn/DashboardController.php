@@ -46,9 +46,8 @@ class DashboardController extends Controller
             ->map(function (Barangay $barangay) use ($today): array {
                 return [
                     'barangay' => $barangay,
-                    'active_residents_count' => Resident::query()
+                    'active_residents_count' => Resident::currentPopulation()
                         ->whereHas('household.purok', fn ($query) => $query->where('barangay_id', $barangay->id))
-                        ->where('is_active', true)
                         ->count(),
                     'pending_triage_count' => TriageRecord::query()
                         ->where('barangay_id', $barangay->id)

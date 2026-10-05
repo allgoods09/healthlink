@@ -82,7 +82,7 @@ class MunicipalReportController extends Controller
 
         $pdfLabels = match ($report) {
             'staffing' => ['Barangay', 'Active Puroks', 'Secretaries', 'BNS', 'BHW', 'Total Frontline Staff'],
-            'demographics' => ['Barangay', 'Active Households', 'Active Residents', 'Male', 'Female', 'Minors', 'Seniors'],
+            'demographics' => ['Barangay', 'Occupied Households', 'Active Residents', 'Male', 'Female', 'Minors', 'Seniors'],
             'nutrition' => ['Barangay', 'OPT+ Cycles In Progress', 'Eligible (Latest Cycle)', 'Measured (Latest Cycle)', 'Unmeasured (Latest Cycle)', 'Coverage (%)', 'Active Feeding Programs'],
             'clinical' => ['Barangay', 'Pending Triage', 'Triage Logged', 'PHN Encounters', 'Due Follow-Ups', 'Active Escalations'],
         };
@@ -156,28 +156,25 @@ class MunicipalReportController extends Controller
                 'barangay_name' => $barangay->name,
                 'active_household_count' => $this->householdsForBarangay($barangay)->where('is_active', true)->count(),
                 'inactive_household_count' => $this->householdsForBarangay($barangay)->where('is_active', false)->count(),
+                'occupied_household_count' => $this->householdsForBarangay($barangay)->whereHas('currentMembers')->count(),
+                'vacant_household_count' => $this->householdsForBarangay($barangay)->whereDoesntHave('currentMembers')->count(),
                 'active_resident_count' => $this->residentsForBarangay($barangay)
-                    ->where('is_active', true)
-                    ->where('resident_status', Resident::STATUS_ACTIVE)
+                    ->currentPopulation()
                     ->count(),
                 'male_resident_count' => $this->residentsForBarangay($barangay)
-                    ->where('is_active', true)
-                    ->where('resident_status', Resident::STATUS_ACTIVE)
+                    ->currentPopulation()
                     ->where('sex', 'Male')
                     ->count(),
                 'female_resident_count' => $this->residentsForBarangay($barangay)
-                    ->where('is_active', true)
-                    ->where('resident_status', Resident::STATUS_ACTIVE)
+                    ->currentPopulation()
                     ->where('sex', 'Female')
                     ->count(),
                 'minor_count' => $this->residentsForBarangay($barangay)
-                    ->where('is_active', true)
-                    ->where('resident_status', Resident::STATUS_ACTIVE)
+                    ->currentPopulation()
                     ->whereDate('birth_date', '>', now()->subYears(18)->toDateString())
                     ->count(),
                 'senior_count' => $this->residentsForBarangay($barangay)
-                    ->where('is_active', true)
-                    ->where('resident_status', Resident::STATUS_ACTIVE)
+                    ->currentPopulation()
                     ->whereDate('birth_date', '<=', now()->subYears(60)->toDateString())
                     ->count(),
                 'relocated_count' => $this->residentsForBarangay($barangay)
@@ -186,7 +183,10 @@ class MunicipalReportController extends Controller
                 'deceased_count' => $this->residentsForBarangay($barangay)
                     ->where('resident_status', Resident::STATUS_DECEASED)
                     ->count(),
+                'moved_out_count' => $this->residentsForBarangay($barangay)
+                    ->where('resident_status', Resident::STATUS_MOVED_OUT)->count(),
                 'social_aid_household_count' => $this->householdsForBarangay($barangay)
+                    ->whereHas('currentMembers')
                     ->where('is_social_aid_beneficiary', true)
                     ->count(),
             ];
@@ -198,14 +198,17 @@ class MunicipalReportController extends Controller
             'description' => 'Civil-population snapshot across households, active residents, age bands, and priority support markers.',
             'columns' => [
                 'Barangay' => 'barangay_name',
-                'Active Households' => 'active_household_count',
-                'Inactive Households' => 'inactive_household_count',
+                'Legacy Active Households' => 'active_household_count',
+                'Legacy Inactive Households' => 'inactive_household_count',
+                'Occupied Households' => 'occupied_household_count',
+                'Vacant Households' => 'vacant_household_count',
                 'Active Residents' => 'active_resident_count',
                 'Male' => 'male_resident_count',
                 'Female' => 'female_resident_count',
                 'Minors' => 'minor_count',
                 'Seniors' => 'senior_count',
-                'Relocated' => 'relocated_count',
+                'Relocated (Legacy)' => 'relocated_count',
+                'Moved Out' => 'moved_out_count',
                 'Deceased' => 'deceased_count',
                 'Social Aid Households' => 'social_aid_household_count',
             ],

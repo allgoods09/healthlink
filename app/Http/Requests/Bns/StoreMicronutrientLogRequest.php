@@ -32,7 +32,12 @@ class StoreMicronutrientLogRequest extends FormRequest
         $validator->after(function ($validator): void {
             $resident = Resident::query()->with('household.purok', 'maternalNutritionProfile')->find($this->integer('resident_id'));
 
-            if (! $resident || ! $this->filled('administered_on')) {
+            if (! $resident) {
+                $validator->errors()->add('resident_id', 'Select a current resident from your assigned barangay.');
+                return;
+            }
+
+            if (! $this->filled('administered_on')) {
                 return;
             }
 
@@ -42,6 +47,10 @@ class StoreMicronutrientLogRequest extends FormRequest
             }
 
             $administeredOn = Carbon::parse($this->input('administered_on'))->startOfDay();
+            if (! $resident->isCurrentPopulation()) {
+                $validator->errors()->add('resident_id', 'Select a current resident from your assigned barangay.');
+            }
+
             $category = $this->string('recipient_category')->toString();
 
             if ($category === MicronutrientSupplementationLog::RECIPIENT_TODDLER) {

@@ -9,6 +9,7 @@ use App\Models\ClinicalEncounter;
 use App\Models\Purok;
 use App\Models\Resident;
 use App\Support\ExportDownload;
+use App\Support\WebResidentPopulation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -73,14 +74,14 @@ class ResidentController extends Controller
             'Barangay' => fn (Resident $resident) => $resident->household?->purok?->barangay?->name,
             'Purok' => fn (Resident $resident) => $resident->household?->purok?->display_name,
             'Household' => fn (Resident $resident) => $resident->household?->household_no,
-            'Residency Status' => fn (Resident $resident) => $resident->resident_status_label,
+            'Residency Status' => fn (Resident $resident) => WebResidentPopulation::label($resident),
         ];
         $filters = [
             'Search' => $request->input('search'),
             'Barangay' => $this->phnBarangaysQuery()->find($request->integer('barangay_id'))?->name,
             'Purok' => $this->phnPuroksQuery()->find($request->integer('purok_id'))?->display_name,
             'Sex' => $request->input('sex'),
-            'Residency Status' => $request->input('resident_status'),
+            'Residency Status' => WebResidentPopulation::description($request),
             'Availability' => $request->input('is_active'),
         ];
 
@@ -98,7 +99,7 @@ class ResidentController extends Controller
 
     private function filteredQuery(Request $request): Builder
     {
-        $query = $this->phnResidentsQuery();
+        $query = WebResidentPopulation::directory($this->phnResidentsQuery(), $request);
 
         if ($request->filled('barangay_id')) {
             $query->whereHas('household.purok', fn (Builder $builder) => $builder->where('barangay_id', $request->integer('barangay_id')));
@@ -110,10 +111,6 @@ class ResidentController extends Controller
 
         if ($request->filled('sex')) {
             $query->where('sex', $request->input('sex'));
-        }
-
-        if ($request->filled('resident_status')) {
-            $query->where('resident_status', $request->input('resident_status'));
         }
 
         if ($request->filled('is_active')) {

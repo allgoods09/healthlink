@@ -56,8 +56,9 @@
                         <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($activeResidents) }}</p>
                     </div>
                     <div>
-                        <p class="text-sm text-slate-500">Households</p>
-                        <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($householdCount) }}</p>
+                        <p class="text-sm text-slate-500">Occupied Households</p>
+                        <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($occupiedHouseholdCount) }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ number_format($vacantHouseholdCount) }} vacant / {{ number_format($householdCount) }} registered</p>
                     </div>
                 </div>
             </div>
@@ -70,8 +71,9 @@
                         <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($deceasedResidents) }}</p>
                     </div>
                     <div>
-                        <p class="text-sm text-slate-500">Relocated</p>
+                        <p class="text-sm text-slate-500">Relocated (Legacy)</p>
                         <p class="mt-2 text-3xl font-semibold text-slate-900">{{ number_format($relocatedResidents) }}</p>
+                        <p class="mt-1 text-xs text-slate-500">Moved Out: {{ number_format($movedOutResidents) }}</p>
                     </div>
                 </div>
             </div>
@@ -107,10 +109,10 @@
                     <thead class="bg-slate-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Purok</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Households</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Occupied Households</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Active Residents</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Deceased</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Relocated</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Relocated (Legacy)</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 bg-white">

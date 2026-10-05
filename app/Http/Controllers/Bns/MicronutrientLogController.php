@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Bns\StoreMicronutrientLogRequest;
 use App\Models\AuditLog;
 use App\Models\MicronutrientSupplementationLog;
-use App\Models\Resident;
 use App\Support\ExportDownload;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -87,8 +86,7 @@ class MicronutrientLogController extends Controller
     {
         $residentOptions = $this->bnsResidentsQuery()
             ->with(['household.purok', 'maternalNutritionProfile'])
-            ->where('resident_status', Resident::STATUS_ACTIVE)
-            ->where('is_active', true)
+            ->currentPopulation()
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();

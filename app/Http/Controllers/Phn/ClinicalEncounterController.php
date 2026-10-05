@@ -77,6 +77,7 @@ class ClinicalEncounterController extends Controller
 
         if ($request->filled('triage_record_id')) {
             $selectedTriage = $this->phnPendingTriageRecordsQuery()
+                ->whereHas('resident', fn ($query) => $query->currentPopulation())
                 ->whereDoesntHave('clinicalEncounter')
                 ->with(['resident.household.purok.barangay', 'recordedBy.assignedPurok'])
                 ->find($request->integer('triage_record_id'));
@@ -89,6 +90,7 @@ class ClinicalEncounterController extends Controller
             ]);
         } elseif ($request->filled('resident_id')) {
             $selectedResident = $this->phnResidentsQuery()
+                ->currentPopulation()
                 ->with(['household.purok.barangay', 'latestOptMeasurement.campaignPeriod'])
                 ->find($request->integer('resident_id'));
         }
@@ -101,12 +103,12 @@ class ClinicalEncounterController extends Controller
             'selectedTriage' => $selectedTriage,
             'residentOptions' => $this->phnResidentsQuery()
                 ->with('household.purok.barangay')
-                ->where('resident_status', Resident::STATUS_ACTIVE)
-                ->where('is_active', true)
+                ->currentPopulation()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get(),
             'triageOptions' => $this->phnPendingTriageRecordsQuery()
+                ->whereHas('resident', fn ($query) => $query->currentPopulation())
                 ->whereDoesntHave('clinicalEncounter')
                 ->with('resident.household.purok.barangay')
                 ->latest('measured_at')

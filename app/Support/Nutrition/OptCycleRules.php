@@ -71,7 +71,7 @@ class OptCycleRules
 
     public static function residents(int $barangayId, CarbonInterface $reference): Builder
     {
-        return Resident::query()->where('resident_status', Resident::STATUS_ACTIVE)->where('is_active', true)
+        return Resident::currentPopulation()
             ->whereHas('household.purok', fn ($q) => $q->where('barangay_id', $barangayId))
             ->whereDate('birth_date', '<=', $reference->format('Y-m-d'))
             ->whereDate('birth_date', '>=', $reference->copy()->subYears(6)->format('Y-m-d'));

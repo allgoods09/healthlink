@@ -50,7 +50,7 @@ class StoreFeedingProgramEnrollmentRequest extends FormRequest
                 return;
             }
 
-            if ($resident->resident_status !== Resident::STATUS_ACTIVE || ! $resident->is_active) {
+            if (! $resident->isCurrentPopulation()) {
                 $validator->errors()->add('resident_id', 'Only active verified residents can be enrolled in feeding programs.');
             }
 
