@@ -219,6 +219,56 @@ try {
     await call('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     assert.equal(requests.length, 3);
+    if (process.env.DEPENDENT_OPTIONS_RACE === '1') {
+        for (const kind of ['create', 'edit']) {
+            await call('Page.navigate', { url: `${base}/${kind}` });
+            await wait('window.Alpine && document.querySelector("form")._x_dataStack');
+            const state = 'Alpine.$data(document.querySelector("form"))';
+            await evaluate(`{
+                window.lookupRequests=[];
+                window.fetch = url => new Promise((resolve,reject) => window.lookupRequests.push({
+                    url, reject, success: data => resolve({ok:true,json:async()=>data}),
+                    fail: () => resolve({ok:false,json:async()=>({})})
+                }));
+                const select=document.querySelector('#purok');
+                select.add(new Option('Other Purok','B'));
+                ${state}.purokId='${fragments.purok}';
+                ${state}.households=${JSON.stringify(fragments.options)};
+                ${state}.selectHousehold(${state}.households[0]);
+            }`);
+            await wait(`document.querySelector('input[name=household_id]').value !== ''`);
+            const change = value => evaluate(`{
+                const select=document.querySelector('#purok');select.value=${JSON.stringify(value)};
+                select.dispatchEvent(new Event('change',{bubbles:true}));
+            }`);
+            await change(fragments.purok);
+            await wait('window.lookupRequests.length===1');
+            assert.equal(await evaluate(`${state}.householdId`), '');
+            assert.equal(await evaluate('document.querySelector("#household_id").disabled'), true);
+            await change('B'); await wait('window.lookupRequests.length===2');
+            await evaluate('window.lookupRequests[1].success([{id:999,household_no:"B",household_address:"Current Purok"}])');
+            await wait(`${state}.households[0]?.id===999 && !${state}.householdLoading`);
+            await evaluate('window.lookupRequests[0].success([{id:888,household_no:"A",household_address:"Stale Purok"}])');
+            await evaluate('0');
+            assert.equal(await evaluate(`${state}.households[0].id`), 999);
+            await evaluate(`${state}.selectHousehold(${state}.households[0])`);
+            await change(fragments.purok); await wait('window.lookupRequests.length===3');
+            assert.equal(await evaluate(`${state}.householdId`), '');
+            await evaluate('window.lookupRequests[2].fail()');
+            await wait(`${state}.householdError !== '' && !${state}.householdLoading`);
+            assert.equal(await evaluate(`${state}.households.length`), 0);
+            assert.equal(await evaluate('document.querySelector("#household_id").disabled'), true);
+            await wait(`[...document.querySelectorAll('[role=status]')].some(p=>p.textContent.includes('Unable to load households') && getComputedStyle(p).display!=='none')`);
+            await change('B'); await wait('window.lookupRequests.length===4');
+            await change(''); await evaluate('window.lookupRequests[3].success([{id:999,household_no:"B",household_address:"Late"}])');
+            await evaluate('0');
+            assert.equal(await evaluate(`${state}.households.length`), 0);
+            assert.equal(await evaluate(`${state}.householdId`), '');
+            assert.equal(await evaluate(`${state}.householdError`), '');
+        }
+        assert.deepEqual(errors, []);
+        console.log('Resident dependent-options browser checks passed: real create/edit Alpine controls, immediate clearing, reversed responses, current HTTP failure/status, clear during flight.');
+    }
     console.log(JSON.stringify({ result: 'passed', mode: process.env.SEARCH_RANKING_PILOT === '1' ? 'read-only pilot data' : 'synthetic fixture',
         households: fragments.householdCount, residents: fragments.residentCount, originalExactPosition: fragments.oldPosition,
         rankedExactPosition: 1, householdRankMs: Number(timings.toFixed(2)), residentRankMs: Number(residentTimings.toFixed(2)),

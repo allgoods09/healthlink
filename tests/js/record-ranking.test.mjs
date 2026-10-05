@@ -171,7 +171,9 @@ for (const page of ['create', 'edit', 'relocate']) {
     test(`${page} bespoke Household selector ranks before cap and selects the right ID`, () => {
         const path = page === 'relocate' ? 'secretary/residents/relocate' : `admin/geometry/residents/${page}`;
         const source = readFileSync(new URL(`../../resources/views/${path}.blade.php`, import.meta.url), 'utf8');
-        const script = source.match(/<script>([\s\S]*?)<\/script>/)[1].replace("@js($routePrefix === 'secretary')", 'true');
+        const script = source.match(/<script>([\s\S]*?)<\/script>/)[1].replace("@js($routePrefix === 'secretary')", 'true')
+            .replace("@include('admin.geometry.residents.partials.dependent-options')",
+                readFileSync(new URL('../../resources/views/admin/geometry/residents/partials/dependent-options.blade.php', import.meta.url), 'utf8'));
         const context = { window: { rankHouseholdOptions }, console };
         vm.runInNewContext(script, context);
         const selector = page === 'relocate' ? context.residentRelocation('', 'existing_household', '1', '', []) : context.residentForm('', '', '1', '1', '', [], []);

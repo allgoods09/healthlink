@@ -71,9 +71,9 @@
                     this.syncHouseholdSearch();
 
                     if (this.barangayId && this.puroks.length === 0) {
-                        this.loadPuroks();
+                        this.loadPuroks(true);
                     } else if (this.purokId && this.households.length === 0) {
-                        this.loadHouseholds();
+                        this.loadHouseholds(true);
                     }
 
                     this.$nextTick(() => {
@@ -178,42 +178,7 @@
                             : '',
                     );
                 },
-                async loadPuroks() {
-                    if (!this.barangayId) {
-                        this.puroks = [];
-                        this.purokId = '';
-                        this.households = [];
-                        this.householdId = '';
-                        this.syncHouseholdSearch();
-                        return;
-                    }
-
-                    const response = await fetch(`${this.purokEndpoint}?barangay_id=${this.barangayId}`);
-                    this.puroks = await response.json();
-
-                    if (!this.puroks.find((purok) => String(purok.id) === String(this.purokId))) {
-                        this.purokId = '';
-                    }
-
-                    await this.loadHouseholds();
-                },
-                async loadHouseholds() {
-                    if (!this.purokId) {
-                        this.households = [];
-                        this.householdId = '';
-                        this.syncHouseholdSearch();
-                        return;
-                    }
-
-                    const response = await fetch(`${this.householdEndpoint}?purok_id=${this.purokId}`);
-                    this.households = await response.json();
-
-                    if (!this.households.find((household) => String(household.id) === String(this.householdId))) {
-                        this.householdId = '';
-                    }
-
-                    this.syncHouseholdSearch();
-                },
+                @include('admin.geometry.residents.partials.dependent-options')
             };
         }
     </script>

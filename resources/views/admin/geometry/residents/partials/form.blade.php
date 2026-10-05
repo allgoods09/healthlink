@@ -30,7 +30,7 @@
             x-model="purokId"
             @change="loadHouseholds()"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            :disabled="!barangayId || puroks.length === 0"
+            :disabled="purokLoading || !barangayId || puroks.length === 0"
             required
         >
             <option value="">Select purok</option>
@@ -42,6 +42,7 @@
                 ></option>
             </template>
         </select>
+        <p x-cloak x-show="purokLoading || purokError" role="status" class="mt-1 text-xs text-gray-500" x-text="purokLoading ? 'Loading puroks...' : purokError"></p>
         @if($availablePuroks->isEmpty())
             <p class="mt-1 text-xs text-gray-500">Choose a barangay first to narrow the list of puroks.</p>
         @else
@@ -58,7 +59,7 @@
                 id="household_id"
                 x-ref="householdSearchInput"
                 x-model="householdSearchQuery"
-                :disabled="!purokId || households.length === 0"
+                :disabled="householdLoading || !purokId || households.length === 0"
                 :placeholder="households.length === 0 ? 'Select a purok with households first' : 'Search household number or address'"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('household_id') border-red-500 @enderror"
                 autocomplete="off"
@@ -94,6 +95,7 @@
                 </div>
             </div>
         </div>
+        <p x-cloak x-show="householdLoading || householdError" role="status" class="mt-1 text-xs text-gray-500" x-text="householdLoading ? 'Loading households...' : householdError"></p>
         @error('household_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @else
