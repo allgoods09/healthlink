@@ -81,7 +81,7 @@ class MobileApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
-    public function test_mobile_bootstrap_returns_the_whole_assigned_barangay_but_excludes_other_barangays(): void
+    public function test_mobile_bootstrap_narrows_current_residents_but_preserves_barangay_household_and_visit_history(): void
     {
         $barangay = Barangay::factory()->create();
         $foreignBarangay = Barangay::factory()->create();
@@ -218,7 +218,7 @@ class MobileApiTest extends TestCase
 
         $response->assertOk()
             ->assertJsonCount(2, 'households')
-            ->assertJsonCount(2, 'residents')
+            ->assertJsonCount(1, 'residents')
             ->assertJsonCount(2, 'field_visits')
             ->assertJsonPath('sync.supports_auto_upload_when_online', false);
 
@@ -229,7 +229,7 @@ class MobileApiTest extends TestCase
             collect($payload['households'])->pluck('id')->all()
         );
         $this->assertEqualsCanonicalizing(
-            [$assignedResident->id, $sameBarangayResident->id],
+            [$assignedResident->id],
             collect($payload['residents'])->pluck('id')->all()
         );
         $this->assertEqualsCanonicalizing(

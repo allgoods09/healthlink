@@ -12,7 +12,7 @@ import { TopHeader } from '../components/TopHeader';
 import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
-import { getHouseholds, getResidents, getVisits } from '../lib/storage';
+import { getHouseholds, getCurrentOfficialResidentCount, getVisits } from '../lib/storage';
 import { AppTheme } from '../theme';
 import { FieldVisitRecord } from '../types';
 
@@ -41,13 +41,13 @@ export function HomeScreen({ navigation }: any) {
     async function loadDashboard() {
       const [households, residents, visits] = await Promise.all([
         getHouseholds(),
-        getResidents(),
+        getCurrentOfficialResidentCount(),
         getVisits(),
       ]);
 
       setCounts({
         households: households.length,
-        residents: residents.length,
+        residents,
         visits: visits.length,
       });
       setRecentVisits(visits.slice(0, 3));

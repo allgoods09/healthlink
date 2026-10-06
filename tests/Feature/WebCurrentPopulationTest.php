@@ -388,14 +388,15 @@ class WebCurrentPopulationTest extends TestCase
         $this->assertTrue($dashboard->viewData('recentActivity')->contains(fn ($log) => $log->model_type === Resident::class && $log->model_id === $resident->id));
     }
 
-    public function test_mobile_bootstrap_remains_on_broad_compatibility_contract_after_web_reads(): void
+    public function test_mobile_bootstrap_keeps_current_assigned_purok_contract_after_web_reads(): void
     {
         $bhw = $this->user('bhw');
         $bootstrap = app(MobileBootstrapPayload::class);
         $before = $bootstrap->build($bhw);
-        $this->assertCount(5, $before['residents']);
+        $this->assertCount(2, $before['residents']);
         $this->assertEqualsCanonicalizing(array_map(fn ($state) => $this->people[$state]->id,
-            ['active', 'unavailable', 'deceased', 'moved_out', 'relocated']), array_column($before['residents'], 'id'));
+            ['active', 'unavailable']), array_column($before['residents'], 'id'));
+        $this->assertSame(1, $before['resident_contract_version']);
         $this->actingAs($bhw)->get(route('bhw.residents.index'))->assertOk();
         $this->assertSame($before, $bootstrap->build($bhw));
     }

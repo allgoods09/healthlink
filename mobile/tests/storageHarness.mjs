@@ -12,12 +12,17 @@ export async function storageHarness() {
   const sqlite = new DatabaseSync(':memory:');
   const secrets = new Map();
   let beforeQuery = async () => {};
+  let exclusive = false;
   const params = args => (Array.isArray(args[0]) ? args[0] : args).map(value => value ?? null);
+  async function transactionRun(sql, ...args) {
+    await beforeQuery(sql);
+    return sqlite.prepare(sql).run(...params(args));
+  }
   const db = {
     async execAsync(sql) { await beforeQuery(sql); sqlite.exec(sql); },
     async runAsync(sql, ...args) {
-      await beforeQuery(sql);
-      return sqlite.prepare(sql).run(...params(args));
+      if (exclusive) throw new Error('Exclusive transaction writes must use the transaction handle');
+      return transactionRun(sql, ...args);
     },
     async getAllAsync(sql, ...args) {
       await beforeQuery(sql);
@@ -33,7 +38,11 @@ export async function storageHarness() {
       catch (error) { sqlite.exec('ROLLBACK'); throw error; }
     },
     async withExclusiveTransactionAsync(task) {
-      return db.withTransactionAsync(() => task(db));
+      return db.withTransactionAsync(async () => {
+        exclusive = true;
+        try { await task({ ...db, runAsync: transactionRun }); }
+        finally { exclusive = false; }
+      });
     },
   };
   const cache = new Map();

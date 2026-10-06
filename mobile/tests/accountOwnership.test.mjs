@@ -8,6 +8,7 @@ export const household = {
 };
 const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
 export const bootstrap = (userId = 1) => ({
+  resident_contract_version: 1,
   user: { id: userId }, assignment: { barangay: { id: userId }, purok: { id: userId } },
   server_time: '2026-10-03T12:00:00Z', households: [], residents: [], field_visits: [], risk_assessments: [],
 });
@@ -15,7 +16,7 @@ async function fixture(t) {
   const h = await storageHarness();
   t.after(h.close);
   await h.storage.prepareDatasetForUser(1);
-  await h.storage.replaceBootstrapData(bootstrap());
+  await h.storage.replaceBootstrapData({ ...bootstrap(), households: [{ ...household, mobile_uuid: null, id: 1, purok_id: 1 }] });
   return h;
 }
 async function snapshot(db) {
@@ -26,6 +27,7 @@ async function snapshot(db) {
 const drafts = {
   household: s => s.saveHousehold(household, 1),
   resident: s => s.saveResident({
+    household_server_id: 1,
     first_name: 'Ana', last_name: 'Synthetic', birth_date: '1990-01-01', birth_place: 'Tubigon',
     sex: 'Female', civil_status: 'Single', citizenship: 'Filipino', relationship_to_head: 'Head', is_active: true,
   }, 1),
@@ -85,7 +87,7 @@ test('successfully acknowledged old drafts permit switching; stale acknowledgmen
   const { storage } = await fixture(t);
   await storage.saveHousehold(household, 1);
   const { snapshot: upload } = await storage.getPendingSyncPayload(1);
-  const resolved = { households: [{ id: 1, mobile_uuid: household.mobile_uuid }], residents: [], field_visits: [], risk_assessments: [] };
+  const resolved = { households: [{ id: 2, mobile_uuid: household.mobile_uuid }], residents: [], field_visits: [], risk_assessments: [] };
   await storage.applyResolvedRecords(resolved, upload);
   await storage.prepareDatasetForUser(2);
   await assert.rejects(storage.applyResolvedRecords(resolved, upload), { name: 'DatasetOwnershipError' });

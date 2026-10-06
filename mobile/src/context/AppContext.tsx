@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { ActivityIndicator, AppState, Modal, Platform, Text, View, useColorScheme } from 'react-native';
-import { AccountSwitchBlockedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError } from '../lib/syncGuard';
+import { AccountSwitchBlockedError, AssignmentChangedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError } from '../lib/syncGuard';
 
 import { i18n, setLocale, SupportedLocale } from '../i18n';
 import {
@@ -41,6 +41,7 @@ import {
   replaceBootstrapData,
   setAppState,
   storeToken,
+  verifyDatasetAssignment,
 } from '../lib/storage';
 import {
   MobileAssignment,
@@ -119,6 +120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const syncInFlight = useRef(false);
   const sessionEpoch = useRef(0);
+  const verificationSequence = useRef(0);
   const authTransition = useRef(false);
   const [isApplyingRefresh, setIsApplyingRefresh] = useState(false);
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
@@ -179,7 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (hasLocalEditor()) throw new RefreshDeferredError();
     setIsApplyingRefresh(true);
     try {
-      await replaceBootstrapData(bootstrap);
+      await replaceBootstrapData(bootstrap, () => epoch === sessionEpoch.current);
     } finally {
       setIsApplyingRefresh(false);
     }
@@ -230,7 +232,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     nextApiBaseUrl: string,
     nextToken: string,
     epoch: number,
-    fallbackMessage = i18n.t('initialSyncFailed')
+    fallbackMessage = i18n.t('initialSyncFailed'),
+    loginAssignment?: Pick<MobileUser, 'id' | 'assigned_barangay_id' | 'assigned_purok_id'>
   ) {
     setBootstrapCompleted(false);
 
@@ -245,6 +248,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStatusMessage(i18n.t('initialSyncing'));
 
     try {
+      const verification = loginAssignment ? { user: loginAssignment, sequence: undefined } : await fetchVerifiedAssignment(nextToken, epoch);
+      if (!verification) return;
+      if (epoch !== sessionEpoch.current) return;
+      await checkAssignment(verification.user, epoch, verification.sequence);
+      if (epoch !== sessionEpoch.current) return;
+      if (await getAppState('resident_workspace_blocked') === 'assignment' &&
+          ((await getPendingChangeSummary()).total > 0 || hasLocalEditor())) throw new AssignmentChangedError();
       const bootstrap = await mobileBootstrap(nextApiBaseUrl, nextToken);
       if (epoch !== sessionEpoch.current) return;
       await hydrateBootstrapSession(bootstrap, epoch);
@@ -315,10 +325,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await assertDatasetOwner(sessionUser?.id);
           setUser(sessionUser);
           setToken(storedToken);
-          if (storedSessionAssignment) {
+          if (storedSessionAssignment && bootstrapped) {
             setAssignment(JSON.parse(storedSessionAssignment) as MobileAssignment);
           }
-          if (!bootstrapped) setStatusMessage(i18n.t('initialSyncPendingMessage'));
+          if (!bootstrapped) setStatusMessage(i18n.t(
+            await getAppState('resident_workspace_blocked') === 'assignment' ? 'assignmentChangedWorkProtected' : 'residentRefreshRequired'));
         } catch {
           await clearLocalSession();
           setBootstrapCompleted(false);
@@ -349,10 +360,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const epoch = sessionEpoch.current;
-    void mobileVerify(MOBILE_API_BASE_URL, token).catch(async () => {
+    void fetchVerifiedAssignment(token, epoch).then(async verification => {
+      if (!verification || epoch !== sessionEpoch.current) return;
+      const compatible = await checkAssignment(verification.user, epoch, verification.sequence);
+      if (epoch !== sessionEpoch.current || compatible || initialSyncInProgress) return;
+      if ((await getPendingChangeSummary()).total > 0 || hasLocalEditor()) return;
+      await performInitialSync(MOBILE_API_BASE_URL, token, epoch, i18n.t('initialSyncFailed'), verification.user);
+    }, async () => {
       if (epoch === sessionEpoch.current) await signOut(true);
+    }).catch(error => {
+      if (epoch === sessionEpoch.current) setStatusMessage(error instanceof Error ? error.message : i18n.t('initialSyncFailed'));
     });
   }, [isOnline, token]);
+
+  async function fetchVerifiedAssignment(nextToken: string, epoch: number) {
+    const sequence = ++verificationSequence.current;
+    try {
+      const response = await mobileVerify(MOBILE_API_BASE_URL, nextToken);
+      return epoch === sessionEpoch.current && sequence === verificationSequence.current ? { user: response.user, sequence } : null;
+    } catch (error) {
+      if (epoch !== sessionEpoch.current || sequence !== verificationSequence.current) return null;
+      throw error;
+    }
+  }
+
+  async function checkAssignment(authoritative: { id: number; assigned_barangay_id: number; assigned_purok_id: number }, epoch: number, sequence?: number) {
+    if (epoch !== sessionEpoch.current) return false;
+    const compatible = await verifyDatasetAssignment(authoritative?.id, authoritative?.assigned_barangay_id, authoritative?.assigned_purok_id,
+      () => epoch === sessionEpoch.current && (sequence === undefined || sequence === verificationSequence.current));
+    if (epoch !== sessionEpoch.current) return false;
+    if (!compatible) {
+      setBootstrapCompleted(false);
+      setAssignment(null);
+      setDataVersion(current => current + 1);
+      const changed = await getAppState('resident_workspace_blocked') === 'assignment';
+      setStatusMessage(changed ? i18n.t('assignmentChangedWorkProtected') : i18n.t('residentRefreshRequired'));
+    }
+    return compatible;
+  }
 
   useEffect(() => {
     if (!isReady || !isOnline || !token) {
@@ -419,6 +464,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       if (epoch !== sessionEpoch.current) return;
 
+      await checkAssignment(response.user, epoch);
+      if (epoch !== sessionEpoch.current) return;
+
       const [existingDatasetOwnerUserId, existingDatasetAssignment, bootstrapped, storedLastSyncAt] =
         await Promise.all([
           getDatasetOwnerUserId(),
@@ -464,7 +512,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(response.token);
       await refreshPendingSyncCount();
       authTransition.current = false;
-      await performInitialSync(MOBILE_API_BASE_URL, response.token, epoch);
+      await performInitialSync(MOBILE_API_BASE_URL, response.token, epoch, i18n.t('initialSyncFailed'), response.user);
     } finally {
       if (epoch === sessionEpoch.current) authTransition.current = false;
     }
@@ -522,6 +570,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await assertDatasetOwner(user.id);
       if (epoch !== sessionEpoch.current) return;
+      const verification = await fetchVerifiedAssignment(activeToken, epoch);
+      if (!verification) return;
+      if (epoch !== sessionEpoch.current) return;
+      await checkAssignment(verification.user, epoch, verification.sequence);
+      if (epoch !== sessionEpoch.current) return;
+      if (await getAppState('resident_workspace_blocked') === 'assignment' &&
+          ((await getPendingChangeSummary()).total > 0 || hasLocalEditor())) throw new AssignmentChangedError();
       const pendingSummary = await refreshPendingSyncCount();
       let registrySubmitted = false;
 
@@ -576,6 +631,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await refreshNotificationsWithToken(activeToken);
     } catch (error) {
       if (epoch !== sessionEpoch.current) return;
+      if (error instanceof AssignmentChangedError) {
+        setBootstrapCompleted(false);
+        setAssignment(null);
+        const message = i18n.t('assignmentChangedWorkProtected');
+        setStatusMessage(message);
+        showToast(message, 'warning');
+        return;
+      }
       if (error instanceof DatasetOwnershipError) {
         const message = i18n.t('accountRecordsProtected');
         setStatusMessage(message);
@@ -606,6 +669,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // This is an explicit manual retry, not automatic upload on verification.
+    if ((await getPendingChangeSummary()).total > 0) {
+      await syncNow();
+      return;
+    }
     await performInitialSync(MOBILE_API_BASE_URL, token, sessionEpoch.current);
   }
 

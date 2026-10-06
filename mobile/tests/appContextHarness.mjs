@@ -6,6 +6,7 @@ import { storageHarness } from './storageHarness.mjs';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 export const bootstrap = id => ({
+  resident_contract_version: 1,
   user: { id }, assignment: { barangay: { id }, purok: { id } }, server_time: '2026-10-03',
   households: [], residents: [], field_visits: [], risk_assessments: [],
 });
@@ -17,10 +18,12 @@ export async function appContextHarness(overrides = {}, beforeBoot = async () =>
   await beforeBoot(h.storage);
   const calls = [];
   const api = {
-    mobileLogin: async (_url, { email }) => ({ token: `token-${email}`, user: { id: Number(email), role: 'bhw' } }),
+    mobileLogin: async (_url, { email }) => ({ token: `token-${email}`, user: { id: Number(email), role: 'bhw',
+      assigned_barangay_id: Number(email), assigned_purok_id: Number(email) } }),
     mobileLogout: async () => ({ success: true }),
     mobileBootstrap: async (_url, token) => bootstrap(Number(token.split('-')[1])),
-    mobileVerify: async () => ({ valid: true }),
+    mobileVerify: async (_url, token) => ({ valid: true, user: { id: Number(token.split('-')[1]),
+      assigned_barangay_id: Number(token.split('-')[1]), assigned_purok_id: Number(token.split('-')[1]) } }),
     mobileCheckRelease: async () => ({ update: { available: false, required: false } }),
     mobileNotifications: async () => ({ notifications: [], unread_count: 0 }),
     mobileSync: async () => { throw new Error('Unexpected upload'); },

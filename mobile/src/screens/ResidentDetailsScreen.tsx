@@ -67,9 +67,7 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
   }
 
   const canEdit =
-    assignment?.purok?.id === null ||
-    assignment?.purok?.id === undefined ||
-    resident.household_purok_id === assignment?.purok?.id;
+    Boolean(assignment?.purok?.id) && resident.household_purok_id === assignment?.purok?.id;
   const purokLabel = formatPurokLabel(
     resident.household_purok_display_name,
     resident.household_purok_id,
@@ -77,7 +75,7 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
   );
   const residentAge = calculateAgeFromBirthDate(resident.birth_date);
   const canCreateRiskAssessment =
-    Boolean(resident.server_id) && residentAge !== null && residentAge >= 20;
+    canEdit && Boolean(resident.server_id) && residentAge !== null && residentAge >= 20;
   const latestAssessmentDays = daysSinceDate(latestRiskAssessment?.assessment_date);
 
   return (

@@ -74,7 +74,7 @@ class LifecyclePopulationCompatibilityTest extends TestCase
         $this->assertSame($this->home->id, $mobileResident['household_id']);
         $this->assertFalse($mobileResident['is_active']);
         $this->assertSame('submitted', $mobileResident['verification_status']);
-        $this->assertArrayNotHasKey('resident_status', $mobileResident);
+        $this->assertSame(Resident::STATUS_ACTIVE, $mobileResident['resident_status']);
         $this->assertSame($payload, app(MobileBootstrapPayload::class)->build($bhw));
         $this->assertDatabaseCount('resident_drafts', 0);
         $this->assertDatabaseCount('household_drafts', 0);
@@ -114,7 +114,7 @@ class LifecyclePopulationCompatibilityTest extends TestCase
         $this->assertSame($before, $this->snapshot());
     }
 
-    public function test_mobile_keeps_broad_membership_and_availability_for_every_lifecycle_state(): void
+    public function test_mobile_current_residents_exclude_history_without_mutating_historical_membership_or_availability(): void
     {
         $bhw = $this->user('bhw');
         $secretary = $this->user('secretary');
@@ -132,7 +132,7 @@ class LifecyclePopulationCompatibilityTest extends TestCase
         ]);
         $before = $this->snapshot();
         $payload = app(MobileBootstrapPayload::class)->build($bhw);
-        $this->assertCount(8, $payload['residents']);
+        $this->assertCount(2, $payload['residents']);
         $this->assertSame(8, $payload['households'][0]['resident_count']);
         $this->assertSame(2, $this->home->currentMemberCount());
         foreach ($payload['residents'] as $row) {
@@ -140,7 +140,7 @@ class LifecyclePopulationCompatibilityTest extends TestCase
             $this->assertSame($residents[$row['id']]->is_active, $row['is_active']);
             $this->assertSame($this->home->id, $row['household_id']);
             $this->assertSame('approved', $row['verification_status']);
-            $this->assertArrayNotHasKey('resident_status', $row);
+            $this->assertSame(Resident::STATUS_ACTIVE, $row['resident_status']);
             $this->assertNotSame($foreign->id, $row['id']);
         }
         foreach (['secretary' => $secretary, 'bhw' => $bhw] as $role => $user) {

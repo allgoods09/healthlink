@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\User;
+use App\Models\Purok;
 
 final class MobileBarangayScope
 {
@@ -18,5 +19,19 @@ final class MobileBarangayScope
         );
 
         return (int) $user->assigned_barangay_id;
+    }
+
+    public static function requirePurok(User $user): Purok
+    {
+        abort_unless($user->role === 'bhw' && $user->isApproved() && $user->is_active, 403,
+            'This account is no longer allowed to access the mobile API.');
+        $barangayId = self::requireBarangayId($user);
+        $purok = Purok::query()->active()->whereKey($user->assigned_purok_id)
+            ->where('barangay_id', $barangayId)->first();
+
+        abort_unless($purok, 403,
+            'Your BHW account needs an active purok assignment in your assigned barangay. Please contact an administrator.');
+
+        return $purok;
     }
 }

@@ -97,6 +97,8 @@ export type ResidentRecord = {
   email_address?: string | null;
   relationship_to_head: string;
   is_active: boolean;
+  resident_status?: string | null;
+  deleted_at?: string | null;
   latest_risk_assessment_date?: string | null;
   latest_risk_assessment_sync_status?: SyncStatus | null;
   sync_status: SyncStatus;
@@ -193,6 +195,7 @@ export type FieldVisitRecord = {
 
 export type BootstrapPayload = {
   server_time: string;
+  resident_contract_version?: number;
   user: {
     id: number;
     name: string;
@@ -238,6 +241,8 @@ export type BootstrapPayload = {
     email_address: string | null;
     relationship_to_head: string;
     is_active: boolean;
+    resident_status?: string | null;
+    deleted_at?: string | null;
     verification_status?: VerificationStatus;
     verification_notes?: string | null;
     local_revision?: number;

@@ -6,7 +6,8 @@ const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const emptyResolved = () => Object.fromEntries(tables.map(table => [table, []]));
 const bootstrap = (households = []) => ({
-  user: { id: 1 }, assignment: { barangay_id: 1 }, server_time: '2026-10-03T10:00:00Z',
+  resident_contract_version: 1,
+  user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } }, server_time: '2026-10-03T10:00:00Z',
   households, residents: [], field_visits: [], risk_assessments: [],
 });
 const household = (n = 1) => ({
@@ -19,6 +20,7 @@ async function fixture(t) {
   t.after(harness.close);
   const raw = harness.storage;
   await raw.prepareDatasetForUser(1);
+  await raw.replaceBootstrapData({ ...bootstrap(), server_time: '' });
   // C3 scenarios run as the established owner; C4 tests exercise different users.
   harness.storage = { ...raw,
     saveHousehold: values => raw.saveHousehold(values, 1),
@@ -53,7 +55,7 @@ test('unchanged uploaded revisions are acknowledged for all four datasets', asyn
 
 for (const [table, save, read, change] of [
   ['households', 'saveHousehold', 'getHouseholds', { household_address: 'New address' }],
-  ['residents', 'saveResident', 'getResidents', { first_name: 'Updated Ana' }],
+  ['residents', 'saveResident', 'getResidentRequests', { first_name: 'Updated Ana' }],
   ['field_visits', 'saveVisit', 'getVisits', { notes: 'New notes' }],
 ]) {
   test(`${table}: edit after upload remains pending, then next manual upload succeeds`, async t => {
@@ -123,7 +125,7 @@ test('registry submission stays nonofficial until approval and refresh reconcile
     citizenship: 'Filipino', relationship_to_head: 'Head', is_active: true,
   });
   const originalHousehold = (await storage.getHouseholds())[0];
-  const originalResident = (await storage.getResidents())[0];
+  const originalResident = (await storage.getResidentRequests())[0];
   const { payload, snapshot } = await storage.getPendingSyncPayload();
   assert.equal(payload.households[0].local_revision, originalHousehold.local_revision);
   assert.equal(payload.residents[0].local_revision, originalResident.local_revision);
@@ -143,12 +145,12 @@ test('registry submission stays nonofficial until approval and refresh reconcile
   };
   await storage.replaceBootstrapData(submittedPayload);
   assert.equal((await storage.getHouseholds())[0].local_id, originalHousehold.local_id);
-  assert.equal((await storage.getResidents())[0].local_id, originalResident.local_id);
+  assert.equal((await storage.getResidentRequests())[0].local_id, originalResident.local_id);
   assert.equal((await storage.getHouseholds())[0].verification_status, 'submitted');
 
   const approvedPayload = { ...bootstrap([{ ...serverHousehold(), verification_status: 'approved' }]),
     residents: [{ ...submittedPayload.residents[0], id: 2, household_id: 1,
-      verification_status: 'approved' }],
+      resident_status: 'active', verification_status: 'approved' }],
   };
   await storage.replaceBootstrapData(approvedPayload);
   const households = await storage.getHouseholds();

@@ -83,13 +83,7 @@ class AuthController extends Controller
             ], 403);
         }
 
-        MobileBarangayScope::requireBarangayId($user);
-
-        if (! $user->assigned_purok_id) {
-            return response()->json([
-                'message' => 'Your BHW account is missing a barangay or purok assignment.',
-            ], 403);
-        }
+        MobileBarangayScope::requirePurok($user);
 
         $request->clearRateLimiter();
 

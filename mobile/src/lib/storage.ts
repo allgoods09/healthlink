@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
-import { AccountSwitchBlockedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
+import { AccountSwitchBlockedError, AssignmentChangedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
 
 import {
   BootstrapPayload,
@@ -8,6 +8,7 @@ import {
   HouseholdRecord,
   RiskAssessmentRecord,
   ResidentRecord,
+  MobileAssignment,
   SyncStatus,
   SyncResponse,
   VisitPhoto,
@@ -15,6 +16,8 @@ import {
 
 const TOKEN_KEY = 'healthlink_mobile_token';
 const DB_NAME = 'healthlink_bhw.db';
+export const RESIDENT_CONTRACT_VERSION = 1;
+export const CURRENT_RESIDENT_PAGE_SIZE = 50;
 const SYNC_TABLES = ['households', 'residents', 'field_visits', 'risk_assessments'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
 type SnapshotRows = Record<SyncTable, Record<string, any>[]>;
@@ -24,7 +27,21 @@ type UploadSnapshot = { ownerUserId: number; rows: SnapshotRows };
 export const saveHousehold = (values: Parameters<typeof saveHouseholdInternal>[0], userId: number | undefined) =>
   ownedWrite(userId, () => saveHouseholdInternal(values));
 export const saveResident = (values: Parameters<typeof saveResidentInternal>[0], userId: number | undefined) =>
-  ownedWrite(userId, () => saveResidentInternal(values));
+  ownedWrite(userId, async () => {
+    const scope = await currentResidentScope();
+    if (!scope) throw new AssignmentChangedError();
+    const db = await getDatabase();
+    const existing = values.local_id ? await db.getFirstAsync<any>('SELECT * FROM residents WHERE local_id = ?', [values.local_id]) : null;
+    if (existing?.server_id != null && !await getResidentByLocalId(values.local_id!)) throw new AssignmentChangedError();
+    if (existing && existing.server_id == null && !await getResidentRequestByLocalId(values.local_id!)) throw new AssignmentChangedError();
+    if (!existing && values.server_id != null) throw new AssignmentChangedError();
+    const household = await db.getFirstAsync<{ purok_id: number }>(
+      values.household_server_id != null ? 'SELECT purok_id FROM households WHERE server_id = ?' :
+        "SELECT purok_id FROM households WHERE mobile_uuid IS NOT NULL AND TRIM(mobile_uuid) <> '' AND mobile_uuid = ?",
+      [values.household_server_id ?? values.household_mobile_uuid ?? null]);
+    if (household?.purok_id !== scope.purokId) throw new AssignmentChangedError();
+    return saveResidentInternal(values);
+  });
 export const saveVisit = (values: Parameters<typeof saveVisitInternal>[0], userId: number | undefined) =>
   ownedWrite(userId, () => saveVisitInternal(values));
 export const saveRiskAssessment = (values: Parameters<typeof saveRiskAssessmentInternal>[0], userId: number | undefined) =>
@@ -33,8 +50,8 @@ export const getPendingSyncPayload = (userId: number) => ownedWrite(userId, asyn
   const { payload, snapshot } = await getPendingSyncPayloadInternal();
   return { payload, snapshot: { ownerUserId: userId, rows: snapshot } };
 });
-export const replaceBootstrapData = (payload: BootstrapPayload) =>
-  ownedWrite(payload.user.id, () => replaceBootstrapDataInternal(payload));
+export const replaceBootstrapData = (payload: BootstrapPayload, applicable = () => true) =>
+  ownedWrite(payload.user.id, () => replaceBootstrapDataInternal(payload, applicable), true);
 export const applyResolvedRecords = (resolved: SyncResponse['resolved_records'], snapshot: UploadSnapshot) =>
   ownedWrite(snapshot.ownerUserId, () => applyResolvedRecordsInternal(resolved, snapshot.rows));
 const UUID_REGEX =
@@ -299,6 +316,12 @@ export async function initializeStorage() {
   for (const table of SYNC_TABLES) {
     await ensureColumn(db, table, 'local_revision', 'INTEGER NOT NULL DEFAULT 0');
   }
+  // Unknown lifecycle values in old caches stay unknown until authoritative refresh.
+  await ensureColumn(db, 'residents', 'resident_status', 'TEXT');
+  await ensureColumn(db, 'residents', 'deleted_at', 'TEXT');
+  await db.execAsync(`CREATE INDEX IF NOT EXISTS residents_current_name
+    ON residents(resident_status, last_name, first_name, middle_name, suffix, local_id);
+    CREATE INDEX IF NOT EXISTS households_purok ON households(purok_id);`);
   await repairInvalidMobileUuids(db);
 }
 
@@ -440,10 +463,18 @@ export async function clearToken() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
-async function replaceBootstrapDataInternal(payload: BootstrapPayload) {
+async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicable: () => boolean) {
   const db = await getDatabase();
 
   await db.withExclusiveTransactionAsync(async (db) => {
+    if (!applicable()) throw new DatasetOwnershipError();
+    const signature = assignmentSignature(payload.user.id, payload.assignment);
+    const expected = (await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_state WHERE key = ?', ['verified_assignment_signature']))?.value;
+    if (!signature || (expected && expected !== signature)) throw new AssignmentChangedError();
+    if (payload.resident_contract_version !== RESIDENT_CONTRACT_VERSION) {
+      throw new Error('A compatible Resident download is required before using this device.');
+    }
     if (hasLocalEditor()) throw new RefreshDeferredError();
     const identities = {} as Record<SyncTable, Map<number, number>>;
     const uuidIdentities = {} as Record<SyncTable, Map<string, number>>;
@@ -527,12 +558,14 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload) {
           email_address,
           relationship_to_head,
           is_active,
+          resident_status,
+          deleted_at,
           sync_status,
           verification_status,
           verification_notes,
           local_revision,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)`,
         [
           oldId,
           resident.id,
@@ -554,6 +587,8 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload) {
           resident.email_address,
           resident.relationship_to_head,
           boolToInt(resident.is_active),
+          resident.resident_status ?? null,
+          resident.deleted_at ?? null,
           resident.verification_status ?? 'approved',
           resident.verification_notes ?? null,
           Math.max(resident.local_revision ?? 0, oldId == null ? 0 : revisions.residents.get(oldId) ?? 0),
@@ -707,18 +742,27 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload) {
       bootstrap_completed: '1', dataset_owner_user_id: String(payload.user.id),
       dataset_assignment: JSON.stringify(payload.assignment), last_sync_at: payload.server_time,
       session_assignment: JSON.stringify(payload.assignment),
+      resident_contract_version: String(payload.resident_contract_version ?? 0),
+      verified_assignment_signature: assignmentSignature(payload.user.id, payload.assignment) ?? '',
+      resident_workspace_blocked: '',
+      resident_query_version: String(Number((await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_state WHERE key = ?', ['resident_query_version']))?.value ?? 0) + 1),
     })) {
       await db.runAsync('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)', [key, value]);
     }
     // A form may have mounted while asynchronous inserts were running. Roll back safely.
     if (hasLocalEditor()) throw new RefreshDeferredError();
+    if (!applicable()) throw new DatasetOwnershipError();
   });
 }
 
-async function ownedWrite<T>(userId: number | undefined, operation: () => Promise<T>) {
+async function ownedWrite<T>(userId: number | undefined, operation: () => Promise<T>, transition = false) {
   return serializeLocalWrite(async () => {
     await assertDatasetOwner(userId);
-    return operation();
+    if (!transition) await assertUploadAssignment();
+    const result = await operation();
+    if (!transition) await setAppState('resident_query_version', String(Number(await getAppState('resident_query_version') ?? 0) + 1));
+    return result;
   });
 }
 
@@ -748,6 +792,7 @@ export const prepareDatasetForUser = (userId: number) => serializeLocalWrite(asy
     for (const [key, value] of Object.entries({
       bootstrap_completed: '0', dataset_owner_user_id: String(userId),
       dataset_assignment: '', last_sync_at: '', session_user: '', session_assignment: '',
+      resident_contract_version: '', verified_assignment_signature: '', resident_workspace_blocked: '',
     })) {
       await db.runAsync('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)', [key, value]);
     }
@@ -768,6 +813,66 @@ export async function getDatasetOwnerUserId() {
 
 export async function getDatasetAssignment() {
   return getAppState('dataset_assignment');
+}
+
+export function assignmentSignature(userId: number, assignment: MobileAssignment): string | null {
+  const ids = [userId, assignment?.barangay?.id, assignment?.purok?.id];
+  return ids.every(id => typeof id === 'number' && Number.isSafeInteger(id) && id > 0)
+    ? ids.join(':') : null;
+}
+
+function storedAssignment(raw: string | null): MobileAssignment {
+  return parseJsonValue<MobileAssignment>(raw, { barangay: null, purok: null });
+}
+
+// Verification invalidates access, not records. Dataset assignment changes only
+// in the successful bootstrap transaction, including after an app restart.
+export const verifyDatasetAssignment = (userId: number, barangayId: number, purokId: number, applicable = () => true) =>
+  serializeLocalWrite(async () => {
+    if (!applicable()) throw new DatasetOwnershipError();
+    await assertDatasetOwner(userId);
+    const signature = assignmentSignature(userId, {
+      barangay: { id: barangayId } as MobileAssignment['barangay'],
+      purok: { id: purokId } as MobileAssignment['purok'],
+    });
+    const old = assignmentSignature(userId, storedAssignment(await getDatasetAssignment()));
+    const changed = Boolean(old ? old !== signature :
+      await getAppState('bootstrap_completed') === '1' || (await getPendingChangeSummary()).total > 0);
+    const db = await getDatabase();
+    await db.withExclusiveTransactionAsync(async txn => {
+      const contract = (await txn.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_state WHERE key = ?', ['resident_contract_version']))?.value;
+      const values: Record<string, string> = {
+        verified_assignment_signature: signature ?? 'invalid',
+        resident_workspace_blocked: !signature || changed ? 'assignment' :
+          contract !== String(RESIDENT_CONTRACT_VERSION) ? 'contract' : '',
+      };
+      if (!signature || changed) {
+        const version = (await txn.getFirstAsync<{ value: string }>(
+          'SELECT value FROM app_state WHERE key = ?', ['resident_query_version']))?.value;
+        values.resident_query_version = String(Number(version ?? 0) + 1);
+      }
+      for (const [key, value] of Object.entries(values)) {
+        await txn.runAsync('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)', [key, value]);
+      }
+      if (!applicable()) throw new DatasetOwnershipError();
+    });
+    return hasBootstrapData();
+  });
+
+async function assertUploadAssignment() {
+  const owner = Number(await getDatasetOwnerUserId());
+  const old = assignmentSignature(owner, storedAssignment(await getDatasetAssignment()));
+  const verified = await getAppState('verified_assignment_signature');
+  if (await getAppState('resident_workspace_blocked') === 'assignment' ||
+      (old && verified && old !== verified)) throw new AssignmentChangedError();
+}
+
+async function currentResidentScope() {
+  if (!await hasBootstrapData()) return null;
+  const assignment = storedAssignment(await getDatasetAssignment());
+  return { purokId: assignment.purok!.id,
+    version: `${await getAppState('verified_assignment_signature')}:${await getAppState('resident_query_version') ?? '0'}` };
 }
 
 export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
@@ -798,38 +903,103 @@ export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
   }));
 }
 
-export async function getResidents(search = ''): Promise<ResidentRecord[]> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
-    `SELECT
-      residents.*,
-      households.household_no AS household_no,
-      households.purok_id AS household_purok_id,
-      households.purok_display_name AS household_purok_display_name,
-      latest_risk_assessments.latest_risk_assessment_date AS latest_risk_assessment_date
-     FROM residents
-     LEFT JOIN households ON households.server_id = residents.household_server_id
-       OR (households.mobile_uuid IS NOT NULL AND TRIM(households.mobile_uuid) <> '' AND households.mobile_uuid = residents.household_mobile_uuid)
-     LEFT JOIN (
-       SELECT resident_server_id, MAX(assessment_date) AS latest_risk_assessment_date
-       FROM risk_assessments
-       GROUP BY resident_server_id
-     ) AS latest_risk_assessments ON latest_risk_assessments.resident_server_id = residents.server_id
-     WHERE residents.first_name LIKE ?
-        OR residents.last_name LIKE ?
-        OR COALESCE(residents.middle_name, '') LIKE ?
-        OR COALESCE(residents.suffix, '') LIKE ?
-        OR COALESCE(households.household_no, '') LIKE ?
-     ORDER BY residents.last_name ASC, residents.first_name ASC`,
-    [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
-  );
+export type CurrentResidentCriteria = {
+  search?: string;
+  screening?: 'due30' | 'allAdults' | 'assessed' | 'allResidents';
+  asOf?: string;
+};
+export type ResidentContinuation = { offset: number; version: string; criteria: string };
 
-  return rows.map((row: any) => ({
-    ...row,
-    household_purok_id: row.household_purok_id ?? null,
-    household_purok_display_name: row.household_purok_display_name ?? null,
-    is_active: intToBool(row.is_active),
-  }));
+const RESIDENT_FROM = `FROM residents
+  JOIN households ON (residents.household_server_id IS NOT NULL AND households.server_id = residents.household_server_id)
+    OR (residents.household_server_id IS NULL AND residents.household_mobile_uuid IS NOT NULL
+      AND TRIM(residents.household_mobile_uuid) <> '' AND households.mobile_uuid = residents.household_mobile_uuid)
+  LEFT JOIN (SELECT resident_server_id, MAX(assessment_date) AS latest_risk_assessment_date
+    FROM risk_assessments GROUP BY resident_server_id) AS latest_risk_assessments
+    ON latest_risk_assessments.resident_server_id = residents.server_id`;
+const RESIDENT_SELECT = `SELECT residents.*, households.household_no,
+  households.purok_id AS household_purok_id, households.purok_display_name AS household_purok_display_name,
+  latest_risk_assessments.latest_risk_assessment_date ${RESIDENT_FROM}`;
+const CURRENT_RESIDENT_WHERE = `residents.server_id IS NOT NULL AND residents.resident_status = 'active'
+  AND residents.deleted_at IS NULL AND households.purok_id = ?`;
+const RESIDENT_ORDER = `residents.last_name COLLATE NOCASE, residents.first_name COLLATE NOCASE,
+  COALESCE(residents.middle_name, '') COLLATE NOCASE, COALESCE(residents.suffix, '') COLLATE NOCASE, residents.local_id`;
+
+function residentRecord(row: any): ResidentRecord {
+  return { ...row, is_active: intToBool(row.is_active) };
+}
+
+function residentCriteria(criteria: CurrentResidentCriteria, purokId: number) {
+  const search = `%${criteria.search ?? ''}%`;
+  let where = `${CURRENT_RESIDENT_WHERE} AND (residents.first_name LIKE ? OR residents.last_name LIKE ?
+    OR COALESCE(residents.middle_name, '') LIKE ? OR COALESCE(residents.suffix, '') LIKE ?
+    OR COALESCE(households.household_no, '') LIKE ?)`;
+  const params: (string | number)[] = [purokId, search, search, search, search, search];
+  // Preserve the existing Directory screening choices while paging in SQL.
+  if (criteria.screening && criteria.screening !== 'allResidents') {
+    where += ` AND date(residents.birth_date) <= date(?, '-20 years')`;
+    params.push(criteria.asOf ?? new Date().toISOString());
+    if (criteria.screening === 'assessed') where += ' AND latest_risk_assessment_date IS NOT NULL';
+    if (criteria.screening === 'due30') {
+      where += ` AND (latest_risk_assessment_date IS NULL OR julianday(latest_risk_assessment_date) IS NULL
+        OR julianday(latest_risk_assessment_date) > julianday(?)
+        OR CAST(julianday(?) - julianday(latest_risk_assessment_date) AS INTEGER) > 30)`;
+      params.push(criteria.asOf ?? new Date().toISOString(), criteria.asOf ?? new Date().toISOString());
+    }
+  }
+  return { where, params };
+}
+
+export async function getCurrentOfficialResidentCount(criteria: CurrentResidentCriteria = {}): Promise<number> {
+  const scope = await currentResidentScope();
+  if (!scope) return 0;
+  const { where, params } = residentCriteria(criteria, scope.purokId);
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ total: number }>(`SELECT COUNT(*) AS total ${RESIDENT_FROM} WHERE ${where}`, params);
+  return (await currentResidentScope())?.version === scope.version ? row?.total ?? 0 : 0;
+}
+
+export async function getCurrentOfficialResidentsPage(criteria: CurrentResidentCriteria = {}, continuation?: ResidentContinuation | null) {
+  const empty = { rows: [] as ResidentRecord[], total: 0, next: null as ResidentContinuation | null, invalidated: true };
+  const scope = await currentResidentScope();
+  if (!scope) return empty;
+  const key = JSON.stringify(criteria);
+  if (continuation && (continuation.version !== scope.version || continuation.criteria !== key)) return empty;
+  const offset = continuation?.offset ?? 0;
+  if (!Number.isSafeInteger(offset) || offset < 0) return empty;
+  const { where, params } = residentCriteria(criteria, scope.purokId);
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE ${where} ORDER BY ${RESIDENT_ORDER} LIMIT ? OFFSET ?`,
+    [...params, CURRENT_RESIDENT_PAGE_SIZE + 1, offset]);
+  const total = await getCurrentOfficialResidentCount(criteria);
+  if ((await currentResidentScope())?.version !== scope.version) return empty;
+  return { rows: rows.slice(0, CURRENT_RESIDENT_PAGE_SIZE).map(residentRecord), total,
+    next: rows.length > CURRENT_RESIDENT_PAGE_SIZE ? { offset: offset + CURRENT_RESIDENT_PAGE_SIZE, version: scope.version, criteria: key } : null,
+    invalidated: false };
+}
+
+// Compatibility reader for list callers: always bounded and never includes requests.
+export async function getResidents(search = ''): Promise<ResidentRecord[]> {
+  return (await getCurrentOfficialResidentsPage({ search })).rows;
+}
+
+export async function getResidentRequests(search = ''): Promise<ResidentRecord[]> {
+  const scope = await currentResidentScope();
+  if (!scope) return [];
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE residents.server_id IS NULL AND households.purok_id = ?
+    AND (residents.first_name LIKE ? OR residents.last_name LIKE ?) ORDER BY ${RESIDENT_ORDER}`,
+    [scope.purokId, `%${search}%`, `%${search}%`]);
+  return (await currentResidentScope())?.version === scope.version ? rows.map(residentRecord) : [];
+}
+
+export async function getResidentRequestByLocalId(localId: number) {
+  const scope = await currentResidentScope();
+  if (!scope || !Number.isSafeInteger(localId) || localId < 1) return null;
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<any>(`${RESIDENT_SELECT} WHERE residents.server_id IS NULL
+    AND households.purok_id = ? AND residents.local_id = ?`, [scope.purokId, localId]);
+  return row && (await currentResidentScope())?.version === scope.version ? residentRecord(row) : null;
 }
 
 export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
@@ -861,36 +1031,25 @@ export async function getHouseholdByLocalId(localId: number) {
 }
 
 export async function getResidentByLocalId(localId: number) {
-  const residents = await getResidents();
-  return residents.find((resident) => resident.local_id === localId) ?? null;
+  const scope = await currentResidentScope();
+  if (!scope || !Number.isSafeInteger(localId) || localId < 1) return null;
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<any>(`${RESIDENT_SELECT} WHERE ${CURRENT_RESIDENT_WHERE} AND residents.local_id = ?`, [scope.purokId, localId]);
+  return row && (await currentResidentScope())?.version === scope.version ? residentRecord(row) : null;
 }
 
 export async function getResidentsForHousehold(household: {
   server_id?: number | null;
   mobile_uuid?: string | null;
 }) {
+  const scope = await currentResidentScope();
+  if (!scope) return [];
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
-    `SELECT
-      residents.*,
-      households.household_no AS household_no,
-      households.purok_id AS household_purok_id,
-      households.purok_display_name AS household_purok_display_name
-     FROM residents
-     LEFT JOIN households ON households.server_id = residents.household_server_id
-       OR (households.mobile_uuid IS NOT NULL AND TRIM(households.mobile_uuid) <> '' AND households.mobile_uuid = residents.household_mobile_uuid)
-     WHERE (residents.household_server_id = ?)
-        OR (residents.household_mobile_uuid IS NOT NULL AND TRIM(residents.household_mobile_uuid) <> '' AND residents.household_mobile_uuid = ?)
-     ORDER BY residents.last_name ASC, residents.first_name ASC`,
-    [household.server_id ?? null, household.mobile_uuid ?? null]
-  );
-
-  return rows.map((row: any) => ({
-    ...row,
-    household_purok_id: row.household_purok_id ?? null,
-    household_purok_display_name: row.household_purok_display_name ?? null,
-    is_active: intToBool(row.is_active),
-  }));
+  const reference = household.server_id != null ? 'residents.household_server_id = ?' :
+    "residents.household_server_id IS NULL AND residents.household_mobile_uuid IS NOT NULL AND TRIM(residents.household_mobile_uuid) <> '' AND residents.household_mobile_uuid = ?";
+  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE ${CURRENT_RESIDENT_WHERE} AND (${reference}) ORDER BY ${RESIDENT_ORDER}`,
+    [scope.purokId, household.server_id ?? household.mobile_uuid ?? null]);
+  return (await currentResidentScope())?.version === scope.version ? rows.map(residentRecord) : [];
 }
 
 export async function getVisitByLocalId(localId: number) {
@@ -1401,7 +1560,12 @@ async function saveRiskAssessmentInternal(
 }
 
 export async function hasBootstrapData() {
-  return (await getAppState('bootstrap_completed')) === '1';
+  const owner = Number(await getDatasetOwnerUserId());
+  const signature = assignmentSignature(owner, storedAssignment(await getDatasetAssignment()));
+  return (await getAppState('bootstrap_completed')) === '1' && Boolean(signature) &&
+    await getAppState('resident_contract_version') === String(RESIDENT_CONTRACT_VERSION) &&
+    await getAppState('verified_assignment_signature') === signature &&
+    !await getAppState('resident_workspace_blocked');
 }
 
 async function getPendingSyncPayloadInternal() {

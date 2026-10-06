@@ -35,7 +35,7 @@ class EnsureMobileToken
             ], 403);
         }
 
-        MobileBarangayScope::requireBarangayId($user);
+        MobileBarangayScope::requirePurok($user);
 
         return $next($request);
     }

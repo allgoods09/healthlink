@@ -20,7 +20,7 @@ class SyncController extends Controller
     }
 
     /**
-     * Download the full mobile bootstrap data for the assigned barangay.
+     * Download current assigned-purok residents alongside existing history payloads.
      */
     public function bootstrap(Request $request, MobileBootstrapPayload $bootstrapPayload): JsonResponse
     {

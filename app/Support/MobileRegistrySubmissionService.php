@@ -177,11 +177,7 @@ class MobileRegistrySubmissionService
 
     private function assignedPurok(User $user): Purok
     {
-        $barangayId = MobileBarangayScope::requireBarangayId($user);
-        $purok = Purok::query()->active()->whereKey($user->assigned_purok_id)
-            ->where('barangay_id', $barangayId)->first();
-        if (! $purok) throw new \RuntimeException('Your account needs an active assigned purok for registry submissions.');
-        return $purok;
+        return MobileBarangayScope::requirePurok($user);
     }
 
     private function officialHousehold(User $user, ?int $id, ?string $uuid): ?Household
@@ -210,14 +206,14 @@ class MobileRegistrySubmissionService
             $builder->where('purok_id', $user->assigned_purok_id));
         if ($id) {
             $record = (clone $query)->find($id);
-            if (! $record || ($uuid && $record->mobile_uuid && $record->mobile_uuid !== $uuid)) {
+            if (! $record || ! $record->isCurrentPopulation() || ($uuid && $record->mobile_uuid && $record->mobile_uuid !== $uuid)) {
                 throw new \RuntimeException('Resident not found in your assigned purok.');
             }
             return $record;
         }
         if ($uuid) {
-            $record = Resident::query()->where('mobile_uuid', $uuid)->first();
-            if ($record && (int) $record->household?->purok_id !== (int) $user->assigned_purok_id) {
+            $record = Resident::withTrashed()->where('mobile_uuid', $uuid)->first();
+            if ($record && (! $record->isCurrentPopulation() || (int) $record->household?->purok_id !== (int) $user->assigned_purok_id)) {
                 throw new \RuntimeException('Resident not found in your assigned purok.');
             }
             return $record;

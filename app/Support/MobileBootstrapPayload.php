@@ -18,9 +18,10 @@ class MobileBootstrapPayload
      */
     public function build(User $user): array
     {
-        $barangayId = MobileBarangayScope::requireBarangayId($user);
+        $assignedPurok = MobileBarangayScope::requirePurok($user);
+        $barangayId = $assignedPurok->barangay_id;
 
-        $user->loadMissing(['assignedBarangay', 'assignedPurok.barangay']);
+        $user->load(['assignedBarangay', 'assignedPurok.barangay']);
 
         $households = Household::query()
             ->whereHas('purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
@@ -32,12 +33,16 @@ class MobileBootstrapPayload
             ->get();
 
         $residents = Resident::query()
-            ->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
+            ->currentPopulation()
+            ->whereHas('household', fn ($query) => $query->where('purok_id', $assignedPurok->id))
             ->with([
                 'household:id,mobile_uuid',
             ])
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
+            ->orderBy('suffix')
+            ->orderBy('id')
             ->get();
 
         $fieldVisits = FieldVisit::query()
@@ -82,6 +87,7 @@ class MobileBootstrapPayload
 
         return [
             'server_time' => now()->toIso8601String(),
+            'resident_contract_version' => 1,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -153,6 +159,8 @@ class MobileBootstrapPayload
                     'email_address' => $resident->email_address,
                     'relationship_to_head' => $resident->relationship_to_head,
                     'is_active' => $resident->is_active,
+                    'resident_status' => $resident->resident_status,
+                    'deleted_at' => null,
                     'verification_status' => $this->reviewStatus($correction),
                     'local_revision' => $this->correctionRevision($correction),
                     'verification_notes' => $correction?->review_notes,

@@ -111,7 +111,8 @@ test('logout during upload preserves pending work and a late acknowledgment cann
 test('a delayed verification failure for account A cannot log out account B', async t => {
   let rejectA;
   const h = await fixture(t, { mobileVerify: async (_url, token) => token === 'token-1'
-    ? new Promise((_resolve, reject) => { rejectA = reject; }) : { valid: true } });
+    ? new Promise((_resolve, reject) => { rejectA = reject; }) : { valid: true,
+      user: { id: 2, assigned_barangay_id: 2, assigned_purok_id: 2 } } });
   await h.render().signIn(login(1));
   await h.render().signOut();
   await h.render().signIn(login(2));

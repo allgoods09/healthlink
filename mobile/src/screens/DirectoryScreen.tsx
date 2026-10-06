@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -21,7 +21,7 @@ import {
   formatPurokLabel,
   formatResidentFormalName,
 } from '../lib/format';
-import { getHouseholds, getResidents } from '../lib/storage';
+import { getHouseholds, getCurrentOfficialResidentsPage, ResidentContinuation } from '../lib/storage';
 import { AppTheme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
 
@@ -38,55 +38,70 @@ export function DirectoryScreen({ navigation }: any) {
   const [search, setSearch] = useState('');
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [residents, setResidents] = useState<ResidentRecord[]>([]);
+  const [continuation, setContinuation] = useState<ResidentContinuation | null>(null);
+  const queryGeneration = useRef(0);
+  const pageLoading = useRef(false);
 
   const assignedPurokId = assignment?.purok?.id ?? null;
+  const criteria = useMemo(() => {
+    const today = new Date();
+    const asOf = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return { search, screening: residentFilter, asOf };
+  },
+    [search, residentFilter, dataVersion, assignedPurokId]);
 
   useEffect(() => {
     if (!isFocused) {
       return;
     }
 
+    const generation = ++queryGeneration.current;
+    setResidents([]);
+    setContinuation(null);
     async function loadDirectory() {
       const [nextResidents, nextHouseholds] = await Promise.all([
-        getResidents(search),
+        getCurrentOfficialResidentsPage(criteria),
         getHouseholds(search),
       ]);
 
-      setResidents(nextResidents);
+      if (generation !== queryGeneration.current) return;
+      setResidents(nextResidents.rows);
+      setContinuation(nextResidents.next);
       setHouseholds(nextHouseholds);
     }
 
     void loadDirectory();
-  }, [dataVersion, isFocused, search]);
+    return () => { queryGeneration.current += 1; };
+  }, [dataVersion, isFocused, search, criteria]);
 
-  const filteredResidents = useMemo(() => {
-    return residents.filter((resident) => {
-      const age = calculateAgeFromBirthDate(resident.birth_date);
-      const isAdult = age !== null && age >= 20;
-      const daysSinceAssessment = daysSinceDate(resident.latest_risk_assessment_date);
-      const hasAssessment = Boolean(resident.latest_risk_assessment_date);
-
-      switch (residentFilter) {
-        case 'due30':
-          return isAdult && (!hasAssessment || daysSinceAssessment === null || daysSinceAssessment > 30);
-        case 'allAdults':
-          return isAdult;
-        case 'assessed':
-          return isAdult && hasAssessment;
-        case 'allResidents':
-        default:
-          return true;
+  async function loadNextResidents() {
+    if (mode !== 'residents' || !continuation || pageLoading.current) return;
+    const generation = queryGeneration.current;
+    pageLoading.current = true;
+    try {
+      const page = await getCurrentOfficialResidentsPage(criteria, continuation);
+      if (generation !== queryGeneration.current) return;
+      if (page.invalidated) {
+        const first = await getCurrentOfficialResidentsPage(criteria);
+        if (generation !== queryGeneration.current) return;
+        setResidents(first.rows);
+        setContinuation(first.next);
+        return;
       }
-    });
-  }, [residentFilter, residents]);
+      setResidents(current => [...current, ...page.rows]);
+      setContinuation(page.next);
+    } finally {
+      pageLoading.current = false;
+    }
+  }
 
   const currentData = useMemo(
-    () => (mode === 'residents' ? filteredResidents : households),
-    [filteredResidents, households, mode]
+    () => (mode === 'residents' ? residents : households),
+    [residents, households, mode]
   );
 
   function renderResidentCard(item: ResidentRecord) {
-    const canEdit = assignedPurokId === null || item.household_purok_id === assignedPurokId;
+    const canEdit = assignedPurokId !== null && item.household_purok_id === assignedPurokId;
     const purokLabel = formatPurokLabel(
       item.household_purok_display_name,
       item.household_purok_id,
@@ -239,6 +254,8 @@ export function DirectoryScreen({ navigation }: any) {
 
       <FlatList
         data={currentData}
+        onEndReached={() => { void loadNextResidents(); }}
+        onEndReachedThreshold={0.5}
         key={mode}
         keyExtractor={(item: any) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
         keyboardShouldPersistTaps="handled"

@@ -27,6 +27,7 @@ import { findHouseholdByReference } from '../lib/householdIdentity';
 import {
   getHouseholds,
   getResidentByLocalId,
+  getResidentRequestByLocalId,
   saveResident,
 } from '../lib/storage';
 import { AppTheme } from '../theme';
@@ -71,7 +72,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       const records = await getHouseholds();
       setHouseholds(
         assignedPurokId === null
-          ? records
+          ? []
           : records.filter((household) => household.purok_id === assignedPurokId)
       );
     }
@@ -83,9 +84,12 @@ export function ResidentFormScreen({ route, navigation }: any) {
     async function loadExisting() {
       if (!route.params?.localId) return;
 
-      const existing = await getResidentByLocalId(route.params.localId);
+      const existing = await getResidentByLocalId(route.params.localId) ?? await getResidentRequestByLocalId(route.params.localId);
 
-      if (!existing) return;
+      if (!existing) {
+        setFormError(i18n.t('noMatchingRecords'));
+        return;
+      }
 
       setLocalId(existing.local_id ?? null);
       setServerId(existing.server_id ?? null);
@@ -130,6 +134,10 @@ export function ResidentFormScreen({ route, navigation }: any) {
   }
 
   async function handleSave() {
+    if (!assignedPurokId || (route.params?.localId && !localId)) {
+      setFormError(i18n.t('noMatchingRecords'));
+      return;
+    }
     const normalizedBirthDate = normalizeBirthDateInput(birthDate);
 
     if (!selectedHousehold) {

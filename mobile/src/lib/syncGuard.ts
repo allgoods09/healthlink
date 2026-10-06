@@ -37,3 +37,10 @@ export class DatasetOwnershipError extends Error {
     this.name = 'DatasetOwnershipError';
   }
 }
+
+export class AssignmentChangedError extends Error {
+  constructor() {
+    super('Your field assignment changed. Existing unsynced work must be resolved before this device can load the new assignment. Please contact an administrator.');
+    this.name = 'AssignmentChangedError';
+  }
+}

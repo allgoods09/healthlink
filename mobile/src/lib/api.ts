@@ -110,7 +110,7 @@ export async function mobileSync(
 }
 
 export async function mobileVerify(baseUrl: string, token: string) {
-  return request<{ valid: boolean }>(baseUrl, '/api/mobile/verify', {}, token);
+  return request<{ valid: boolean; user: { id: number; assigned_barangay_id: number; assigned_purok_id: number } }>(baseUrl, '/api/mobile/verify', {}, token);
 }
 
 export async function mobileLogout(baseUrl: string, token: string) {
