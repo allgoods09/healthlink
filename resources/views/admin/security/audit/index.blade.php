@@ -5,6 +5,7 @@
 
 @php
     $routePrefix = $routePrefix ?? 'admin.audit';
+    $isSecretaryActivity = $routePrefix === 'secretary.activity';
 @endphp
 
 @section('actions')
@@ -33,14 +34,14 @@
                     <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" 
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                           placeholder="Description, IP...">
+                           placeholder="{{ $isSecretaryActivity ? 'Description or record type...' : 'Description, IP...' }}">
                 </div>
 
                 <!-- Event Type -->
                 <div>
-                    <label for="event_type" class="block text-sm font-medium text-gray-700">Event Type</label>
+                    <label for="event_type" class="block text-sm font-medium text-gray-700">{{ $isSecretaryActivity ? 'Action' : 'Event Type' }}</label>
                     <select name="event_type" id="event_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                        <option value="">All Events</option>
+                        <option value="">{{ $isSecretaryActivity ? 'All Actions' : 'All Events' }}</option>
                         @foreach($eventTypes as $key => $label)
                             <option value="{{ $key }}" {{ request('event_type') == $key ? 'selected' : '' }}>
                                 {{ $label }}
@@ -51,9 +52,9 @@
 
                 <!-- User -->
                 <div>
-                    <label for="user_id" class="block text-sm font-medium text-gray-700">User</label>
+                    <label for="user_id" class="block text-sm font-medium text-gray-700">{{ $isSecretaryActivity ? 'Actor' : 'User' }}</label>
                     <select name="user_id" id="user_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                        <option value="">All Users</option>
+                        <option value="">{{ $isSecretaryActivity ? 'All Actors' : 'All Users' }}</option>
                         @foreach($users as $user)
                             <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
                                 {{ $user->name }}
@@ -96,11 +97,11 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $isSecretaryActivity ? 'Date & Time' : 'Timestamp' }}</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $isSecretaryActivity ? 'Actor' : 'User' }}</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $isSecretaryActivity ? 'Action' : 'Event' }}</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $isSecretaryActivity ? 'Record Type' : 'IP Address' }}</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -108,7 +109,7 @@
                     @forelse($logs as $log)
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ $log->created_at->format('Y-m-d H:i:s') }}
+                                {{ $isSecretaryActivity ? $log->created_at->copy()->timezone('Asia/Manila')->format('M d, Y h:i A') : $log->created_at->format('Y-m-d H:i:s') }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">{{ $log->actor_name }}</div>
@@ -130,7 +131,7 @@
                                 {{ $log->event_description }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ $log->ip_address ?? 'N/A' }}
+                                {{ $isSecretaryActivity ? ($log->model_type ? \Illuminate\Support\Str::headline(class_basename($log->model_type)) : 'General activity') : ($log->ip_address ?? 'N/A') }}
                             </td>
                             <td class="table-actions-cell px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="{{ route($routePrefix.'.show', $log) }}" class="text-blue-600 hover:text-blue-900">View</a>
@@ -139,7 +140,7 @@
                     @empty
                         <tr>
                             <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
-                                No audit logs found.
+                                {{ $isSecretaryActivity ? 'No activity found.' : 'No audit logs found.' }}
                             </td>
                         </tr>
                     @endforelse

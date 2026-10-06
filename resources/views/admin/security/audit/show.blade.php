@@ -5,6 +5,7 @@
 
 @php
     $routePrefix = $routePrefix ?? 'admin.audit';
+    $isSecretaryActivity = $routePrefix === 'secretary.activity';
 @endphp
 
 @section('actions')
@@ -12,7 +13,7 @@
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
-        Back to Logs
+        {{ $isSecretaryActivity ? 'Back to Activity' : 'Back to Logs' }}
     </a>
 @endsection
 
@@ -21,12 +22,12 @@
         <!-- Event Details -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">Event Details</h3>
+                <h3 class="text-lg font-medium text-gray-900">{{ $isSecretaryActivity ? 'Activity details' : 'Event Details' }}</h3>
             </div>
             <div class="p-6">
                 <dl class="space-y-4">
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">Event Type</dt>
+                        <dt class="text-sm font-medium text-gray-500">{{ $isSecretaryActivity ? 'Action' : 'Event Type' }}</dt>
                         <dd class="mt-1">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                                 @if(in_array($auditLog->event_type, ['login', 'logout'])) bg-blue-100 text-blue-800
@@ -46,9 +47,15 @@
                         <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->event_description }}</dd>
                     </div>
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">User</dt>
+                        <dt class="text-sm font-medium text-gray-500">{{ $isSecretaryActivity ? 'Actor' : 'User' }}</dt>
                         <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->actor_name }}</dd>
                     </div>
+                    @if($isSecretaryActivity)
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Record Type</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->model_type ? \Illuminate\Support\Str::headline(class_basename($auditLog->model_type)) : 'General activity' }}</dd>
+                        </div>
+                    @else
                     <div>
                         <dt class="text-sm font-medium text-gray-500">IP Address</dt>
                         <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->ip_address ?? 'N/A' }}</dd>
@@ -57,20 +64,38 @@
                         <dt class="text-sm font-medium text-gray-500">User Agent</dt>
                         <dd class="mt-1 text-sm text-gray-900 break-all">{{ $auditLog->user_agent ?? 'N/A' }}</dd>
                     </div>
+                    @endif
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">Timestamp</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->created_at->format('F d, Y h:i:s A') }}</dd>
+                        <dt class="text-sm font-medium text-gray-500">{{ $isSecretaryActivity ? 'Date & Time (Philippine time)' : 'Timestamp' }}</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $isSecretaryActivity ? $auditLog->created_at->copy()->timezone('Asia/Manila')->format('M d, Y h:i A') : $auditLog->created_at->format('F d, Y h:i:s A') }}</dd>
                     </div>
                 </dl>
             </div>
         </div>
 
         <!-- Data Changes -->
+        @if($isSecretaryActivity)
+        <details class="bg-white rounded-lg shadow overflow-hidden">
+            <summary class="px-6 py-4 bg-gray-50 border-b border-gray-200 text-lg font-medium text-gray-900">Technical details</summary>
+        @else
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">Data Changes</h3>
             </div>
+        @endif
             <div class="p-6">
+                @if($isSecretaryActivity)
+                    <dl class="mb-4 space-y-4">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">IP Address</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $auditLog->ip_address ?? 'N/A' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">User Agent</dt>
+                            <dd class="mt-1 text-sm text-gray-900 break-all">{{ $auditLog->user_agent ?? 'N/A' }}</dd>
+                        </div>
+                    </dl>
+                @endif
                 @if($auditLog->model_type)
                     <div class="mb-4">
                         <dt class="text-sm font-medium text-gray-500">Model</dt>
@@ -110,6 +135,10 @@
                     </div>
                 @endif
             </div>
+        @if($isSecretaryActivity)
+        </details>
+        @else
         </div>
+        @endif
     </div>
 @endsection
