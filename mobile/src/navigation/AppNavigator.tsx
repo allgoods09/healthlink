@@ -19,6 +19,9 @@ import { BrandSplash } from '../components/BrandSplash';
 import { ActionConfirmationModal } from '../components/ActionConfirmationModal';
 import { ToastHost } from '../components/ToastHost';
 import { DirectoryScreen } from '../screens/DirectoryScreen';
+import { HouseholdDirectoryScreen } from '../screens/HouseholdDirectoryScreen';
+import { ResidentsScreen } from '../screens/ResidentsScreen';
+import { ResidentRequestsScreen } from '../screens/ResidentRequestsScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { HouseholdFormScreen } from '../screens/HouseholdFormScreen';
 import { HouseholdDetailsScreen } from '../screens/HouseholdDetailsScreen';
@@ -202,6 +205,9 @@ export function AppNavigator() {
                 component={HouseholdFormScreen}
                 options={{ title: i18n.t('createHousehold') }}
               />
+              <Stack.Screen name="Residents" component={ResidentsScreen} options={{ title: i18n.t('directoryResidents') }} />
+              <Stack.Screen name="Households" component={HouseholdDirectoryScreen} options={{ title: i18n.t('directoryHouseholds') }} />
+              <Stack.Screen name="ResidentRequests" component={ResidentRequestsScreen} options={{ title: i18n.t('residentRequests') }} />
               <Stack.Screen
                 name="ResidentForm"
                 component={ResidentFormScreen}

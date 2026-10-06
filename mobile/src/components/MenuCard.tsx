@@ -70,7 +70,8 @@ export function MenuCard({
   }
 
   return (
-    <Pressable onPress={onPress} style={styles.pressable}>
+    <Pressable accessibilityRole="button" accessibilityLabel={[title, badge, subtitle].filter(Boolean).join('. ')}
+      onPress={onPress} style={styles.pressable}>
       {content}
     </Pressable>
   );

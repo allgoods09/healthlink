@@ -931,6 +931,10 @@ export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
 
 export type CurrentResidentCriteria = {
   search?: string;
+  sex?: 'Male' | 'Female';
+  ageGroup?: '0-5' | '6-12' | '13-17' | '18-59' | '60+';
+  householdLocalId?: number;
+  sort?: 'nameAsc' | 'nameDesc' | 'youngest' | 'oldest' | 'household';
   screening?: 'due30' | 'allAdults' | 'assessed' | 'allResidents';
   asOf?: string;
 };
@@ -971,11 +975,30 @@ export async function getResidentHouseholdOptions(mode: ResidentFormMode, search
 }
 
 function residentCriteria(criteria: CurrentResidentCriteria, purokId: number) {
-  const search = `%${criteria.search ?? ''}%`;
-  let where = `${CURRENT_RESIDENT_WHERE} AND (residents.first_name LIKE ? OR residents.last_name LIKE ?
-    OR COALESCE(residents.middle_name, '') LIKE ? OR COALESCE(residents.suffix, '') LIKE ?
-    OR COALESCE(households.household_no, '') LIKE ?)`;
-  const params: (string | number)[] = [purokId, search, search, search, search, search];
+  let where = CURRENT_RESIDENT_WHERE;
+  const params: (string | number)[] = [purokId];
+  for (const token of (criteria.search ?? '').trim().split(/\s+/).filter(Boolean)) {
+    const search = `%${token.toLowerCase().replace(/[\\%_]/g, '\\$&')}%`;
+    // SQLite NOCASE is ASCII-only; fold the accented capitals used in local names too.
+    const fields = ['residents.first_name', 'residents.last_name', "COALESCE(residents.middle_name, '')",
+      "COALESCE(residents.suffix, '')", "COALESCE(households.household_no, '')"];
+    where += ' AND (' + fields.map(field => {
+      for (const [upper, lower] of [['Ñ', 'ñ'], ['É', 'é'], ['Á', 'á'], ['Í', 'í'], ['Ó', 'ó'], ['Ú', 'ú'], ['Ü', 'ü']]) {
+        field = `REPLACE(${field}, '${upper}', '${lower}')`;
+      }
+      params.push(search);
+      return `${field} LIKE ? ESCAPE '\\'`;
+    }).join(' OR ') + ')';
+  }
+  if (criteria.sex) { where += ' AND residents.sex = ?'; params.push(criteria.sex); }
+  if (criteria.householdLocalId !== undefined) { where += ' AND households.local_id = ?'; params.push(criteria.householdLocalId); }
+  if (criteria.ageGroup) {
+    const ranges = { '0-5': [0, 5], '6-12': [6, 12], '13-17': [13, 17], '18-59': [18, 59], '60+': [60, 999] };
+    const range = ranges[criteria.ageGroup];
+    const today = criteria.asOf ?? localCalendarDate();
+    where += ` AND ${residentAgeSql(today)} BETWEEN ? AND ?`;
+    params.push(...range);
+  }
   // Preserve the existing Directory screening choices while paging in SQL.
   if (criteria.screening && criteria.screening !== 'allResidents') {
     where += ` AND date(residents.birth_date) <= date(?, '-20 years')`;
@@ -989,6 +1012,64 @@ function residentCriteria(criteria: CurrentResidentCriteria, purokId: number) {
     }
   }
   return { where, params };
+}
+
+function localCalendarDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function residentAgeSql(reference: string) {
+  // Only validated calendar keys enter SQL; values from the request are never interpolated.
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(reference) ? reference : localCalendarDate();
+  return `(CASE WHEN date(substr(residents.birth_date, 1, 10), '+0 days') = substr(residents.birth_date, 1, 10)
+    AND substr(residents.birth_date, 1, 10) <= '${date}' THEN
+    CAST(substr('${date}', 1, 4) AS INTEGER) - CAST(substr(residents.birth_date, 1, 4) AS INTEGER)
+    - (substr('${date}', 6, 5) < substr(residents.birth_date, 6, 5)) ELSE NULL END)`;
+}
+
+async function residentOrder(criteria: CurrentResidentCriteria) {
+  if (criteria.sort === 'nameDesc') return RESIDENT_ORDER.split(', residents.local_id')[0]
+    .replaceAll('COLLATE NOCASE', 'COLLATE NOCASE DESC') + ', residents.local_id';
+  if (criteria.sort === 'youngest' || criteria.sort === 'oldest') {
+    const age = residentAgeSql(criteria.asOf ?? localCalendarDate());
+    return `${age} IS NULL, ${age} ${criteria.sort === 'youngest' ? 'ASC' : 'DESC'}, ${RESIDENT_ORDER}`;
+  }
+  if (criteria.sort === 'household') {
+    const homes = await getCurrentOfficialHouseholds();
+    // Rank only scoped household IDs using Part 2 natural ordering; residents stay SQL-paged.
+    if (homes.length) return `CASE households.local_id ${homes.map((home, index) =>
+      `WHEN ${Number(home.local_id)} THEN ${index}`).join(' ')} ELSE ${homes.length} END, ${RESIDENT_ORDER}`;
+  }
+  return RESIDENT_ORDER;
+}
+
+export async function getCurrentOfficialHouseholds(): Promise<HouseholdRecord[]> {
+  const scope = await currentResidentScope();
+  if (!scope) return [];
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>('SELECT * FROM households WHERE server_id IS NOT NULL AND purok_id = ?', [scope.purokId]);
+  return (await currentResidentScope())?.version === scope.version ? rows.map(row => ({ ...row,
+    is_active: intToBool(row.is_active), is_social_aid_beneficiary: intToBool(row.is_social_aid_beneficiary),
+    is_vacant: row.is_vacant == null ? undefined : intToBool(row.is_vacant),
+  })).sort(compareHouseholds) : [];
+}
+
+export async function getCurrentOfficialHouseholdCount() {
+  return (await getCurrentOfficialHouseholds()).length;
+}
+
+// The cache carries new requests and the latest correction outcome, not a full historical ledger.
+export async function getResidentWorkflowItems(): Promise<ResidentRecord[]> {
+  const scope = await currentResidentScope();
+  if (!scope) return [];
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE households.purok_id = ? AND (
+    residents.server_id IS NULL OR (${CURRENT_RESIDENT_WHERE} AND (
+      residents.sync_status != 'synced' OR residents.verification_status IN ('submitted', 'rejected')
+      OR residents.changed_fields_json IS NOT NULL OR residents.verification_notes IS NOT NULL))) ORDER BY ${RESIDENT_ORDER}`,
+    [scope.purokId, scope.purokId]);
+  return (await currentResidentScope())?.version === scope.version ? rows.map(residentRecord) : [];
 }
 
 export async function getCurrentOfficialResidentCount(criteria: CurrentResidentCriteria = {}): Promise<number> {
@@ -1010,7 +1091,8 @@ export async function getCurrentOfficialResidentsPage(criteria: CurrentResidentC
   if (!Number.isSafeInteger(offset) || offset < 0) return empty;
   const { where, params } = residentCriteria(criteria, scope.purokId);
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE ${where} ORDER BY ${RESIDENT_ORDER} LIMIT ? OFFSET ?`,
+  const order = await residentOrder(criteria);
+  const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
     [...params, CURRENT_RESIDENT_PAGE_SIZE + 1, offset]);
   const total = await getCurrentOfficialResidentCount(criteria);
   if ((await currentResidentScope())?.version !== scope.version) return empty;

@@ -63,6 +63,7 @@ export async function storageHarness() {
       };
       if (name === './syncGuard') return load('syncGuard');
       if (name === './residentWorkflow') return load('residentWorkflow');
+      if (name === './residentPresentation') return load('residentPresentation');
       if (name === './format') return load('format');
       throw new Error(`Unexpected storage dependency: ${name}`);
     };
@@ -75,7 +76,7 @@ export async function storageHarness() {
   const storage = load('storage');
   await storage.initializeStorage();
   return {
-    storage, workflow: load('residentWorkflow'), guard: load('syncGuard'), db, sqlite,
+    storage, workflow: load('residentWorkflow'), presentation: load('residentPresentation'), guard: load('syncGuard'), db, sqlite,
     intercept: callback => { beforeQuery = callback; },
     close: () => sqlite.close(),
   };

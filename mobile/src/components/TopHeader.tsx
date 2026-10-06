@@ -15,12 +15,14 @@ type TopHeaderProps = {
   title: string;
   actionIcon?: React.ComponentProps<typeof Ionicons>['name'];
   onActionPress?: () => void;
+  actionAccessibilityLabel?: string;
 };
 
 export function TopHeader({
   title,
   actionIcon = 'sync-outline',
   onActionPress,
+  actionAccessibilityLabel,
 }: TopHeaderProps) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -30,10 +32,11 @@ export function TopHeader({
     <View style={[styles.wrapper, { paddingTop: Math.max(insets.top, 14) }]}>
       <View style={styles.header}>
         <View style={styles.sideSlot} />
-        <Text style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
         <View style={styles.sideSlot}>
           {onActionPress ? (
-            <Pressable onPress={onActionPress} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={actionAccessibilityLabel}
+              hitSlop={4} onPress={onActionPress} style={styles.iconButton}>
               <Ionicons name={actionIcon} size={21} color={theme.colors.primary} />
             </Pressable>
           ) : null}

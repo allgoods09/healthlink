@@ -8,7 +8,7 @@ Current scope: Android only.
 
 - Login with the same verified BHW credentials used on the web app
 - Enforce one active device token per BHW account
-- Download the verified household, resident, and visit data for the whole assigned barangay
+- Download an authorized offline dataset; current official Resident browsing is assigned-purok-only
 - Work from a local SQLite database
 - Queue create and edit changes for households, residents, and household visit history
 - Require a blocking first-time initial sync before the app can be used
@@ -16,6 +16,18 @@ Current scope: Android only.
 - Upload pending changes manually first, then download fresh server data only when there are zero pending local changes
 - Capture visit photos using the device camera only
 - Switch between English and Cebuano
+
+## Resident directory
+
+- Directory opens with Residents and Households cards. Their counts are current official Residents and official nondeleted Households in the assigned purok; vacant Households still count. Requests never inflate these counts.
+- Residents supports offline multi-token name/household-number search, Sex/Age group/Household filters, and deterministic name, age, or natural household sorting. More records load on scroll.
+- Add Resident Request saves a local request. Manual sync submits it for Secretary verification; it does not immediately create an official registry record.
+- Request Update proposes a correction to an official Resident. An update under review blocks another submitted correction. Secretary approval remains authoritative.
+- Requests is separate from the registry. Its badge counts awaiting-upload and submitted items, not completed outcomes. The device shows saved new requests and the latest available correction state, not the complete server audit history.
+- Rejected new requests remain viewable with their reason, without a Revise & Resubmit action. Safe linked replacement remains deferred.
+- Resident Details groups identity, household, contact, demographics and request status. Assess PhilPEN is an entry point for eligible current official residents aged 20+, and resumes an unsynced assessment when present.
+- Offline records reflect the last compatible download, not a fresh server decision. Sync when connected to check assignment, approval and registry changes.
+- Household browsing/details/visits retain their existing workflow. The assigned-purok Household card count is not a count of every cached household/request in that existing list.
 
 ## Local setup
 
