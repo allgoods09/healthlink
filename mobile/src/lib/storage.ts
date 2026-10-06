@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
+import { compareHouseholds, eligibleResidentHousehold, normalizeHouseholdSearch, residentChanges, residentEditBlocked,
+  residentFormMode, residentSnapshot, ResidentFormMode, validateResidentInput } from './residentWorkflow';
 import { AccountSwitchBlockedError, AssignmentChangedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
 
 import {
@@ -35,12 +37,21 @@ export const saveResident = (values: Parameters<typeof saveResidentInternal>[0],
     if (existing?.server_id != null && !await getResidentByLocalId(values.local_id!)) throw new AssignmentChangedError();
     if (existing && existing.server_id == null && !await getResidentRequestByLocalId(values.local_id!)) throw new AssignmentChangedError();
     if (!existing && values.server_id != null) throw new AssignmentChangedError();
-    const household = await db.getFirstAsync<{ purok_id: number }>(
-      values.household_server_id != null ? 'SELECT purok_id FROM households WHERE server_id = ?' :
-        "SELECT purok_id FROM households WHERE mobile_uuid IS NOT NULL AND TRIM(mobile_uuid) <> '' AND mobile_uuid = ?",
+    if (existing && residentEditBlocked({ ...existing, is_active: intToBool(existing.is_active) })) {
+      throw new Error(existing.server_id == null ? 'This request was not approved. Its history is preserved; linked resubmission is not yet available.' :
+        'This resident has an update under review. Wait for the Secretary decision.');
+    }
+    const household = await db.getFirstAsync<any>(
+      values.household_server_id != null ? 'SELECT * FROM households WHERE server_id = ?' :
+        "SELECT * FROM households WHERE mobile_uuid IS NOT NULL AND TRIM(mobile_uuid) <> '' AND mobile_uuid = ?",
       [values.household_server_id ?? values.household_mobile_uuid ?? null]);
     if (household?.purok_id !== scope.purokId) throw new AssignmentChangedError();
-    return saveResidentInternal(values);
+    if (!eligibleResidentHousehold({ ...household, is_active: intToBool(household.is_active) },
+      existing?.server_id != null ? 'correction' : 'new', scope.purokId)) throw new Error('Choose an eligible household in your assigned purok.');
+    if (values.propose_household_head && household.server_id != null) throw new Error('A head may only be proposed for a new household request.');
+    let savedId: number | undefined;
+    await db.withExclusiveTransactionAsync(async txn => { savedId = await saveResidentInternal(values, txn); });
+    return savedId;
   });
 export const saveVisit = (values: Parameters<typeof saveVisitInternal>[0], userId: number | undefined) =>
   ownedWrite(userId, () => saveVisitInternal(values));
@@ -319,6 +330,11 @@ export async function initializeStorage() {
   // Unknown lifecycle values in old caches stay unknown until authoritative refresh.
   await ensureColumn(db, 'residents', 'resident_status', 'TEXT');
   await ensureColumn(db, 'residents', 'deleted_at', 'TEXT');
+  await ensureColumn(db, 'residents', 'official_snapshot_json', 'TEXT');
+  await ensureColumn(db, 'residents', 'changed_fields_json', 'TEXT');
+  await ensureColumn(db, 'residents', 'propose_household_head', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'households', 'current_head_name', 'TEXT');
+  await ensureColumn(db, 'households', 'is_vacant', 'INTEGER');
   await db.execAsync(`CREATE INDEX IF NOT EXISTS residents_current_name
     ON residents(resident_status, last_name, first_name, middle_name, suffix, local_id);
     CREATE INDEX IF NOT EXISTS households_purok ON households(purok_id);`);
@@ -531,6 +547,8 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
           household.updated_at,
         ]
       );
+      await db.runAsync('UPDATE households SET current_head_name = ?, is_vacant = ? WHERE local_id = last_insert_rowid()',
+        [household.current_head_name ?? null, household.is_vacant == null ? null : boolToInt(household.is_vacant)]);
     }
 
     for (const resident of payload.residents) {
@@ -595,6 +613,11 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
           resident.updated_at,
         ]
       );
+      const officialSnapshot = resident.id == null ? null : resident.official_snapshot ?? residentSnapshot({ ...resident,
+        household_server_id: resident.household_id });
+      await db.runAsync(`UPDATE residents SET official_snapshot_json = ?, changed_fields_json = NULL,
+        propose_household_head = ? WHERE local_id = last_insert_rowid()`,
+        [officialSnapshot ? JSON.stringify(officialSnapshot) : null, boolToInt(resident.propose_household_head ?? false)]);
     }
 
     for (const visit of payload.field_visits) {
@@ -745,6 +768,7 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
       resident_contract_version: String(payload.resident_contract_version ?? 0),
       verified_assignment_signature: assignmentSignature(payload.user.id, payload.assignment) ?? '',
       resident_workspace_blocked: '',
+      resident_relationship_choices: JSON.stringify(payload.resident_relationship_choices ?? []),
       resident_query_version: String(Number((await db.getFirstAsync<{ value: string }>(
         'SELECT value FROM app_state WHERE key = ?', ['resident_query_version']))?.value ?? 0) + 1),
     })) {
@@ -887,6 +911,7 @@ export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
     household_address: string;
     is_social_aid_beneficiary: number;
     is_active: number;
+    is_vacant: number | null;
     sync_status: HouseholdRecord['sync_status'];
     updated_at: string | null;
   }>(
@@ -900,6 +925,7 @@ export async function getHouseholds(search = ''): Promise<HouseholdRecord[]> {
     ...row,
     is_social_aid_beneficiary: intToBool(row.is_social_aid_beneficiary),
     is_active: intToBool(row.is_active),
+    is_vacant: row.is_vacant == null ? undefined : intToBool(row.is_vacant),
   }));
 }
 
@@ -926,7 +952,22 @@ const RESIDENT_ORDER = `residents.last_name COLLATE NOCASE, residents.first_name
   COALESCE(residents.middle_name, '') COLLATE NOCASE, COALESCE(residents.suffix, '') COLLATE NOCASE, residents.local_id`;
 
 function residentRecord(row: any): ResidentRecord {
-  return { ...row, is_active: intToBool(row.is_active) };
+  return { ...row, is_active: intToBool(row.is_active), propose_household_head: intToBool(row.propose_household_head),
+    official_snapshot: parseJsonValue(row.official_snapshot_json, null) };
+}
+
+export async function getResidentRelationshipChoices(): Promise<string[]> {
+  return parseJsonValue(await getAppState('resident_relationship_choices'), []);
+}
+
+export async function getResidentHouseholdOptions(mode: ResidentFormMode, search = ''): Promise<HouseholdRecord[]> {
+  const scope = await currentResidentScope();
+  if (!scope) return [];
+  const query = normalizeHouseholdSearch(search);
+  const households = await getHouseholds();
+  const result = households.filter(h => eligibleResidentHousehold(h, mode, scope.purokId) &&
+    normalizeHouseholdSearch(`${h.household_no} ${h.current_head_name ?? ''} ${h.household_address}`).includes(query)).sort(compareHouseholds);
+  return (await currentResidentScope())?.version === scope.version ? result : [];
 }
 
 function residentCriteria(criteria: CurrentResidentCriteria, purokId: number) {
@@ -1193,10 +1234,10 @@ async function saveHouseholdInternal(
       ]
     );
 
-    return;
+    return values.local_id;
   }
 
-  await db.runAsync(
+  const inserted = await db.runAsync(
     `INSERT INTO households (
       server_id,
       mobile_uuid,
@@ -1207,8 +1248,9 @@ async function saveHouseholdInternal(
       is_social_aid_beneficiary,
       is_active,
       sync_status,
+      verification_status,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       values.server_id ?? null,
       mobileUuid,
@@ -1219,15 +1261,30 @@ async function saveHouseholdInternal(
       boolToInt(values.is_social_aid_beneficiary),
       boolToInt(values.is_active),
       syncStatus,
+      'pending',
       new Date().toISOString(),
     ]
   );
+  return Number(inserted.lastInsertRowId);
 }
 
 async function saveResidentInternal(
-  values: Omit<ResidentRecord, 'sync_status'> & { local_id?: number }
+  values: Omit<ResidentRecord, 'sync_status'> & { local_id?: number }, db: SQLite.SQLiteDatabase
 ) {
-  const db = await getDatabase();
+  const stored = values.local_id ? await db.getFirstAsync<any>('SELECT * FROM residents WHERE local_id = ?', [values.local_id]) : null;
+  if (stored) {
+    values = { ...stored,
+      ...Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)),
+      philsys_card_no: stored.philsys_card_no,
+      is_active: intToBool(stored.is_active) };
+  } else if (!values.is_active) throw new Error('New resident requests must be active.');
+  const validation = validateResidentInput(values);
+  if (validation) throw new Error(validation);
+  const base = parseJsonValue<Record<string, unknown> | null>(stored?.official_snapshot_json ?? null, null);
+  const changes = base ? residentChanges(values, base) : null;
+  // Keep older queued work on its original contract; do not invent its base or
+  // reclassify an unchanged legacy relationship as newly selected canonical data.
+  const changedJson = base ? JSON.stringify(changes) : stored ? stored.changed_fields_json ?? null : '{}';
   const current = await existingIdentity(db, 'residents', values.local_id);
   const mobileUuid = current?.mobile_uuid ?? values.mobile_uuid ?? createUuid();
   const syncStatus = (current?.server_id ?? values.server_id) ? 'pending_update' : 'pending_create';
@@ -1265,10 +1322,12 @@ async function saveResidentInternal(
       ]
     );
 
-    return;
+    await db.runAsync('UPDATE residents SET changed_fields_json = ?, propose_household_head = ? WHERE local_id = ?',
+      [changedJson, boolToInt(values.propose_household_head ?? false), values.local_id]);
+    return values.local_id;
   }
 
-  await db.runAsync(
+  const inserted = await db.runAsync(
     `INSERT INTO residents (
       server_id,
       mobile_uuid,
@@ -1316,6 +1375,11 @@ async function saveResidentInternal(
       new Date().toISOString(),
     ]
   );
+  const savedId = Number(inserted.lastInsertRowId);
+  await db.runAsync('UPDATE residents SET changed_fields_json = ?, propose_household_head = ? WHERE local_id = ?',
+    [changedJson, boolToInt(values.propose_household_head ?? false), savedId]);
+  await db.runAsync("UPDATE residents SET verification_status = 'pending' WHERE local_id = ?", [savedId]);
+  return savedId;
 }
 
 async function saveVisitInternal(
@@ -1595,7 +1659,9 @@ async function getPendingSyncPayloadInternal() {
       is_social_aid_beneficiary: intToBool(row.is_social_aid_beneficiary),
       is_active: intToBool(row.is_active),
     })),
-    residents: residents.map((row: any) => ({
+    residents: residents.map((row: any) => {
+      const correction = row.server_id != null && row.changed_fields_json != null;
+      const data = {
       id: row.server_id ?? undefined,
       mobile_uuid: row.mobile_uuid ?? undefined,
       local_revision: row.local_revision,
@@ -1604,19 +1670,27 @@ async function getPendingSyncPayloadInternal() {
       philsys_card_no: row.philsys_card_no ?? undefined,
       last_name: row.last_name,
       first_name: row.first_name,
-      middle_name: row.middle_name ?? undefined,
-      suffix: row.suffix ?? undefined,
+      middle_name: row.middle_name ?? null,
+      suffix: row.suffix ?? null,
       birth_date: row.birth_date,
       birth_place: row.birth_place,
       sex: row.sex,
       civil_status: row.civil_status,
       citizenship: row.citizenship,
-      religion: row.religion ?? undefined,
-      contact_number: row.contact_number ?? undefined,
-      email_address: row.email_address ?? undefined,
+      religion: row.religion ?? null,
+      contact_number: row.contact_number ?? null,
+      email_address: row.email_address ?? null,
       relationship_to_head: row.relationship_to_head,
       is_active: intToBool(row.is_active),
-    })),
+      propose_household_head: intToBool(row.propose_household_head),
+      request_contract_version: row.changed_fields_json == null ? undefined : 2,
+      };
+      if (!correction) return data;
+      return { id: data.id, mobile_uuid: data.mobile_uuid, local_revision: data.local_revision,
+        household_id: data.household_id, household_mobile_uuid: data.household_mobile_uuid,
+        request_contract_version: 2, base_snapshot: parseJsonValue(row.official_snapshot_json, {}),
+        proposed_changes: parseJsonValue(row.changed_fields_json, {}) };
+    }),
     field_visits: visits.map((row: any) => {
       const photos = parsePhotos(row.photos_json);
 

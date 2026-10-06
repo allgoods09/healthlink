@@ -16,7 +16,8 @@ export async function storageHarness() {
   const params = args => (Array.isArray(args[0]) ? args[0] : args).map(value => value ?? null);
   async function transactionRun(sql, ...args) {
     await beforeQuery(sql);
-    return sqlite.prepare(sql).run(...params(args));
+    const result = sqlite.prepare(sql).run(...params(args));
+    return { ...result, lastInsertRowId: Number(result.lastInsertRowid) };
   }
   const db = {
     async execAsync(sql) { await beforeQuery(sql); sqlite.exec(sql); },
@@ -61,6 +62,8 @@ export async function storageHarness() {
         deleteItemAsync: async key => { secrets.delete(key); },
       };
       if (name === './syncGuard') return load('syncGuard');
+      if (name === './residentWorkflow') return load('residentWorkflow');
+      if (name === './format') return load('format');
       throw new Error(`Unexpected storage dependency: ${name}`);
     };
     vm.runInThisContext(`(function(require, module, exports) {${code}\n})`, { filename })(
@@ -72,7 +75,7 @@ export async function storageHarness() {
   const storage = load('storage');
   await storage.initializeStorage();
   return {
-    storage, guard: load('syncGuard'), db, sqlite,
+    storage, workflow: load('residentWorkflow'), guard: load('syncGuard'), db, sqlite,
     intercept: callback => { beforeQuery = callback; },
     close: () => sqlite.close(),
   };

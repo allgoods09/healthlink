@@ -57,7 +57,7 @@ class ApproveHouseholdDraftRequest extends FormRequest
             'residents.*.first_name' => ['required', 'string', 'max:100'],
             'residents.*.middle_name' => ['nullable', 'string', 'max:100'],
             'residents.*.suffix' => ['nullable', 'string', 'max:20'],
-            'residents.*.birth_date' => ['required', 'date', 'before:today'],
+            'residents.*.birth_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'residents.*.birth_place' => ['required', 'string', 'max:255'],
             'residents.*.sex' => ['required', 'in:Male,Female'],
             'residents.*.civil_status' => ['required', 'string', 'max:50'],

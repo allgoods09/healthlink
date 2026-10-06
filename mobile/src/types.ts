@@ -67,6 +67,8 @@ export type HouseholdRecord = {
   is_social_aid_beneficiary: boolean;
   is_active: boolean;
   resident_count?: number;
+  current_head_name?: string | null;
+  is_vacant?: boolean;
   sync_status: SyncStatus;
   verification_status?: VerificationStatus;
   verification_notes?: string | null;
@@ -99,6 +101,8 @@ export type ResidentRecord = {
   is_active: boolean;
   resident_status?: string | null;
   deleted_at?: string | null;
+  official_snapshot?: Record<string, unknown> | null;
+  propose_household_head?: boolean;
   latest_risk_assessment_date?: string | null;
   latest_risk_assessment_sync_status?: SyncStatus | null;
   sync_status: SyncStatus;
@@ -196,6 +200,7 @@ export type FieldVisitRecord = {
 export type BootstrapPayload = {
   server_time: string;
   resident_contract_version?: number;
+  resident_relationship_choices?: string[];
   user: {
     id: number;
     name: string;
@@ -213,6 +218,8 @@ export type BootstrapPayload = {
     purok_display_name: string | null;
     household_no: string;
     household_address: string;
+    current_head_name?: string | null;
+    is_vacant?: boolean;
     is_social_aid_beneficiary: boolean;
     is_active: boolean;
     resident_count?: number;
@@ -243,6 +250,8 @@ export type BootstrapPayload = {
     is_active: boolean;
     resident_status?: string | null;
     deleted_at?: string | null;
+    official_snapshot?: Record<string, unknown> | null;
+    propose_household_head?: boolean;
     verification_status?: VerificationStatus;
     verification_notes?: string | null;
     local_revision?: number;

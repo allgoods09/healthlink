@@ -18,6 +18,7 @@ import {
 } from '../lib/storage';
 import { AppTheme } from '../theme';
 import { ResidentRecord, RiskAssessmentRecord } from '../types';
+import { residentEditBlocked } from '../lib/residentWorkflow';
 
 export function ResidentDetailsScreen({ route, navigation }: any) {
   const styles = useThemedStyles(createStyles);
@@ -180,18 +181,20 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
         )}
       </View>
 
-      {canEdit ? (
+      {resident.verification_status === 'submitted' ? <Text style={styles.readOnlyText}>Update under review. Wait for the Secretary decision.</Text> : null}
+      {resident.verification_notes ? <Text style={styles.readOnlyText}>{resident.verification_notes}</Text> : null}
+      {canEdit && !residentEditBlocked(resident) ? (
         <Pressable
           onPress={() => navigation.navigate('ResidentForm', { localId: resident.local_id })}
           style={styles.primaryButton}
         >
-          <Text style={styles.primaryButtonText}>{i18n.t('edit')}</Text>
+          <Text style={styles.primaryButtonText}>Request Update</Text>
         </Pressable>
-      ) : (
+      ) : !canEdit ? (
         <View style={styles.readOnlyCard}>
           <Text style={styles.readOnlyText}>{i18n.t('otherPurokReadOnly')}</Text>
         </View>
-      )}
+      ) : null}
     </ScrollView>
   );
 }

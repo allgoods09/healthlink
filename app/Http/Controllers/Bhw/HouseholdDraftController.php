@@ -170,7 +170,20 @@ class HouseholdDraftController extends Controller
         }
 
         DB::transaction(function () use ($request, $householdDraft): void {
+            $householdDraft = HouseholdDraft::query()->lockForUpdate()->findOrFail($householdDraft->id);
+            abort_unless($householdDraft->draft_status === HouseholdDraft::STATUS_PENDING, 403);
             $oldValues = $householdDraft->load('residentDrafts')->toArray();
+            $keptIds = array_filter(array_column($request->validated('residents'), 'draft_id'));
+            foreach ($keptIds as $id) {
+                abort_unless($householdDraft->residentDrafts->contains('id', (int) $id), 403);
+            }
+            foreach ($householdDraft->residentDrafts as $child) {
+                if ($child->mobile_uuid && (! in_array($child->id, $keptIds) ||
+                    $request->integer('purok_id') !== (int) $householdDraft->purok_id)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'residents' => 'Keep mobile-submitted members and their original purok in this package.']);
+                }
+            }
 
             $householdDraft->update([
                 'purok_id' => $request->integer('purok_id'),
@@ -184,10 +197,10 @@ class HouseholdDraftController extends Controller
                 'is_social_aid_beneficiary' => $request->boolean('is_social_aid_beneficiary'),
             ]);
 
-            $householdDraft->residentDrafts()->delete();
+            $householdDraft->residentDrafts()->whereNotIn('id', $keptIds)->delete();
 
             foreach ($request->validated('residents') as $residentPayload) {
-                $householdDraft->residentDrafts()->create([
+                $attributes = [
                     'philsys_card_no' => $residentPayload['philsys_card_no'] ?? null,
                     'last_name' => $residentPayload['last_name'],
                     'first_name' => $residentPayload['first_name'],
@@ -204,7 +217,15 @@ class HouseholdDraftController extends Controller
                     'relationship_to_head' => $residentPayload['relationship_to_head'],
                     'is_household_head_candidate' => ! empty($residentPayload['is_household_head_candidate']),
                     'draft_notes' => $residentPayload['draft_notes'] ?? null,
-                ]);
+                ];
+                $existing = $householdDraft->residentDrafts->firstWhere('id', (int) ($residentPayload['draft_id'] ?? 0));
+                if ($existing) {
+                    $existing->fill($attributes);
+                    if ($existing->isDirty() && $existing->mobile_uuid) $existing->mobile_revision++;
+                    $existing->save();
+                } else {
+                    $householdDraft->residentDrafts()->create($attributes);
+                }
             }
 
             AuditLog::logMutation('updated', Auth::user(), $householdDraft, $oldValues, $householdDraft->fresh()->load('residentDrafts')->toArray());

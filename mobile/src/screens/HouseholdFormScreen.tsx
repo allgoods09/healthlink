@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -15,6 +15,7 @@ import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
 import { AppTheme } from '../theme';
+import { createSaveGuard } from '../lib/residentWorkflow';
 
 import { useLocalEditor } from '../lib/useLocalEditor';
 
@@ -32,6 +33,9 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   const [serverId, setServerId] = useState<number | null>(null);
   const [mobileUuid, setMobileUuid] = useState<string | null>(null);
   const [localId, setLocalId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const saveGuard = useRef(createSaveGuard());
 
   useEffect(() => {
     async function loadExisting() {
@@ -54,6 +58,13 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   }, [route.params?.localId]);
 
   async function handleSave() {
+    if (!saveGuard.current.acquire()) return;
+    setSaving(true);
+    try {
+    if (route.params?.returnToResident && (!assignment?.purok?.id || !householdNo.trim() || !address.trim() || householdNo.length > 50)) {
+      setFormError('Enter the household number and address in your assigned purok.');
+      return;
+    }
     const confirmed = await requestConfirmation({
       title: i18n.t('saveHouseholdConfirmationTitle'),
       message: i18n.t('saveHouseholdConfirmationBody'),
@@ -64,7 +75,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       return;
     }
 
-    await saveHousehold({
+    const savedId = await saveHousehold({
       local_id: localId ?? undefined,
       server_id: serverId,
       mobile_uuid: mobileUuid,
@@ -73,10 +84,14 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       household_no: householdNo,
       household_address: address,
       is_social_aid_beneficiary: socialAid,
-      is_active: active,
+      is_active: route.params?.returnToResident ? true : active,
     }, user?.id);
     bumpDataVersion();
-    navigation.goBack();
+    if (route.params?.returnToResident) navigation.popTo('ResidentForm', { createdHouseholdLocalId: savedId }, { merge: true });
+    else navigation.goBack();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Unable to save the household. Try again.');
+    } finally { saveGuard.current.release(); setSaving(false); }
   }
 
   return (
@@ -120,7 +135,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
             />
           </View>
 
-          <View style={styles.switchRow}>
+          {!route.params?.returnToResident ? <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
             <Switch
               value={active}
@@ -128,10 +143,11 @@ export function HouseholdFormScreen({ route, navigation }: any) {
               trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
               thumbColor={theme.colors.surfaceElevated}
             />
-          </View>
+          </View> : null}
         </View>
 
-        <Pressable onPress={handleSave} style={styles.primaryButton}>
+        {formError ? <Text style={{ color: theme.colors.danger }}>{formError}</Text> : null}
+        <Pressable disabled={saving} onPress={handleSave} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
         </Pressable>
       </ScrollView>

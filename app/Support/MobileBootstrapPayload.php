@@ -26,9 +26,10 @@ class MobileBootstrapPayload
         $households = Household::query()
             ->whereHas('purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
             ->with([
-                'purok.barangay',
+                'purok.barangay', 'headResident',
             ])
             ->withCount('residents')
+            ->withCount('currentMembers')
             ->orderBy('household_no')
             ->get();
 
@@ -88,6 +89,7 @@ class MobileBootstrapPayload
         return [
             'server_time' => now()->toIso8601String(),
             'resident_contract_version' => 1,
+            'resident_relationship_choices' => HouseholdRelationships::choices(),
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -160,6 +162,7 @@ class MobileBootstrapPayload
                     'relationship_to_head' => $resident->relationship_to_head,
                     'is_active' => $resident->is_active,
                     'resident_status' => $resident->resident_status,
+                    'official_snapshot' => MobileResidentRequestData::snapshot($resident),
                     'deleted_at' => null,
                     'verification_status' => $this->reviewStatus($correction),
                     'local_revision' => $this->correctionRevision($correction),
@@ -189,6 +192,7 @@ class MobileBootstrapPayload
                         'email_address' => $draft->email_address,
                         'relationship_to_head' => $draft->relationship_to_head,
                         'is_active' => true,
+                        'propose_household_head' => $draft->is_household_head_candidate,
                         'verification_status' => $parent->draft_status === HouseholdDraft::STATUS_PENDING ? 'submitted' : 'rejected',
                         'local_revision' => $draft->mobile_revision,
                         'verification_notes' => $parent->verification_notes,
@@ -315,6 +319,8 @@ class MobileBootstrapPayload
             'is_social_aid_beneficiary' => $household->is_social_aid_beneficiary,
             'is_active' => $household->is_active,
             'resident_count' => $household->residents_count ?? $household->residents()->count(),
+            'current_head_name' => $household->currentHeadResident()?->formal_name,
+            'is_vacant' => ($household->current_members_count ?? $household->currentMemberCount()) === 0,
             'updated_at' => optional($household->updated_at)->toIso8601String(),
         ];
     }

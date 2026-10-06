@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { usePreventRemove } from '@react-navigation/native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import {
   FlatList,
@@ -26,12 +27,15 @@ import {
 import { findHouseholdByReference } from '../lib/householdIdentity';
 import {
   getHouseholds,
+  getResidentHouseholdOptions,
+  getResidentRelationshipChoices,
   getResidentByLocalId,
   getResidentRequestByLocalId,
   saveResident,
 } from '../lib/storage';
 import { AppTheme } from '../theme';
-import { HouseholdRecord } from '../types';
+import { HouseholdRecord, ResidentRecord } from '../types';
+import { createSaveGuard, residentEditBlocked, residentFormMode, residentRequestLabel, validateResidentInput } from '../lib/residentWorkflow';
 
 import { useLocalEditor } from '../lib/useLocalEditor';
 
@@ -39,11 +43,25 @@ export function ResidentFormScreen({ route, navigation }: any) {
   useLocalEditor();
   const theme = useAppTheme();
   const styles = useThemedStyles(createStyles);
-  const { user, assignment, bumpDataVersion, requestConfirmation } = useAppContext();
+  const { user, assignment, dataVersion, bumpDataVersion, requestConfirmation } = useAppContext();
   const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
     useKeyboardAwareScroll();
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
   const [chooserVisible, setChooserVisible] = useState(false);
+  const [householdSearch, setHouseholdSearch] = useState('');
+  const [householdsLoading, setHouseholdsLoading] = useState(true);
+  const [householdsError, setHouseholdsError] = useState(false);
+  const [existingRecord, setExistingRecord] = useState<ResidentRecord | null>(null);
+  const [relationships, setRelationships] = useState<string[]>([]);
+  const [relationshipChooserVisible, setRelationshipChooserVisible] = useState(false);
+  const [proposeHead, setProposeHead] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const saveGuard = useRef(createSaveGuard());
+  const [dirty, setDirty] = useState(false);
+  const [loaded, setLoaded] = useState(!route.params?.localId);
+  const mode = residentFormMode(existingRecord);
+  const blocked = residentEditBlocked(existingRecord);
   const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRecord | null>(null);
   const [localId, setLocalId] = useState<number | null>(null);
   const [serverId, setServerId] = useState<number | null>(null);
@@ -54,31 +72,62 @@ export function ResidentFormScreen({ route, navigation }: any) {
   const [suffix, setSuffix] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [birthPlace, setBirthPlace] = useState('');
-  const [sex, setSex] = useState<'Male' | 'Female'>('Female');
-  const [civilStatus, setCivilStatus] = useState('Single');
+  const [sex, setSex] = useState<'Male' | 'Female' | ''>('');
+  const [civilStatus, setCivilStatus] = useState('');
   const [citizenship, setCitizenship] = useState('Filipino');
-  const [religion, setReligion] = useState('Catholic');
+  const [religion, setReligion] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
-  const [relationshipToHead, setRelationshipToHead] = useState('Head');
-  const [active, setActive] = useState(true);
+  const [relationshipToHead, setRelationshipToHead] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const assignedPurokId = assignment?.purok?.id ?? null;
   const assignedPurokLabel =
     assignment?.purok?.display_name ?? i18n.t('assignedPurokOnly');
+  const fingerprint = JSON.stringify([firstName, lastName, middleName, suffix, birthDate, birthPlace, sex,
+    civilStatus, citizenship, religion, contactNumber, emailAddress, relationshipToHead,
+    selectedHousehold?.server_id ?? null, selectedHousehold?.mobile_uuid ?? null, proposeHead]);
+  const originalFingerprint = useRef(fingerprint);
+  useEffect(() => { if (loaded) setDirty(fingerprint !== originalFingerprint.current); }, [fingerprint, loaded]);
+
+  usePreventRemove(dirty && !saved, ({ data }) => {
+    void requestConfirmation({ title: 'Leave resident request?', message: 'Unsaved changes will be lost.', confirmLabel: 'Leave' })
+      .then(confirmed => { if (confirmed) navigation.dispatch(data.action); });
+  });
+  useEffect(() => { if (saved) navigation.goBack(); }, [saved, navigation]);
+  useEffect(() => { navigation.setOptions({ title: mode === 'correction' ? 'Request Update' : 'Add Resident Request' }); }, [mode, navigation]);
+  useEffect(() => {
+    let applicable = true;
+    void getResidentRelationshipChoices().then(values => { if (applicable) setRelationships(values); })
+      .catch(() => { if (applicable) setFormError('Unable to load relationship choices. Reopen this form to retry.'); });
+    return () => { applicable = false; };
+  }, [dataVersion]);
 
   useEffect(() => {
+    let applicable = true;
     async function loadWritableHouseholds() {
-      const records = await getHouseholds();
-      setHouseholds(
-        assignedPurokId === null
-          ? []
-          : records.filter((household) => household.purok_id === assignedPurokId)
-      );
+      setHouseholdsLoading(true);
+      setHouseholdsError(false);
+      try {
+        const records = await getResidentHouseholdOptions(mode, householdSearch);
+        if (applicable) setHouseholds(records);
+      } catch { if (applicable) setHouseholdsError(true); }
+      finally { if (applicable) setHouseholdsLoading(false); }
     }
 
     void loadWritableHouseholds();
-  }, [assignedPurokId]);
+    return () => { applicable = false; };
+  }, [assignedPurokId, dataVersion, mode, householdSearch, chooserVisible]);
+
+  useEffect(() => {
+    const id = route.params?.createdHouseholdLocalId;
+    if (!id || mode === 'correction') return;
+    void getResidentHouseholdOptions(mode).then(records => {
+      const created = records.find(h => h.local_id === id);
+      if (created) { setSelectedHousehold(created); setDirty(true); }
+      else setFormError('The new household is not available. Choose an eligible household.');
+      navigation.setParams({ createdHouseholdLocalId: undefined });
+    });
+  }, [route.params?.createdHouseholdLocalId, mode, assignedPurokId]);
 
   useEffect(() => {
     async function loadExisting() {
@@ -90,6 +139,13 @@ export function ResidentFormScreen({ route, navigation }: any) {
         setFormError(i18n.t('noMatchingRecords'));
         return;
       }
+
+      setExistingRecord(existing);
+      originalFingerprint.current = JSON.stringify([existing.first_name, existing.last_name, existing.middle_name ?? '',
+        existing.suffix ?? '', birthDateInputFromServer(existing.birth_date), existing.birth_place, existing.sex,
+        existing.civil_status, existing.citizenship, existing.religion ?? '', existing.contact_number ?? '',
+        existing.email_address ?? '', existing.relationship_to_head, existing.household_server_id ?? null,
+        existing.household_mobile_uuid ?? null, existing.propose_household_head ?? false]);
 
       setLocalId(existing.local_id ?? null);
       setServerId(existing.server_id ?? null);
@@ -107,7 +163,8 @@ export function ResidentFormScreen({ route, navigation }: any) {
       setContactNumber(existing.contact_number ?? '');
       setEmailAddress(existing.email_address ?? '');
       setRelationshipToHead(existing.relationship_to_head);
-      setActive(existing.is_active);
+      setProposeHead(existing.propose_household_head ?? false);
+      setLoaded(true);
 
       const existingHousehold = findHouseholdByReference(await getHouseholds(), existing);
 
@@ -134,6 +191,13 @@ export function ResidentFormScreen({ route, navigation }: any) {
   }
 
   async function handleSave() {
+    if (!saveGuard.current.acquire()) return;
+    setSaving(true);
+    try {
+    if (!loaded || blocked) {
+      setFormError('This request cannot be edited while under review or after rejection.');
+      return;
+    }
     if (!assignedPurokId || (route.params?.localId && !localId)) {
       setFormError(i18n.t('noMatchingRecords'));
       return;
@@ -154,6 +218,11 @@ export function ResidentFormScreen({ route, navigation }: any) {
       setFormError(i18n.t('invalidBirthDate'));
       return;
     }
+    const validation = validateResidentInput({ first_name: firstName, last_name: lastName, middle_name: middleName,
+      suffix, birth_date: normalizedBirthDate, birth_place: birthPlace, sex: sex || undefined,
+      civil_status: civilStatus, citizenship, religion, contact_number: contactNumber, email_address: emailAddress,
+      relationship_to_head: relationshipToHead });
+    if (validation) { setFormError(validation); return; }
 
     setFormError(null);
 
@@ -179,17 +248,28 @@ export function ResidentFormScreen({ route, navigation }: any) {
       suffix: suffix || null,
       birth_date: normalizedBirthDate,
       birth_place: birthPlace,
-      sex,
+      sex: sex as 'Male' | 'Female',
       civil_status: civilStatus,
       citizenship,
       religion: religion || null,
       contact_number: contactNumber || null,
       email_address: emailAddress || null,
       relationship_to_head: relationshipToHead,
-      is_active: active,
+      is_active: existingRecord?.is_active ?? true,
+      propose_household_head: mode !== 'correction' && selectedHousehold.server_id == null && proposeHead,
     }, user?.id);
     bumpDataVersion();
-    navigation.goBack();
+    setSaved(true);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Unable to save. Your entered information remains here; try again.');
+    } finally { setSaving(false); saveGuard.current.release(); }
+  }
+
+  const relationshipOptions = existingRecord?.relationship_to_head && !relationships.includes(existingRecord.relationship_to_head)
+    ? [existingRecord.relationship_to_head, ...relationships] : relationships;
+  function createHousehold() {
+    setChooserVisible(false);
+    navigation.navigate('HouseholdForm', { returnToResident: true });
   }
 
   return (
@@ -206,6 +286,8 @@ export function ResidentFormScreen({ route, navigation }: any) {
         scrollEventThrottle={16}
       >
         <View style={styles.card}>
+          {existingRecord ? <Text style={styles.helperText}>{residentRequestLabel(existingRecord)}{existingRecord.verification_notes ? `: ${existingRecord.verification_notes}` : ''}</Text> : null}
+          {blocked ? <Text style={styles.errorText}>{existingRecord?.server_id == null ? 'This rejection is preserved. Linked resubmission is not yet available.' : 'Update under review. Wait for the Secretary decision.'}</Text> : null}
           <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
           <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
             <Text style={styles.pickerLabel}>
@@ -215,6 +297,10 @@ export function ResidentFormScreen({ route, navigation }: any) {
           <Text style={styles.helperText}>
             {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
           </Text>
+
+          {mode !== 'correction' ? <Pressable onPress={createHousehold} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Create Household Request</Text>
+          </Pressable> : null}
 
         <Text style={styles.label}>{i18n.t('firstName')}</Text>
         <TextInput value={firstName} onFocus={handleInputFocus} onChangeText={(value) => {
@@ -312,6 +398,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
         <Text style={styles.label}>{i18n.t('contactNumber')}</Text>
         <TextInput
           value={contactNumber}
+          keyboardType="phone-pad"
           onChangeText={setContactNumber}
           onFocus={handleInputFocus}
           style={styles.input}
@@ -320,28 +407,28 @@ export function ResidentFormScreen({ route, navigation }: any) {
         <Text style={styles.label}>{i18n.t('emailAddress')}</Text>
         <TextInput
           value={emailAddress}
+          keyboardType="email-address"
+          autoCapitalize="none"
           onChangeText={setEmailAddress}
           onFocus={handleInputFocus}
           style={styles.input}
         />
 
         <Text style={styles.label}>{i18n.t('relationshipToHead')}</Text>
-        <TextInput
-          value={relationshipToHead}
-          onChangeText={setRelationshipToHead}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
+        <Pressable onPress={() => setRelationshipChooserVisible(true)} style={styles.pickerButton}>
+          <Text style={styles.pickerLabel}>{relationshipToHead || 'Choose relationship'}</Text>
+        </Pressable>
+        {!relationships.length ? <Text style={styles.helperText}>Sync to download current relationship choices. Existing values remain preserved.</Text> : null}
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
+        {mode !== 'correction' && selectedHousehold?.server_id == null && selectedHousehold ? <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Propose as household head</Text>
           <Switch
-            value={active}
-            onValueChange={setActive}
+            value={proposeHead}
+            onValueChange={value => { setProposeHead(value); setDirty(true); }}
             trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
             thumbColor={theme.colors.surfaceElevated}
           />
-        </View>
+        </View> : null}
 
           {formError ? (
             <View style={styles.errorBox}>
@@ -350,15 +437,26 @@ export function ResidentFormScreen({ route, navigation }: any) {
           ) : null}
         </View>
 
-        <Pressable onPress={handleSave} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
+        <Pressable disabled={saving || blocked || !loaded} onPress={handleSave} style={[styles.primaryButton, (saving || blocked || !loaded) && { opacity: 0.5 }]}>
+          <Text style={styles.primaryButtonText}>{saving ? 'Saving...' : i18n.t('save')}</Text>
         </Pressable>
 
-        <Modal visible={chooserVisible} transparent animationType="slide">
+        <Modal visible={relationshipChooserVisible} transparent animationType="slide" onRequestClose={() => setRelationshipChooserVisible(false)}>
+          <View style={styles.modalBackdrop}><View style={styles.modalCard}>
+            <FlatList data={relationshipOptions} keyExtractor={item => item} renderItem={({ item }) =>
+              <Pressable style={styles.modalItem} onPress={() => { setRelationshipToHead(item); setDirty(true); setRelationshipChooserVisible(false); }}><Text style={styles.modalItemTitle}>{item}</Text></Pressable>} />
+            <Pressable style={styles.secondaryButton} onPress={() => setRelationshipChooserVisible(false)}><Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text></Pressable>
+          </View></View>
+        </Modal>
+        <Modal visible={chooserVisible} transparent animationType="slide" onRequestClose={() => setChooserVisible(false)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
+              <TextInput placeholder="Search household number, head or address" value={householdSearch} onChangeText={setHouseholdSearch} style={styles.input} />
+              {householdsLoading ? <Text style={styles.helperText}>Loading households...</Text> : null}
+              {householdsError ? <Text style={styles.errorText}>Unable to load households. Reopen this selector to retry.</Text> : null}
               <FlatList
-                data={households}
+                data={householdsError || householdsLoading ? [] : households}
+                ListEmptyComponent={<Text style={styles.helperText}>{householdsLoading || householdsError ? '' : householdSearch.trim() ? 'No matching households.' : 'No eligible households.'}</Text>}
                 keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
                 keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={
@@ -372,14 +470,18 @@ export function ResidentFormScreen({ route, navigation }: any) {
                       setSelectedHousehold(item);
                       setChooserVisible(false);
                       setFormError(null);
+                      setDirty(true);
+                      if (item.server_id != null) setProposeHead(false);
                     }}
                     style={styles.modalItem}
                   >
-                    <Text style={styles.modalItemTitle}>{item.household_no}</Text>
+                    <Text style={styles.modalItemTitle}>Household #{item.household_no}</Text>
+                    <Text style={styles.modalItemText}>{item.server_id == null ? 'Household request' : item.current_head_name ?? (item.is_vacant ? 'Vacant' : 'No designated head')}</Text>
                     <Text style={styles.modalItemText}>{item.household_address}</Text>
                   </Pressable>
                 )}
               />
+              {mode !== 'correction' ? <Pressable onPress={createHousehold} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Create Household Request</Text></Pressable> : null}
               <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
               </Pressable>

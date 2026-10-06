@@ -26,6 +26,7 @@ class StoreHouseholdDraftRequest extends FormRequest
             'housing_material_type' => ['nullable', 'string', 'in:' . implode(',', array_keys(Household::HOUSING_MATERIAL_TYPES))],
             'is_social_aid_beneficiary' => ['nullable', 'boolean'],
             'residents' => ['required', 'array', 'min:1'],
+            'residents.*.draft_id' => ['nullable', 'integer', 'distinct'],
             'residents.*.philsys_card_no' => ['nullable', 'string', 'max:50'],
             'residents.*.last_name' => ['required', 'string', 'max:100'],
             'residents.*.first_name' => ['required', 'string', 'max:100'],

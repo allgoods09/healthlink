@@ -4,6 +4,7 @@
     if (! $residentRows) {
         $residentRows = isset($draft)
             ? $draft->residentDrafts->map(fn ($residentDraft) => [
+                'draft_id' => $residentDraft->id,
                 'philsys_card_no' => $residentDraft->philsys_card_no,
                 'last_name' => $residentDraft->last_name,
                 'first_name' => $residentDraft->first_name,
@@ -144,6 +145,7 @@
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="block text-sm font-medium text-slate-700">PhilSys Card No.</label>
+                            <input type="hidden" :name="'residents[' + index + '][draft_id]'" :value="row.draft_id || ''">
                             <input type="text" x-model="row.philsys_card_no" :name="'residents[' + index + '][philsys_card_no]'" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">
                         </div>
                         <div>

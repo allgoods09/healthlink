@@ -126,7 +126,7 @@ class ApplyProfileUpdateRequestRequest extends FormRequest
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'suffix' => ['nullable', 'string', 'max:20'],
-            'birth_date' => ['required', 'date', 'before:today'],
+            'birth_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'birth_place' => ['required', 'string', 'max:255'],
             'sex' => ['required', 'in:Male,Female'],
             'civil_status' => ['required', 'string', 'max:50'],

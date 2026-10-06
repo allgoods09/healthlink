@@ -162,11 +162,17 @@ class SecretaryPipelineProcessor
 
     private function applyResidentUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Resident
     {
-        $resident = Resident::query()->findOrFail($profileUpdateRequest->subject_id);
+        $resident = Resident::query()->lockForUpdate()->findOrFail($profileUpdateRequest->subject_id);
         $resident->loadMissing('household');
 
+        if ($profileUpdateRequest->mobile_submission_key) {
+            MobileResidentRequestData::assertUnchanged($resident, $profileUpdateRequest->current_snapshot ?? []);
+        }
+
         $oldResidentValues = $resident->load('household.purok', 'socioEconomicProfile')->toArray();
-        $data = $this->normalizeResidentLifecycle(Arr::except($payload, ['review_notes', 'set_as_household_head']));
+        $data = $profileUpdateRequest->mobile_submission_key
+            ? Arr::only($payload, [...MobileResidentRequestData::EDITABLE, 'philsys_card_no', 'is_active'])
+            : $this->normalizeResidentLifecycle(Arr::except($payload, ['review_notes', 'set_as_household_head']));
 
         $resident->update($data);
 
