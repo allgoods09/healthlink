@@ -6,9 +6,9 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.team.index') }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        <x-record-action :href="route('secretary.team.index')" variant="back">
             Back to Team
-        </a>
+        </x-record-action>
     </div>
 @endsection
 
@@ -118,9 +118,9 @@
                     </label>
 
                     <div class="flex flex-wrap items-center gap-3 pt-2">
-                        <button type="submit" class="inline-flex items-center rounded-full bg-tubigon px-5 py-2.5 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                        <x-record-action type="submit" variant="add">
                             Create Frontline Account
-                        </button>
+                        </x-record-action>
                     </div>
                 </form>
             </div>

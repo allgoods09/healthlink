@@ -6,12 +6,12 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.drafts.show', $householdDraft) }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        <x-record-action :href="route('secretary.drafts.show', $householdDraft)" variant="view">
             View Draft
-        </a>
-        <a href="{{ route('secretary.drafts.index') }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        </x-record-action>
+        <x-record-action :href="route('secretary.drafts.index')" variant="back">
             Back to Queue
-        </a>
+        </x-record-action>
     </div>
 @endsection
 
@@ -218,7 +218,7 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-3 pt-2">
-                        <button type="submit" class="inline-flex items-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">
+                        <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-transparent bg-emerald-600 text-white hover:bg-emerald-700">
                             Approve Draft Package
                         </button>
                     </div>
@@ -244,7 +244,7 @@
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="review_notes" value="">
-                    <button type="submit" class="inline-flex items-center rounded-full bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700">
+                    <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-transparent bg-rose-600 text-white hover:bg-rose-700">
                         Reject Draft Package
                     </button>
                 </form>

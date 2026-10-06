@@ -91,7 +91,26 @@ class CorrectionAccessibilityTest extends TestCase
             $this->assertSame('POST', $form->getAttribute('method'));
             $this->assertCount(1, $xpath->query('.//input[@name="_method" and @value="PATCH"]', $form));
             $this->assertCount(1, $xpath->query('.//input[@name="_token"]', $form));
+            $button = $xpath->query('.//button[@type="submit"]', $form)->item(0);
+            $this->assertNotNull($button);
+            foreach (['rounded-md', 'min-h-10', 'focus:ring-2', $action === 'approve' ? 'bg-emerald-600' : 'bg-rose-600'] as $class) {
+                $this->assertStringContainsString($class, $button->getAttribute('class'));
+            }
+            $this->assertFalse($button->hasAttribute('name'));
+            $this->assertFalse($button->hasAttribute('value'));
+            if ($action === 'reject') {
+                $this->assertCount(1, $xpath->query('.//input[@type="hidden" and @name="review_notes" and @value=""]', $form));
+            }
         }
+        foreach (['show' => 'view', 'index' => 'back'] as $destination => $variant) {
+            $this->assertCount(1, $xpath->query('//a[@href="'.route('secretary.update-requests.'.$destination, $destination === 'show' ? $request : null).'" and @data-record-action="'.$variant.'"]'));
+        }
+        $show = $this->get(route('secretary.update-requests.show', $request))->assertOk();
+        $showDom = new DOMDocument;
+        @$showDom->loadHTML($show->getContent());
+        $showXPath = new DOMXPath($showDom);
+        $this->assertCount(1, $showXPath->query('//a[@href="'.route('secretary.update-requests.edit', $request).'" and @data-record-action="edit"]'));
+        $this->assertCount(1, $showXPath->query('//a[@href="'.route('secretary.update-requests.index').'" and @data-record-action="back"]'));
         $this->assertSame($type === 'resident' ? 'Old first name' : 'OLD-7',
             $xpath->query('//*[@id="correction_'.($type === 'resident' ? 'first_name' : 'household_no').'"]')->item(0)->getAttribute('value'));
         $this->assertSame($before, $request->fresh()->getAttributes());

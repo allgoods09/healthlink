@@ -6,12 +6,12 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.team.show', $frontlineUser) }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        <x-record-action :href="route('secretary.team.show', $frontlineUser)" variant="view">
             View Profile
-        </a>
-        <a href="{{ route('secretary.team.index') }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        </x-record-action>
+        <x-record-action :href="route('secretary.team.index')" variant="back">
             Back to Team
-        </a>
+        </x-record-action>
     </div>
 @endsection
 
@@ -76,9 +76,9 @@
                     </label>
 
                     <div class="flex flex-wrap items-center gap-3 pt-2">
-                        <button type="submit" class="inline-flex items-center rounded-full bg-tubigon px-5 py-2.5 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                        <x-record-action type="submit" variant="edit">
                             Save Assignment
-                        </button>
+                        </x-record-action>
                     </div>
                 </form>
 
@@ -87,7 +87,7 @@
                         <form action="{{ route('secretary.team.approve', $frontlineUser) }}" method="POST">
                             @csrf
                             @method('PATCH')
-                            <button type="submit" class="inline-flex items-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">
+                            <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-transparent bg-emerald-600 text-white hover:bg-emerald-700">
                                 Approve Registration
                             </button>
                         </form>
@@ -96,7 +96,7 @@
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="approval_notes" value="">
-                            <button type="submit" class="inline-flex items-center rounded-full bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700">
+                            <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-transparent bg-rose-600 text-white hover:bg-rose-700">
                                 Reject Registration
                             </button>
                         </form>
@@ -139,15 +139,15 @@
                     <div class="flex flex-wrap items-center gap-3">
                         <form action="{{ route('secretary.team.verification.resend', $frontlineUser) }}" method="POST">
                             @csrf
-                            <button type="submit" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                            <x-record-action type="submit" variant="edit">
                                 Resend Verification Email
-                            </button>
+                            </x-record-action>
                         </form>
 
                         <form action="{{ route('secretary.team.verification.mark', $frontlineUser) }}" method="POST">
                             @csrf
                             @method('PATCH')
-                            <button type="submit" class="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-200">
+                            <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200">
                                 Mark as Verified
                             </button>
                         </form>

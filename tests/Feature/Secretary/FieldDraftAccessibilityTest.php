@@ -158,11 +158,22 @@ class FieldDraftAccessibilityTest extends TestCase
             $this->assertCount(1, $xpath->query('.//input[@name="_token"]', $form));
             $button = $xpath->query('.//button[@type="submit"]', $form)->item(0);
             $this->assertSame($action === 'approve' ? 'Approve Draft Package' : 'Reject Draft Package', trim($button->textContent));
-            $this->assertStringContainsString('rounded-full', $button->getAttribute('class'));
+            foreach (['rounded-md', 'min-h-10', 'focus:ring-2', $action === 'approve' ? 'bg-emerald-600' : 'bg-rose-600'] as $class) {
+                $this->assertStringContainsString($class, $button->getAttribute('class'));
+            }
+            $this->assertFalse($button->hasAttribute('name'));
+            $this->assertFalse($button->hasAttribute('value'));
             if ($action === 'reject') {
                 $this->assertSame('', $xpath->query('.//input[@type="hidden" and @name="review_notes"]', $form)->item(0)->getAttribute('value'));
             }
         }
+        foreach (['show' => 'view', 'index' => 'back'] as $destination => $variant) {
+            $this->assertCount(1, $xpath->query('//a[@href="'.route('secretary.drafts.'.$destination, $destination === 'show' ? $draft : null).'" and @data-record-action="'.$variant.'"]'));
+        }
+        $show = $this->get(route('secretary.drafts.show', $draft))->assertOk();
+        $showXPath = $this->xpath($show->getContent());
+        $this->assertCount(1, $showXPath->query('//a[@href="'.route('secretary.drafts.edit', $draft).'" and @data-record-action="edit"]'));
+        $this->assertCount(1, $showXPath->query('//a[@href="'.route('secretary.drafts.index').'" and @data-record-action="back"]'));
         $this->assertSame($before, [$draft->fresh()->getAttributes(), $draft->residentDrafts()->get()->map->getAttributes()->all(),
             Household::count(), Resident::count(), AuditLog::count(), $draft->targetHousehold?->fresh()->getAttributes()]);
     }

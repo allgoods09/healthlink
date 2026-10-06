@@ -7,13 +7,13 @@
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
         @if($householdDraft->draft_status === \App\Models\HouseholdDraft::STATUS_PENDING)
-            <a href="{{ route('secretary.drafts.edit', $householdDraft) }}" class="inline-flex items-center rounded-full bg-tubigon px-4 py-2 text-sm font-medium text-white hover:bg-tubigon-hover">
+            <x-record-action :href="route('secretary.drafts.edit', $householdDraft)" variant="edit">
                 Review & Approve
-            </a>
+            </x-record-action>
         @endif
-        <a href="{{ route('secretary.drafts.index') }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        <x-record-action :href="route('secretary.drafts.index')" variant="back">
             Back to Queue
-        </a>
+        </x-record-action>
     </div>
 @endsection
 

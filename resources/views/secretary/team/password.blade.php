@@ -6,9 +6,9 @@
 
 @section('actions')
     <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ route('secretary.team.show', $frontlineUser) }}" class="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-tubigon/20 hover:text-tubigon">
+        <x-record-action :href="route('secretary.team.show', $frontlineUser)" variant="back">
             Back to Profile
-        </a>
+        </x-record-action>
     </div>
 @endsection
 
@@ -46,9 +46,9 @@
                         <input type="password" name="password_confirmation" id="password_confirmation" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon" required>
                     </div>
 
-                    <button type="submit" class="inline-flex items-center rounded-full bg-tubigon px-5 py-2.5 text-sm font-medium text-white transition hover:bg-tubigon-hover">
+                    <x-record-action type="submit" variant="edit">
                         Set Password
-                    </button>
+                    </x-record-action>
                 </form>
             </div>
         </section>
@@ -64,7 +64,7 @@
 
                 <form method="POST" action="{{ route('secretary.team.password.generate', $frontlineUser) }}" class="mt-5">
                     @csrf
-                    <button type="submit" class="inline-flex items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700">
+                    <button type="submit" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 border-transparent bg-amber-600 text-white hover:bg-amber-700">
                         Generate Temporary Password
                     </button>
                 </form>

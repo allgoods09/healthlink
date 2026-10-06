@@ -5,6 +5,9 @@ namespace Tests\Feature\Secretary;
 use App\Models\Barangay;
 use App\Models\Purok;
 use App\Models\User;
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -123,6 +126,75 @@ class FrontlineUserManagementTest extends TestCase
         $bhw->refresh();
 
         $this->assertTrue(Hash::check('newSecurePass123', $bhw->password));
+    }
+
+    public function test_account_actions_keep_their_forms_and_canonical_navigation(): void
+    {
+        [$secretary, $purok] = $this->secretaryContext();
+        $user = User::factory()->create([
+            'role' => 'bhw', 'assigned_barangay_id' => $secretary->assigned_barangay_id,
+            'assigned_purok_id' => $purok->id, 'approval_status' => User::APPROVAL_PENDING,
+            'email_verified_at' => null,
+        ]);
+        $this->actingAs($secretary);
+        $pages = [
+            'create' => [null, ['store' => [null, 'add']], ['index' => 'back']],
+            'edit' => [$user, ['update' => ['PUT', 'edit'], 'approve' => ['PATCH', 'emerald'], 'reject' => ['PATCH', 'rose'],
+                'verification.resend' => [null, 'edit'], 'verification.mark' => ['PATCH', 'amber']], ['show' => 'view', 'index' => 'back']],
+            'show' => [$user, ['verification.resend' => [null, 'edit'], 'verification.mark' => ['PATCH', 'amber']], ['edit' => 'manage', 'password.edit' => 'security']],
+            'password.edit' => [$user, ['password.reset' => ['PUT', 'edit'], 'password.generate' => [null, 'amber']], ['show' => 'back']],
+        ];
+        foreach ($pages as $page => [$parameter, $actions, $links]) {
+            $html = $this->get(route('secretary.team.'.$page, $parameter))->assertOk()->getContent();
+            $dom = new DOMDocument;
+            @$dom->loadHTML($html);
+            $xpath = new DOMXPath($dom);
+            foreach ($actions as $action => [$method, $style]) {
+                $forms = $xpath->query('//form[@action="'.route('secretary.team.'.$action, $action === 'store' ? null : $user).'"]');
+                $this->assertCount(1, $forms);
+                $form = $forms->item(0);
+                $this->assertSame('POST', $form->getAttribute('method'));
+                $this->assertCount(1, $xpath->query('.//input[@name="_token"]', $form));
+                $spoofing = $xpath->query('.//input[@name="_method"]', $form);
+                $this->assertCount($method === null ? 0 : 1, $spoofing);
+                if ($method !== null) {
+                    $this->assertSame($method, $spoofing->item(0)->getAttribute('value'));
+                }
+                $button = $xpath->query('.//button[@type="submit"]', $form)->item(0);
+                $this->assertInstanceOf(DOMElement::class, $button);
+                $this->assertFalse($button->hasAttribute('name'));
+                $this->assertFalse($button->hasAttribute('value'));
+                foreach (['min-h-10', 'rounded-md', 'focus:ring-2'] as $class) {
+                    $this->assertStringContainsString($class, $button->getAttribute('class'));
+                }
+                if (in_array($style, ['emerald', 'rose', 'amber'], true)) {
+                    $this->assertStringContainsString('bg-'.$style.'-', $button->getAttribute('class'));
+                } else {
+                    $this->assertSame($style, $button->getAttribute('data-record-action'));
+                }
+                if ($action === 'reject') {
+                    $this->assertCount(1, $xpath->query('.//input[@type="hidden" and @name="approval_notes" and @value=""]', $form));
+                }
+            }
+            foreach ($links as $destination => $variant) {
+                $link = $xpath->query('//a[@href="'.route('secretary.team.'.$destination, $destination === 'index' ? null : $user).'" and @data-record-action="'.$variant.'"]');
+                $this->assertCount(1, $link);
+                $this->assertStringContainsString('flex-wrap', $link->item(0)->parentNode->getAttribute('class'));
+            }
+        }
+    }
+
+    public function test_account_actions_retain_approved_and_verified_visibility_rules(): void
+    {
+        [$secretary, $purok] = $this->secretaryContext();
+        $user = User::factory()->create(['role' => 'bhw', 'assigned_barangay_id' => $secretary->assigned_barangay_id,
+            'assigned_purok_id' => $purok->id, 'approval_status' => User::APPROVAL_APPROVED]);
+        foreach (['edit', 'show'] as $page) {
+            $response = $this->actingAs($secretary)->get(route('secretary.team.'.$page, $user))->assertOk();
+            foreach (['Approve Registration', 'Reject Registration', 'Resend Verification Email', 'Mark as Verified'] as $label) {
+                $response->assertDontSee($label);
+            }
+        }
     }
 
     private function secretaryContext(): array
