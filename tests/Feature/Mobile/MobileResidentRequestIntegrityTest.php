@@ -174,7 +174,7 @@ class MobileResidentRequestIntegrityTest extends TestCase
     {
         [$bhw, , $household] = $this->team();
         $resident = $this->resident($household);
-        foreach (['philsys_card_no', 'is_active', 'resident_status', 'head_resident_id'] as $field) {
+        foreach (['is_active', 'resident_status', 'head_resident_id'] as $field) {
             $this->sync($bhw, $this->correction($resident, [$field => 'forbidden']))->assertJsonPath('status', 'failed');
         }
         $this->assertSame(0, ProfileUpdateRequest::count());

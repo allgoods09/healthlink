@@ -8,6 +8,7 @@ import { formatFriendlyDate, formatPurokLabel, formatResidentFormalName } from '
 import { getResidentByLocalId, getResidentRequestByLocalId, getCurrentOfficialHouseholds, getRiskAssessmentsForResident } from '../lib/storage';
 import { residentDetailActions, residentDirectoryAge, residentStatusKey } from '../lib/residentPresentation';
 import { residentEditBlocked } from '../lib/residentWorkflow';
+import { RESIDENT_PROFILE_FIELDS, RESIDENT_PROFILE_FLAGS } from '../lib/residentWorkflow';
 import { HouseholdRecord, ResidentRecord, RiskAssessmentRecord } from '../types';
 
 export function ResidentDetailsScreen({ route, navigation }: any) {
@@ -79,6 +80,7 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
       <DetailRow label={i18n.t('age')} value={age == null ? i18n.t('unknownAge') : String(age)} />
       <DetailRow label={i18n.t('birthPlace')} value={value(resident.birth_place)} />
       <DetailRow label={i18n.t('sex')} value={resident.sex} />
+      {resident.philsys_card_no ? <DetailRow label={i18n.t('philsysCardNumber')} value={resident.philsys_card_no} /> : null}
     </View>
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.section}>{i18n.t('householdProfile')}</Text>
@@ -98,6 +100,20 @@ export function ResidentDetailsScreen({ route, navigation }: any) {
       <DetailRow label={i18n.t('citizenship')} value={value(resident.citizenship)} />
       <DetailRow label={i18n.t('religion')} value={value(resident.religion)} />
     </View>
+    {['residentStepEducation', 'residentStepSocio'].map((title, index) => <View key={title} style={styles.card}>
+      <Text accessibilityRole="header" style={styles.section}>{i18n.t(title)}</Text>
+      {(index === 0 ? RESIDENT_PROFILE_FIELDS.slice(0, 4) : RESIDENT_PROFILE_FIELDS.slice(4)).every(field => resident[field] == null)
+        ? <Text style={styles.muted}>{i18n.t('notRecorded')}</Text> : null}
+      {(index === 0 ? RESIDENT_PROFILE_FIELDS.slice(0, 4) : RESIDENT_PROFILE_FIELDS.slice(4)).filter(field =>
+        resident[field] != null && resident[field] !== '' && (field !== 'disability_type' || resident.is_pwd)).map(field => {
+          const labels: Record<string, string> = { occupation: 'residentOccupation', employment_status: 'residentEmployment',
+            highest_education_level: 'residentEducationLevel', education_status: 'residentEducationStatus', is_pwd: 'residentPwd',
+            disability_type: 'residentDisability', is_ofw: 'residentOfw', is_solo_parent: 'residentSoloParent',
+            is_osy: 'residentOsy', is_osc: 'residentOsc', is_ip: 'residentIp', ethnicity: 'residentEthnicity' };
+          return <DetailRow key={field} label={i18n.t(labels[field])} value={(RESIDENT_PROFILE_FLAGS as readonly string[]).includes(field)
+            ? resident[field] == null ? i18n.t('notRecorded') : i18n.t(resident[field] ? 'yes' : 'no') : value(resident[field] as string | null)} />;
+        })}
+    </View>)}
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.section}>{i18n.t('requestStatus')}</Text>
       <Text style={styles.text}>{resident.server_id && resident.verification_status === 'approved' && resident.sync_status === 'synced'

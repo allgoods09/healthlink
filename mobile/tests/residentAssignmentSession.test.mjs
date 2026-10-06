@@ -4,7 +4,7 @@ import { appContextHarness } from './appContextHarness.mjs';
 
 const ids = (purok = 1, barangay = 1) => ({ id: 1, assigned_barangay_id: barangay, assigned_purok_id: purok });
 const assignment = (purok = 1, barangay = 1) => ({ barangay: { id: barangay }, purok: { id: purok } });
-const data = (purok = 1, barangay = 1) => ({ resident_contract_version: 1, user: { id: 1 },
+const data = (purok = 1, barangay = 1) => ({ resident_contract_version: 2, user: { id: 1 },
   assignment: assignment(purok, barangay), server_time: '2026-10-06',
   households: [{ id: purok, mobile_uuid: null, purok_id: purok, household_no: '1', household_address: 'Synthetic',
     is_active: true, is_social_aid_beneficiary: false }],
@@ -140,7 +140,50 @@ test('old broad cache requires authoritative refresh without in-place lifecycle 
   await until(() => h.calls.some(c => c.name === 'mobileBootstrap'));
   await until(() => h.render().bootstrapCompleted);
   assert.equal(await h.storage.getCurrentOfficialResidentCount(), 1);
-  assert.equal(await h.storage.getAppState('resident_contract_version'), '1');
+  assert.equal(await h.storage.getAppState('resident_contract_version'), '2');
+});
+
+test('profile contract upgrade preserves queued work and the existing manual Retry uploads it before refresh', async t => {
+  let sent;
+  const h = await fixture(t, {
+    mobileSync: async (_, __, payload) => {
+      sent = payload.residents[0];
+      return { status: 'success', synced_at: '2026-10-06', failed_records: [], resolved_records: {
+        households: [], residents: [{ id: null, mobile_uuid: sent.mobile_uuid, verification_status: 'submitted' }],
+        field_visits: [], risk_assessments: [],
+      } };
+    },
+    mobileBootstrap: async () => {
+      const fresh = data();
+      if (sent) fresh.residents.push({ ...sent, id: null, household_id: 1, verification_status: 'submitted' });
+      return fresh;
+    },
+  }, async storage => {
+    const official = (await storage.getResidents())[0];
+    await storage.saveResident({ ...official, local_id: undefined, server_id: null, first_name: 'Legacy queued' }, 1);
+    await storage.setAppState('resident_contract_version', '1');
+    await storage.storeToken('token-1');
+  });
+  h.render();
+  await settle();
+  assert.equal(h.render().bootstrapCompleted, false);
+  assert.equal(h.calls.some(c => c.name === 'mobileSync'), false);
+  assert.equal((await h.storage.getPendingChangeSummary()).total, 1);
+  const before = await h.db.getFirstAsync("SELECT local_id, mobile_uuid, local_revision FROM residents WHERE server_id IS NULL");
+  await h.render().retryInitialSync();
+  await settle();
+  assert.equal(h.calls.filter(c => c.name === 'mobileSync').length, 1);
+  assert.equal(sent.first_name, 'Legacy queued');
+  assert.equal(sent.mobile_uuid, before.mobile_uuid);
+  assert.equal(sent.local_revision, before.local_revision);
+  assert.equal(h.render().bootstrapCompleted, true);
+  assert.equal(await h.storage.getAppState('resident_contract_version'), '2');
+  assert.equal((await h.storage.getPendingChangeSummary()).total, 0);
+  const request = (await h.storage.getResidentRequests())[0];
+  assert.equal(request.local_id, before.local_id);
+  assert.equal(request.mobile_uuid, before.mobile_uuid);
+  assert.equal(request.verification_status, 'submitted');
+  assert.equal(request.server_id, null);
 });
 
 test('restart with persisted verified mismatch stays blocked and does not claim old scope ready', async t => {

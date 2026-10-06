@@ -396,7 +396,7 @@ class WebCurrentPopulationTest extends TestCase
         $this->assertCount(2, $before['residents']);
         $this->assertEqualsCanonicalizing(array_map(fn ($state) => $this->people[$state]->id,
             ['active', 'unavailable']), array_column($before['residents'], 'id'));
-        $this->assertSame(1, $before['resident_contract_version']);
+        $this->assertSame(2, $before['resident_contract_version']);
         $this->actingAs($bhw)->get(route('bhw.residents.index'))->assertOk();
         $this->assertSame($before, $bootstrap->build($bhw));
     }

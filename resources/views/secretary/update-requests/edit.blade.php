@@ -204,6 +204,8 @@
                                 <textarea id="correction_status_notes" aria-invalid="{{ $errors->has('status_notes') ? 'true' : 'false' }}" @if($errors->has('status_notes')) aria-describedby="correction_status_notes-error" @endif name="status_notes" rows="3" class="mt-1 block w-full rounded-xl border-slate-300 shadow-sm focus:border-tubigon focus:ring-tubigon">{{ old('status_notes', data_get($proposed, 'status_notes', $subject?->status_notes)) }}</textarea>
                                 <x-input-error id="correction_status_notes-error" :messages="$errors->get('status_notes')" class="mt-2" />
                             </div>
+                            @include('secretary.partials.resident-profile-fields', ['profileValues' => $proposed,
+                                'profilePrefix' => '', 'profileIndex' => null, 'changedOnly' => $proposed])
                         </div>
                     @else
                         <div class="grid gap-4 md:grid-cols-2">

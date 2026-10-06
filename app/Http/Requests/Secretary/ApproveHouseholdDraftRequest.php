@@ -21,6 +21,7 @@ class ApproveHouseholdDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...\App\Support\ResidentProfileData::rules('residents.*.'),
             'purok_id' => [
                 'required',
                 'integer',

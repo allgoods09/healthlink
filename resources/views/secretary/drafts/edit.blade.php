@@ -138,6 +138,11 @@
 
                                 <input type="hidden" name="residents[{{ $loop->index }}][draft_id]" value="{{ old("residents.{$loop->index}.draft_id", $residentDraft->id) }}">
 
+                                <div class="mb-4 grid gap-4 md:grid-cols-2">
+                                    @include('secretary.partials.resident-profile-fields', ['profileValues' => $residentDraft,
+                                        'profilePrefix' => 'residents.'.$loop->index, 'profileIndex' => $loop->index])
+                                </div>
+
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div>
                                         <label for="draft_resident_{{ $loop->index }}_philsys_card_no" class="block text-sm font-medium text-slate-700">PhilSys ID</label>

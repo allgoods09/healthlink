@@ -30,11 +30,15 @@ class ResidentDraft extends Model
         'is_household_head_candidate',
         'draft_notes',
         'approved_resident_id',
+        'occupation', 'employment_status', 'highest_education_level', 'education_status',
+        'is_pwd', 'disability_type', 'is_ofw', 'is_solo_parent', 'is_osy', 'is_osc', 'is_ip', 'ethnicity',
     ];
 
     protected $casts = [
         'birth_date' => 'date',
         'is_household_head_candidate' => 'boolean',
+        'is_pwd' => 'boolean', 'is_ofw' => 'boolean', 'is_solo_parent' => 'boolean',
+        'is_osy' => 'boolean', 'is_osc' => 'boolean', 'is_ip' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

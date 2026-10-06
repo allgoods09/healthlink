@@ -6,7 +6,7 @@ const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const emptyResolved = () => Object.fromEntries(tables.map(table => [table, []]));
 const bootstrap = (households = []) => ({
-  resident_contract_version: 1,
+  resident_contract_version: 2,
   user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } }, server_time: '2026-10-03T10:00:00Z',
   households, residents: [], field_visits: [], risk_assessments: [],
 });
@@ -31,13 +31,15 @@ async function fixture(t) {
   };
   return harness;
 }
-async function seedAll(storage) {
+async function seedLegacyResident(db) {
+  // Existing pre-patch queued package, not a newly allowed UI destination.
+  await db.runAsync(`INSERT INTO residents (mobile_uuid, household_mobile_uuid, first_name, last_name,
+    birth_date, birth_place, sex, civil_status, citizenship, relationship_to_head, is_active, sync_status, verification_status)
+    VALUES (?, ?, 'Ana', 'Test', '1990-01-01', 'Tubigon', 'Female', 'Single', 'Filipino', 'Head', 1, 'pending_create', 'pending')`, [uuid(2), uuid(1)]);
+}
+async function seedAll(storage, db) {
   await storage.saveHousehold(household());
-  await storage.saveResident({
-    mobile_uuid: uuid(2), household_mobile_uuid: uuid(1), first_name: 'Ana', last_name: 'Test',
-    birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
-    citizenship: 'Filipino', relationship_to_head: 'Head', is_active: true,
-  });
+  await seedLegacyResident(db);
   await storage.saveVisit({ mobile_uuid: uuid(3), household_mobile_uuid: uuid(1), visited_at: '2026-10-03', notes: 'Original', photos: [] });
   await storage.saveRiskAssessment({ mobile_uuid: uuid(4), resident_server_id: 2, assessment_date: '2026-10-03', red_flags: {}, remarks: 'Original' });
 }
@@ -45,7 +47,7 @@ const resolvedAll = () => Object.fromEntries(tables.map((table, i) => [table, [{
 
 test('unchanged uploaded revisions are acknowledged for all four datasets', async t => {
   const { storage, db } = await fixture(t);
-  await seedAll(storage);
+  await seedAll(storage, db);
   const { payload, snapshot } = await storage.getPendingSyncPayload();
   assert.equal(payload.households[0].local_revision, snapshot.rows.households[0].local_revision);
   await storage.applyResolvedRecords(resolvedAll(), snapshot);
@@ -60,7 +62,7 @@ for (const [table, save, read, change] of [
 ]) {
   test(`${table}: edit after upload remains pending, then next manual upload succeeds`, async t => {
     const { storage, db } = await fixture(t);
-    await seedAll(storage);
+    await seedAll(storage, db);
     const { snapshot } = await storage.getPendingSyncPayload();
     const record = (await storage[read]())[0];
     await storage[save]({ ...record, ...change });
@@ -77,7 +79,7 @@ for (const [table, save, read, change] of [
 
 test('assessment edited during upload keeps a new draft and the acknowledged immutable history', async t => {
   const { storage, db } = await fixture(t);
-  await seedAll(storage);
+  await seedAll(storage, db);
   const { snapshot } = await storage.getPendingSyncPayload();
   const original = (await storage.getRiskAssessmentsForResident(2))[0];
   await storage.saveRiskAssessment({ ...original, remarks: 'New assessment notes' });
@@ -119,11 +121,7 @@ test('successful upload and bootstrap preserve local identity regardless of payl
 test('registry submission stays nonofficial until approval and refresh reconciles by UUID', async t => {
   const { storage, db } = await fixture(t);
   await storage.saveHousehold(household());
-  await storage.saveResident({
-    mobile_uuid: uuid(2), household_mobile_uuid: uuid(1), first_name: 'Ana', last_name: 'Test',
-    birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
-    citizenship: 'Filipino', relationship_to_head: 'Head', is_active: true,
-  });
+  await seedLegacyResident(db);
   const originalHousehold = (await storage.getHouseholds())[0];
   const originalResident = (await storage.getResidentRequests())[0];
   const { payload, snapshot } = await storage.getPendingSyncPayload();
@@ -234,7 +232,7 @@ test('open unsaved form defers refresh, including a form mounted during replacem
 
 test('all four datasets retain local IDs after repeated refreshes', async t => {
   const { storage, db } = await fixture(t);
-  await seedAll(storage);
+  await seedAll(storage, db);
   const { snapshot } = await storage.getPendingSyncPayload();
   await storage.applyResolvedRecords(resolvedAll(), snapshot);
   const downloaded = bootstrap();
@@ -254,7 +252,7 @@ test('all four datasets retain local IDs after repeated refreshes', async t => {
 
 test('additive revision migration preserves existing rows and is repeatable', async t => {
   const { storage, db } = await fixture(t);
-  await seedAll(storage);
+  await seedAll(storage, db);
   for (const table of tables) await db.execAsync(`ALTER TABLE ${table} DROP COLUMN local_revision`);
   await storage.initializeStorage();
   await storage.initializeStorage();

@@ -10,7 +10,7 @@ const resident = (extra = {}) => ({ id: 1, household_id: 1, mobile_uuid: uuid(1)
   birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
   citizenship: 'Filipino', religion: 'Old religion', contact_number: '09123456789', email_address: 'old@example.test',
   relationship_to_head: 'Daughter', philsys_card_no: 'UNSEEN-123', is_active: false, resident_status: 'active', ...extra });
-const bootstrap = (extra = {}) => ({ resident_contract_version: 1, user: { id: 1 },
+const bootstrap = (extra = {}) => ({ resident_contract_version: 2, user: { id: 1 },
   assignment: { barangay: { id: 1 }, purok: { id: 1 } }, server_time: '2026-10-06',
   resident_relationship_choices: ['Daughter', 'Son', 'Spouse / Partner'],
   households: [household(1)], residents: [resident()], field_visits: [], risk_assessments: [], ...extra });
@@ -82,27 +82,32 @@ test('household options are naturally sorted, mode-safe, scoped and searchable b
     household(null, { mobile_uuid: uuid(21), household_no: '21', verification_status: 'rejected' }),
   ] }));
   const options = await storage.getResidentHouseholdOptions('new');
-  assert.deepEqual(options.map(h => h.household_no), ['2', '2', '10', '20', 'A2', 'A10']);
+  assert.deepEqual(options.map(h => h.household_no), ['2', '2', '10', 'A2', 'A10']);
   assert.ok(options[0].local_id < options[1].local_id);
   assert.equal((await storage.getResidentHouseholdOptions('correction')).length, 5);
   assert.deepEqual((await storage.getResidentHouseholdOptions('new', '  ELENA   SANTOS  ')).map(h => h.server_id), [2]);
-  assert.equal((await storage.getResidentHouseholdOptions('new', 'pilot street')).length, 6);
+  assert.equal((await storage.getResidentHouseholdOptions('new', 'pilot street')).length, 5);
   assert.deepEqual(await storage.getResidentHouseholdOptions('new', 'no matches'), []);
   await db.runAsync('DELETE FROM households WHERE server_id = ?', [2]);
   assert.deepEqual(await storage.getResidentHouseholdOptions('new', 'Elena'), []);
 });
 
-test('pending household handoff returns a stable local ID usable only for new resident requests', async t => {
-  const { storage } = await fixture(t, bootstrap({ residents: [] }));
+test('new work refuses pending households while a legacy queued package retains its exact parent and head proposal', async t => {
+  const { storage, db } = await fixture(t, bootstrap({ residents: [] }));
   const id = await storage.saveHousehold({ household_no: '11', household_address: 'New home', purok_id: 1,
     is_active: true, is_social_aid_beneficiary: false }, 1);
-  const created = (await storage.getResidentHouseholdOptions('new')).find(h => h.local_id === id);
+  const created = (await storage.getHouseholds()).find(h => h.local_id === id);
   assert.ok(created.mobile_uuid);
+  assert.equal((await storage.getResidentHouseholdOptions('new')).some(h => h.local_id === id), false);
   assert.equal((await storage.getResidentHouseholdOptions('correction')).some(h => h.local_id === id), false);
   const values = resident({ id: undefined, server_id: null, household_server_id: null,
     household_mobile_uuid: created.mobile_uuid, is_active: true, propose_household_head: true });
-  await storage.saveResident(values, 1);
+  await assert.rejects(storage.saveResident(values, 1), /eligible household/);
+  await db.runAsync(`INSERT INTO residents (mobile_uuid, household_mobile_uuid, first_name, last_name, birth_date,
+    birth_place, sex, civil_status, citizenship, relationship_to_head, is_active, sync_status, verification_status, propose_household_head)
+    VALUES (?, ?, 'Ana', 'Pilot', '1990-01-01', 'Tubigon', 'Female', 'Single', 'Filipino', 'Daughter', 1, 'pending_create', 'pending', 1)`, [uuid(50), created.mobile_uuid]);
   const request = (await storage.getResidentRequests())[0];
+  assert.ok((await storage.getResidentHouseholdOptions('localRequest', '', request)).some(h => h.local_id === id));
   assert.equal(request.household_mobile_uuid, created.mobile_uuid);
   assert.equal(request.propose_household_head, true);
   assert.equal(request.verification_status, 'pending');

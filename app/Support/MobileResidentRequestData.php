@@ -7,18 +7,18 @@ use Illuminate\Validation\ValidationException;
 
 final class MobileResidentRequestData
 {
-    public const EDITABLE = ['household_id', 'last_name', 'first_name', 'middle_name', 'suffix',
+    public const EDITABLE = ['household_id', 'philsys_card_no', 'last_name', 'first_name', 'middle_name', 'suffix',
         'birth_date', 'birth_place', 'sex', 'civil_status', 'citizenship', 'religion',
-        'contact_number', 'email_address', 'relationship_to_head'];
+        'contact_number', 'email_address', 'relationship_to_head', ...ResidentProfileData::FIELDS];
 
     public static function snapshot(Resident $resident): array
     {
         $snapshot = [];
-        foreach ([...self::EDITABLE, 'philsys_card_no', 'is_active', 'resident_status', 'deleted_at'] as $field) {
+        foreach ([...array_diff(self::EDITABLE, ResidentProfileData::FIELDS), 'is_active', 'resident_status', 'deleted_at'] as $field) {
             $value = $resident->{$field};
             $snapshot[$field] = $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value;
         }
-        return $snapshot;
+        return [...$snapshot, ...ResidentProfileData::snapshot($resident)];
     }
 
     public static function assertUnchanged(Resident $resident, array $base): void

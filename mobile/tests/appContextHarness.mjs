@@ -6,7 +6,7 @@ import { storageHarness } from './storageHarness.mjs';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 export const bootstrap = id => ({
-  resident_contract_version: 1,
+  resident_contract_version: 2,
   user: { id }, assignment: { barangay: { id }, purok: { id } }, server_time: '2026-10-03',
   households: [], residents: [], field_visits: [], risk_assessments: [],
 });

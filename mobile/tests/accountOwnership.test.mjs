@@ -8,7 +8,7 @@ export const household = {
 };
 const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
 export const bootstrap = (userId = 1) => ({
-  resident_contract_version: 1,
+  resident_contract_version: 2,
   user: { id: userId }, assignment: { barangay: { id: userId }, purok: { id: userId } },
   server_time: '2026-10-03T12:00:00Z', households: [], residents: [], field_visits: [], risk_assessments: [],
 });

@@ -21,7 +21,7 @@ class MobileRegistrySubmissionService
     private const RESIDENT_FIELDS = [
         'philsys_card_no', 'last_name', 'first_name', 'middle_name', 'suffix', 'birth_date',
         'birth_place', 'sex', 'civil_status', 'citizenship', 'religion', 'contact_number',
-        'email_address', 'relationship_to_head', 'is_active',
+        'email_address', 'relationship_to_head', 'is_active', ...ResidentProfileData::FIELDS,
     ];
 
     public function __construct(private readonly RoleNotificationService $notifications) {}
@@ -118,6 +118,7 @@ class MobileRegistrySubmissionService
                     throw new \RuntimeException('Reload the resident before preparing this correction.');
                 }
                 $changes = $input['proposed_changes'] ?? [];
+                if (array_key_exists('is_pwd', $changes) && ! $changes['is_pwd']) $changes['disability_type'] = null;
                 if (array_key_exists('household_id', $changes) && (int) $changes['household_id'] !== (int) $household->id) {
                     throw new \RuntimeException('The correction household does not match the selected household.');
                 }
@@ -130,6 +131,7 @@ class MobileRegistrySubmissionService
         if (! $uuid || isset($input['id'])) throw new \RuntimeException('Resident not found in your assigned purok.');
 
         $attributes = Arr::only($input, self::RESIDENT_FIELDS);
+        if (array_key_exists('is_pwd', $attributes) && $attributes['is_pwd'] === false) $attributes['disability_type'] = null;
         foreach (['last_name', 'first_name', 'birth_date', 'birth_place', 'sex', 'civil_status',
             'citizenship', 'relationship_to_head', 'is_active'] as $field) {
             if (! array_key_exists($field, $attributes)) throw new \RuntimeException("New residents require '{$field}'.");
@@ -261,6 +263,7 @@ class MobileRegistrySubmissionService
             // The subject lock serializes competing submissions independently of revision keys.
             return DB::transaction(function () use ($user, $subject, $type, $input, $proposed) {
                 $locked = Resident::query()->lockForUpdate()->findOrFail($subject->id);
+                $locked->setRelation('socioEconomicProfile', $locked->socioEconomicProfile()->lockForUpdate()->first());
                 if (! $locked->isCurrentPopulation() || (int) $locked->household?->purok_id !== (int) $user->assigned_purok_id) {
                     throw new \RuntimeException('Resident not found in your assigned purok.');
                 }
@@ -327,8 +330,9 @@ class MobileRegistrySubmissionService
 
     private function matchesOfficial(Model $official, array $proposed): bool
     {
+        $snapshot = $official instanceof Resident ? MobileResidentRequestData::snapshot($official) : $official->toArray();
         foreach ($proposed as $field => $value) {
-            $current = $official->{$field};
+            $current = $snapshot[$field] ?? null;
             if ($current instanceof \DateTimeInterface) $current = $current->format('Y-m-d');
             if ((string) $current !== (string) $value) return false;
         }

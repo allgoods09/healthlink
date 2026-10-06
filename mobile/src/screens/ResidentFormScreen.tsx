@@ -1,656 +1,193 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import {
-  FlatList,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
-import {
-  birthDateInputFromServer,
-  dateInputFromPicker,
-  datePickerValueFromInput,
-  formatBirthDateInput,
-  normalizeBirthDateInput,
-} from '../lib/format';
+import { birthDateInputFromServer, dateInputFromPicker, datePickerValueFromInput, formatBirthDateInput, normalizeBirthDateInput } from '../lib/format';
 import { findHouseholdByReference } from '../lib/householdIdentity';
-import {
-  getHouseholds,
-  getResidentHouseholdOptions,
-  getResidentRelationshipChoices,
-  getResidentByLocalId,
-  getResidentRequestByLocalId,
-  saveResident,
-} from '../lib/storage';
+import { getHouseholds, getResidentHouseholdOptions, getResidentRelationshipChoices, getResidentProfileChoices,
+  getResidentByLocalId, getResidentRequestByLocalId, saveResident } from '../lib/storage';
+import { createSaveGuard, residentEditBlocked, residentFormMode, residentRequestLabel, validateResidentStep,
+  RESIDENT_EDITABLE_FIELDS, RESIDENT_PROFILE_FLAGS, RESIDENT_WIZARD_STEPS } from '../lib/residentWorkflow';
+import { useLocalEditor } from '../lib/useLocalEditor';
 import { AppTheme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
-import { createSaveGuard, residentEditBlocked, residentFormMode, residentRequestLabel, validateResidentInput } from '../lib/residentWorkflow';
 
-import { useLocalEditor } from '../lib/useLocalEditor';
+const LABELS: Record<string, string> = {
+  first_name: 'firstName', last_name: 'lastName', middle_name: 'middleName', suffix: 'suffix', philsys_card_no: 'philsysCardNumber',
+  birth_date: 'birthDate', birth_place: 'birthPlace', sex: 'sex', relationship_to_head: 'relationshipToHead',
+  civil_status: 'civilStatus', citizenship: 'citizenship', religion: 'religion', contact_number: 'contactNumber', email_address: 'emailAddress',
+  occupation: 'residentOccupation', employment_status: 'residentEmployment', highest_education_level: 'residentEducationLevel',
+  education_status: 'residentEducationStatus', is_pwd: 'residentPwd', disability_type: 'residentDisability', is_ofw: 'residentOfw',
+  is_solo_parent: 'residentSoloParent', is_osy: 'residentOsy', is_osc: 'residentOsc', is_ip: 'residentIp', ethnicity: 'residentEthnicity',
+};
+const TITLES = ['residentStepIdentity', 'residentStepPersonal', 'residentStepEducation', 'residentStepSocio'];
+function formValues(record?: ResidentRecord | null): Partial<ResidentRecord> {
+  return Object.fromEntries(RESIDENT_EDITABLE_FIELDS.map(field => [field, field === 'birth_date'
+    ? birthDateInputFromServer(record?.birth_date) : record ? record[field] ?? null :
+      (RESIDENT_PROFILE_FLAGS as readonly string[]).includes(field) ? false :
+      field === 'citizenship' ? 'Filipino' : field === 'employment_status' || field === 'education_status' ? 'N/A' :
+      field === 'highest_education_level' ? 'None' : null]));
+}
 
 export function ResidentFormScreen({ route, navigation }: any) {
   useLocalEditor();
-  const theme = useAppTheme();
-  const styles = useThemedStyles(createStyles);
+  const theme = useAppTheme(); const styles = useThemedStyles(createStyles);
   const { user, assignment, dataVersion, bumpDataVersion, requestConfirmation } = useAppContext();
-  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
-    useKeyboardAwareScroll();
+  const { handleInputFocus, handleScroll, keyboardInset, scrollRef } = useKeyboardAwareScroll();
+  const [values, setValues] = useState<Partial<ResidentRecord>>(() => formValues());
+  const [existing, setExisting] = useState<ResidentRecord | null>(null);
+  const [household, setHousehold] = useState<HouseholdRecord | null>(null);
   const [households, setHouseholds] = useState<HouseholdRecord[]>([]);
-  const [chooserVisible, setChooserVisible] = useState(false);
-  const [householdSearch, setHouseholdSearch] = useState('');
-  const [householdsLoading, setHouseholdsLoading] = useState(true);
-  const [householdsError, setHouseholdsError] = useState(false);
-  const [existingRecord, setExistingRecord] = useState<ResidentRecord | null>(null);
   const [relationships, setRelationships] = useState<string[]>([]);
-  const [relationshipChooserVisible, setRelationshipChooserVisible] = useState(false);
-  const [proposeHead, setProposeHead] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const saveGuard = useRef(createSaveGuard());
-  const [dirty, setDirty] = useState(false);
-  const [loaded, setLoaded] = useState(!route.params?.localId);
-  const mode = residentFormMode(existingRecord);
-  const blocked = residentEditBlocked(existingRecord);
-  const [selectedHousehold, setSelectedHousehold] = useState<HouseholdRecord | null>(null);
-  const [localId, setLocalId] = useState<number | null>(null);
-  const [serverId, setServerId] = useState<number | null>(null);
-  const [mobileUuid, setMobileUuid] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [middleName, setMiddleName] = useState('');
-  const [suffix, setSuffix] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [birthPlace, setBirthPlace] = useState('');
-  const [sex, setSex] = useState<'Male' | 'Female' | ''>('');
-  const [civilStatus, setCivilStatus] = useState('');
-  const [citizenship, setCitizenship] = useState('Filipino');
-  const [religion, setReligion] = useState('');
-  const [contactNumber, setContactNumber] = useState('');
-  const [emailAddress, setEmailAddress] = useState('');
-  const [relationshipToHead, setRelationshipToHead] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const assignedPurokId = assignment?.purok?.id ?? null;
-  const assignedPurokLabel =
-    assignment?.purok?.display_name ?? i18n.t('assignedPurokOnly');
-  const fingerprint = JSON.stringify([firstName, lastName, middleName, suffix, birthDate, birthPlace, sex,
-    civilStatus, citizenship, religion, contactNumber, emailAddress, relationshipToHead,
-    selectedHousehold?.server_id ?? null, selectedHousehold?.mobile_uuid ?? null, proposeHead]);
-  const originalFingerprint = useRef(fingerprint);
-  useEffect(() => { if (loaded) setDirty(fingerprint !== originalFingerprint.current); }, [fingerprint, loaded]);
-
+  const [choices, setChoices] = useState<Record<string, string[]>>({});
+  const [chooser, setChooser] = useState<string | null>(null); const [search, setSearch] = useState('');
+  const [loadingHomes, setLoadingHomes] = useState(true); const [homesError, setHomesError] = useState(false);
+  const [loaded, setLoaded] = useState(!route.params?.localId); const [step, setStep] = useState(0);
+  const [review, setReview] = useState(false); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null); const guard = useRef(createSaveGuard());
+  const mode = residentFormMode(existing); const blocked = residentEditBlocked(existing);
+  const fingerprint = JSON.stringify([values, household?.server_id ?? null, household?.mobile_uuid ?? null]);
+  const original = useRef(fingerprint); const dirty = loaded && fingerprint !== original.current;
+  const purokId = assignment?.purok?.id; const purokLabel = assignment?.purok?.display_name ?? i18n.t('assignedPurokOnly');
   usePreventRemove(dirty && !saved, ({ data }) => {
-    void requestConfirmation({ title: 'Leave resident request?', message: 'Unsaved changes will be lost.', confirmLabel: 'Leave' })
+    void requestConfirmation({ title: i18n.t('residentLeaveTitle'), message: i18n.t('residentLeaveMessage'), confirmLabel: i18n.t('residentLeave') })
       .then(confirmed => { if (confirmed) navigation.dispatch(data.action); });
   });
   useEffect(() => { if (saved) navigation.goBack(); }, [saved, navigation]);
-  useEffect(() => { navigation.setOptions({ title: mode === 'correction' ? 'Request Update' : 'Add Resident Request' }); }, [mode, navigation]);
+  useEffect(() => { navigation.setOptions({ title: i18n.t(mode === 'correction' ? 'requestResidentUpdate' : 'addResidentRequest') }); }, [mode, navigation]);
   useEffect(() => {
     let applicable = true;
-    void getResidentRelationshipChoices().then(values => { if (applicable) setRelationships(values); })
-      .catch(() => { if (applicable) setFormError('Unable to load relationship choices. Reopen this form to retry.'); });
+    void Promise.all([getResidentRelationshipChoices(), getResidentProfileChoices()]).then(([relations, options]) => {
+      if (applicable) { setRelationships(relations); setChoices(options); }
+    }).catch(() => { if (applicable) setError(i18n.t('residentChoicesUnavailable')); });
     return () => { applicable = false; };
   }, [dataVersion]);
-
   useEffect(() => {
-    let applicable = true;
-    async function loadWritableHouseholds() {
-      setHouseholdsLoading(true);
-      setHouseholdsError(false);
-      try {
-        const records = await getResidentHouseholdOptions(mode, householdSearch);
-        if (applicable) setHouseholds(records);
-      } catch { if (applicable) setHouseholdsError(true); }
-      finally { if (applicable) setHouseholdsLoading(false); }
-    }
-
-    void loadWritableHouseholds();
+    let applicable = true; setLoadingHomes(true); setHomesError(false);
+    void getResidentHouseholdOptions(mode, search, existing).then(rows => { if (applicable) setHouseholds(rows); })
+      .catch(() => { if (applicable) setHomesError(true); }).finally(() => { if (applicable) setLoadingHomes(false); });
     return () => { applicable = false; };
-  }, [assignedPurokId, dataVersion, mode, householdSearch, chooserVisible]);
-
+  }, [purokId, dataVersion, mode, search, chooser, existing]);
   useEffect(() => {
-    const id = route.params?.createdHouseholdLocalId;
-    if (!id || mode === 'correction') return;
-    void getResidentHouseholdOptions(mode).then(records => {
-      const created = records.find(h => h.local_id === id);
-      if (created) { setSelectedHousehold(created); setDirty(true); }
-      else setFormError('The new household is not available. Choose an eligible household.');
-      navigation.setParams({ createdHouseholdLocalId: undefined });
-    });
-  }, [route.params?.createdHouseholdLocalId, mode, assignedPurokId]);
-
-  useEffect(() => {
-    async function loadExisting() {
-      if (!route.params?.localId) return;
-
-      const existing = await getResidentByLocalId(route.params.localId) ?? await getResidentRequestByLocalId(route.params.localId);
-
-      if (!existing) {
-        setFormError(i18n.t('noMatchingRecords'));
-        return;
-      }
-
-      setExistingRecord(existing);
-      originalFingerprint.current = JSON.stringify([existing.first_name, existing.last_name, existing.middle_name ?? '',
-        existing.suffix ?? '', birthDateInputFromServer(existing.birth_date), existing.birth_place, existing.sex,
-        existing.civil_status, existing.citizenship, existing.religion ?? '', existing.contact_number ?? '',
-        existing.email_address ?? '', existing.relationship_to_head, existing.household_server_id ?? null,
-        existing.household_mobile_uuid ?? null, existing.propose_household_head ?? false]);
-
-      setLocalId(existing.local_id ?? null);
-      setServerId(existing.server_id ?? null);
-      setMobileUuid(existing.mobile_uuid ?? null);
-      setFirstName(existing.first_name);
-      setLastName(existing.last_name);
-      setMiddleName(existing.middle_name ?? '');
-      setSuffix(existing.suffix ?? '');
-      setBirthDate(birthDateInputFromServer(existing.birth_date));
-      setBirthPlace(existing.birth_place);
-      setSex(existing.sex);
-      setCivilStatus(existing.civil_status);
-      setCitizenship(existing.citizenship);
-      setReligion(existing.religion ?? '');
-      setContactNumber(existing.contact_number ?? '');
-      setEmailAddress(existing.email_address ?? '');
-      setRelationshipToHead(existing.relationship_to_head);
-      setProposeHead(existing.propose_household_head ?? false);
-      setLoaded(true);
-
-      const existingHousehold = findHouseholdByReference(await getHouseholds(), existing);
-
-      if (existingHousehold) {
-        setSelectedHousehold(existingHousehold);
-      }
+    if (!route.params?.localId) return;
+    let applicable = true;
+    async function load() {
+      try {
+        const record = await getResidentByLocalId(route.params.localId) ?? await getResidentRequestByLocalId(route.params.localId);
+        if (!record) { if (applicable) setError(i18n.t('residentProfileRefreshRequired')); return; }
+        const home = findHouseholdByReference(await getHouseholds(), record) ?? null;
+        if (!applicable) return;
+        const initial = formValues(record); original.current = JSON.stringify([initial, home?.server_id ?? null, home?.mobile_uuid ?? null]);
+        setExisting(record); setValues(initial); setHousehold(home); setLoaded(true);
+      } catch { if (applicable) setError(i18n.t('savedRecordsError')); }
     }
-
-    void loadExisting();
+    void load(); return () => { applicable = false; };
   }, [route.params?.localId]);
-
-  function openBirthDatePicker() {
-    DateTimePickerAndroid.open({
-      value: datePickerValueFromInput(birthDate),
-      mode: 'date',
-      maximumDate: new Date(),
-      onChange: (event, selectedDate) => {
-        if (event.type === 'set' && selectedDate) {
-          setBirthDate(dateInputFromPicker(selectedDate));
-          setFormError(null);
-        }
-      },
-    });
+  function change(field: keyof ResidentRecord, value: string | boolean | null) {
+    setValues(previous => ({ ...previous, [field]: value, ...(field === 'is_pwd' && value === false ? { disability_type: null } : {}) })); setError(null);
   }
-
-  async function handleSave() {
-    if (!saveGuard.current.acquire()) return;
-    setSaving(true);
+  function validate(index: number) {
+    if (!loaded || blocked || !purokId) return i18n.t('residentUnavailable');
+    if (index === 0 && !household) return i18n.t('householdRequiredMessage');
+    return validateResidentStep({ ...values, birth_date: normalizeBirthDateInput(values.birth_date) ?? undefined }, index, choices);
+  }
+  function next() {
+    const message = validate(step); if (message) { setError(message); return; } setError(null);
+    if (step === 3) setReview(true); else { setStep(step + 1); scrollRef.current?.scrollTo({ y: 0 }); }
+  }
+  async function save() {
+    if (!guard.current.acquire()) return; setSaving(true);
     try {
-    if (!loaded || blocked) {
-      setFormError('This request cannot be edited while under review or after rejection.');
-      return;
-    }
-    if (!assignedPurokId || (route.params?.localId && !localId)) {
-      setFormError(i18n.t('noMatchingRecords'));
-      return;
-    }
-    const normalizedBirthDate = normalizeBirthDateInput(birthDate);
-
-    if (!selectedHousehold) {
-      setFormError(i18n.t('householdRequiredMessage'));
-      return;
-    }
-
-    if (!firstName.trim() || !lastName.trim() || !birthPlace.trim()) {
-      setFormError(i18n.t('residentRequiredMessage'));
-      return;
-    }
-
-    if (!normalizedBirthDate) {
-      setFormError(i18n.t('invalidBirthDate'));
-      return;
-    }
-    const validation = validateResidentInput({ first_name: firstName, last_name: lastName, middle_name: middleName,
-      suffix, birth_date: normalizedBirthDate, birth_place: birthPlace, sex: sex || undefined,
-      civil_status: civilStatus, citizenship, religion, contact_number: contactNumber, email_address: emailAddress,
-      relationship_to_head: relationshipToHead });
-    if (validation) { setFormError(validation); return; }
-
-    setFormError(null);
-
-    const confirmed = await requestConfirmation({
-      title: i18n.t('saveResidentConfirmationTitle'),
-      message: i18n.t('saveResidentConfirmationBody'),
-      confirmLabel: i18n.t('save'),
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
-    await saveResident({
-      local_id: localId ?? undefined,
-      server_id: serverId,
-      mobile_uuid: mobileUuid,
-      household_server_id: selectedHousehold.server_id ?? null,
-      household_mobile_uuid: selectedHousehold.mobile_uuid ?? null,
-      last_name: lastName,
-      first_name: firstName,
-      middle_name: middleName || null,
-      suffix: suffix || null,
-      birth_date: normalizedBirthDate,
-      birth_place: birthPlace,
-      sex: sex as 'Male' | 'Female',
-      civil_status: civilStatus,
-      citizenship,
-      religion: religion || null,
-      contact_number: contactNumber || null,
-      email_address: emailAddress || null,
-      relationship_to_head: relationshipToHead,
-      is_active: existingRecord?.is_active ?? true,
-      propose_household_head: mode !== 'correction' && selectedHousehold.server_id == null && proposeHead,
-    }, user?.id);
-    bumpDataVersion();
-    setSaved(true);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Unable to save. Your entered information remains here; try again.');
-    } finally { setSaving(false); saveGuard.current.release(); }
+      for (let index = 0; index < 4; index++) { const message = validate(index); if (message) { setStep(index); setReview(false); setError(message); return; } }
+      await saveResident({ ...values, local_id: existing?.local_id, server_id: existing?.server_id ?? null,
+        mobile_uuid: existing?.mobile_uuid, household_server_id: household!.server_id ?? null, household_mobile_uuid: household!.mobile_uuid ?? null,
+        birth_date: normalizeBirthDateInput(values.birth_date)!, is_active: existing?.is_active ?? true,
+        propose_household_head: mode === 'localRequest' && household!.server_id == null && Boolean(existing?.propose_household_head),
+      } as Omit<ResidentRecord, 'sync_status'>, user?.id);
+      bumpDataVersion(); setSaved(true);
+    } catch { setError(i18n.t('residentSaveFailed')); } finally { setSaving(false); guard.current.release(); }
   }
-
-  const relationshipOptions = existingRecord?.relationship_to_head && !relationships.includes(existingRecord.relationship_to_head)
-    ? [existingRecord.relationship_to_head, ...relationships] : relationships;
-  function createHousehold() {
-    setChooserVisible(false);
-    navigation.navigate('HouseholdForm', { returnToResident: true });
+  function input(field: keyof ResidentRecord) {
+    if (field === 'disability_type' && !values.is_pwd) return null;
+    const flag = (RESIDENT_PROFILE_FLAGS as readonly string[]).includes(field);
+    const options = field === 'relationship_to_head' ? relationships : choices[field]; const label = i18n.t(LABELS[field]);
+    return <View key={field}><Text style={styles.label}>{label}</Text>
+      {flag || field === 'sex' ? <View style={styles.row}>{(flag ? [false, true] : ['Female', 'Male']).map(option =>
+        <Pressable key={String(option)} accessibilityRole="button" accessibilityLabel={`${label}: ${flag ? i18n.t(option ? 'yes' : 'no') : option}`}
+          accessibilityState={{ selected: values[field] === option }} disabled={blocked} onPress={() => change(field, option)}
+          style={[styles.button, values[field] === option && styles.selected]}><Text style={styles.text}>{flag ? i18n.t(option ? 'yes' : 'no') : option}</Text></Pressable>)}
+        {flag && values[field] == null ? <Text style={styles.helper}>{i18n.t('notRecorded')}</Text> : null}</View>
+        : options || ['relationship_to_head', 'employment_status', 'highest_education_level', 'education_status'].includes(field) ? <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => setChooser(field)} disabled={blocked} style={styles.button}>
+          <Text style={styles.text}>{String(values[field] ?? '') || i18n.t('notRecorded')}</Text></Pressable>
+        : <TextInput accessibilityLabel={label} editable={!blocked} style={styles.input} value={String(values[field] ?? '')} onFocus={handleInputFocus}
+          keyboardType={field === 'contact_number' ? 'phone-pad' : field === 'email_address' ? 'email-address' : 'default'} autoCapitalize={field === 'email_address' ? 'none' : 'sentences'}
+          maxLength={field === 'birth_date' ? 10 : field === 'philsys_card_no' ? 50 : undefined} placeholder={field === 'birth_date' ? i18n.t('birthDatePlaceholder') : undefined}
+          onChangeText={value => change(field, field === 'birth_date' ? formatBirthDateInput(value) : value || null)} />}
+      {field === 'birth_date' ? <Pressable accessibilityRole="button" disabled={blocked} style={styles.button} onPress={() => DateTimePickerAndroid.open({
+        value: datePickerValueFromInput(values.birth_date ?? ''), mode: 'date', maximumDate: new Date(),
+        onChange: (event, date) => { if (event.type === 'set' && date) change('birth_date', dateInputFromPicker(date)); },
+      })}><Text style={styles.text}>{i18n.t('openCalendar')}</Text></Pressable> : null}</View>;
   }
-
-  return (
-    <KeyboardShiftView style={styles.screen}>
-      <ScrollView
-        ref={scrollRef}
-        style={styles.screen}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: theme.spacing.xl + keyboardInset },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        <View style={styles.card}>
-          {existingRecord ? <Text style={styles.helperText}>{residentRequestLabel(existingRecord)}{existingRecord.verification_notes ? `: ${existingRecord.verification_notes}` : ''}</Text> : null}
-          {blocked ? <Text style={styles.errorText}>{existingRecord?.server_id == null ? 'This rejection is preserved. Linked resubmission is not yet available.' : 'Update under review. Wait for the Secretary decision.'}</Text> : null}
-          <Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
-          <Pressable onPress={() => setChooserVisible(true)} style={styles.pickerButton}>
-            <Text style={styles.pickerLabel}>
-              {selectedHousehold?.household_no ?? i18n.t('chooseHousehold')}
-            </Text>
-          </Pressable>
-          <Text style={styles.helperText}>
-            {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
-          </Text>
-
-          {mode !== 'correction' ? <Pressable onPress={createHousehold} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Create Household Request</Text>
-          </Pressable> : null}
-
-        <Text style={styles.label}>{i18n.t('firstName')}</Text>
-        <TextInput value={firstName} onFocus={handleInputFocus} onChangeText={(value) => {
-          setFirstName(value);
-          if (formError) setFormError(null);
-        }} style={styles.input} />
-
-        <Text style={styles.label}>{i18n.t('lastName')}</Text>
-        <TextInput value={lastName} onFocus={handleInputFocus} onChangeText={(value) => {
-          setLastName(value);
-          if (formError) setFormError(null);
-        }} style={styles.input} />
-
-        <Text style={styles.label}>{i18n.t('middleName')}</Text>
-        <TextInput
-          value={middleName}
-          onChangeText={setMiddleName}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('suffix')}</Text>
-        <TextInput
-          value={suffix}
-          onChangeText={setSuffix}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('birthDate')}</Text>
-        <View style={styles.dateRow}>
-          <TextInput
-            value={birthDate}
-            onChangeText={(value) => {
-              setBirthDate(formatBirthDateInput(value));
-              if (formError) setFormError(null);
-            }}
-            onFocus={handleInputFocus}
-            style={[styles.input, styles.dateInput]}
-            placeholder={i18n.t('birthDatePlaceholder')}
-            placeholderTextColor={theme.colors.placeholder}
-            maxLength={10}
-          />
-          <Pressable onPress={openBirthDatePicker} style={styles.calendarButton}>
-            <Text style={styles.calendarButtonText}>{i18n.t('openCalendar')}</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.helperText}>{i18n.t('birthDateHelper')}</Text>
-
-        <Text style={styles.label}>{i18n.t('birthPlace')}</Text>
-        <TextInput value={birthPlace} onFocus={handleInputFocus} onChangeText={(value) => {
-          setBirthPlace(value);
-          if (formError) setFormError(null);
-        }} style={styles.input} />
-
-        <Text style={styles.label}>{i18n.t('sex')}</Text>
-        <View style={styles.segmentRow}>
-          {(['Female', 'Male'] as const).map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setSex(option)}
-              style={[styles.segment, sex === option && styles.segmentActive]}
-            >
-              <Text style={[styles.segmentText, sex === option && styles.segmentTextActive]}>
-                {option}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.label}>{i18n.t('civilStatus')}</Text>
-        <TextInput
-          value={civilStatus}
-          onChangeText={setCivilStatus}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('citizenship')}</Text>
-        <TextInput
-          value={citizenship}
-          onChangeText={setCitizenship}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('religion')}</Text>
-        <TextInput
-          value={religion}
-          onChangeText={setReligion}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('contactNumber')}</Text>
-        <TextInput
-          value={contactNumber}
-          keyboardType="phone-pad"
-          onChangeText={setContactNumber}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('emailAddress')}</Text>
-        <TextInput
-          value={emailAddress}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          onChangeText={setEmailAddress}
-          onFocus={handleInputFocus}
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>{i18n.t('relationshipToHead')}</Text>
-        <Pressable onPress={() => setRelationshipChooserVisible(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerLabel}>{relationshipToHead || 'Choose relationship'}</Text>
-        </Pressable>
-        {!relationships.length ? <Text style={styles.helperText}>Sync to download current relationship choices. Existing values remain preserved.</Text> : null}
-
-        {mode !== 'correction' && selectedHousehold?.server_id == null && selectedHousehold ? <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Propose as household head</Text>
-          <Switch
-            value={proposeHead}
-            onValueChange={value => { setProposeHead(value); setDirty(true); }}
-            trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
-            thumbColor={theme.colors.surfaceElevated}
-          />
-        </View> : null}
-
-          {formError ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{formError}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Pressable disabled={saving || blocked || !loaded} onPress={handleSave} style={[styles.primaryButton, (saving || blocked || !loaded) && { opacity: 0.5 }]}>
-          <Text style={styles.primaryButtonText}>{saving ? 'Saving...' : i18n.t('save')}</Text>
-        </Pressable>
-
-        <Modal visible={relationshipChooserVisible} transparent animationType="slide" onRequestClose={() => setRelationshipChooserVisible(false)}>
-          <View style={styles.modalBackdrop}><View style={styles.modalCard}>
-            <FlatList data={relationshipOptions} keyExtractor={item => item} renderItem={({ item }) =>
-              <Pressable style={styles.modalItem} onPress={() => { setRelationshipToHead(item); setDirty(true); setRelationshipChooserVisible(false); }}><Text style={styles.modalItemTitle}>{item}</Text></Pressable>} />
-            <Pressable style={styles.secondaryButton} onPress={() => setRelationshipChooserVisible(false)}><Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text></Pressable>
-          </View></View>
-        </Modal>
-        <Modal visible={chooserVisible} transparent animationType="slide" onRequestClose={() => setChooserVisible(false)}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
-              <TextInput placeholder="Search household number, head or address" value={householdSearch} onChangeText={setHouseholdSearch} style={styles.input} />
-              {householdsLoading ? <Text style={styles.helperText}>Loading households...</Text> : null}
-              {householdsError ? <Text style={styles.errorText}>Unable to load households. Reopen this selector to retry.</Text> : null}
-              <FlatList
-                data={householdsError || householdsLoading ? [] : households}
-                ListEmptyComponent={<Text style={styles.helperText}>{householdsLoading || householdsError ? '' : householdSearch.trim() ? 'No matching households.' : 'No eligible households.'}</Text>}
-                keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
-                keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={
-                  <Text style={styles.modalTitle}>
-                    {i18n.t('chooseHouseholdAssigned', { purok: assignedPurokLabel })}
-                  </Text>
-                }
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => {
-                      setSelectedHousehold(item);
-                      setChooserVisible(false);
-                      setFormError(null);
-                      setDirty(true);
-                      if (item.server_id != null) setProposeHead(false);
-                    }}
-                    style={styles.modalItem}
-                  >
-                    <Text style={styles.modalItemTitle}>Household #{item.household_no}</Text>
-                    <Text style={styles.modalItemText}>{item.server_id == null ? 'Household request' : item.current_head_name ?? (item.is_vacant ? 'Vacant' : 'No designated head')}</Text>
-                    <Text style={styles.modalItemText}>{item.household_address}</Text>
-                  </Pressable>
-                )}
-              />
-              {mode !== 'correction' ? <Pressable onPress={createHousehold} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Create Household Request</Text></Pressable> : null}
-              <Pressable onPress={() => setChooserVisible(false)} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>{i18n.t('cancel')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-      </ScrollView>
-    </KeyboardShiftView>
-  );
+  const chooserOptions = chooser === 'relationship_to_head' ? existing?.relationship_to_head && !relationships.includes(existing.relationship_to_head)
+    ? [existing.relationship_to_head, ...relationships] : relationships : choices[chooser ?? ''] ?? [];
+  const closeChooser = () => setChooser(null);
+  return <KeyboardShiftView style={styles.screen}><ScrollView ref={scrollRef} style={styles.screen}
+    contentContainerStyle={[styles.content, { paddingBottom: theme.spacing.xl + keyboardInset }]} keyboardShouldPersistTaps="handled" onScroll={handleScroll} scrollEventThrottle={16}>
+    <Text accessibilityRole="header" style={styles.title}>{i18n.t('residentStepProgress', { step: step + 1 })}: {i18n.t(TITLES[step])}</Text>
+    <View style={styles.row}>{TITLES.map((title, index) => <View key={title} style={[styles.progress, index <= step && styles.selected]} />)}</View>
+    {existing ? <Text style={styles.helper}>{residentRequestLabel(existing)}{existing.verification_notes ? `: ${existing.verification_notes}` : ''}</Text> : null}
+    {blocked ? <Text style={styles.error}>{i18n.t('residentUnavailable')}</Text> : null}
+    <View style={styles.card}>{step === 0 ? <><Text style={styles.label}>{i18n.t('chooseHousehold')}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('chooseHousehold')} disabled={blocked} style={styles.button} onPress={() => setChooser('household')}>
+        <Text style={styles.text}>{household?.household_no ?? i18n.t('chooseHousehold')}</Text></Pressable><Text style={styles.helper}>{purokLabel}</Text>
+      {household ? <Text style={styles.helper}>{household.household_address}{'\n'}{household.server_id == null ? i18n.t('residentLegacyHousehold')
+        : household.current_head_name ?? i18n.t(household.is_vacant ? 'vacantHousehold' : 'noDesignatedHead')}</Text> : null}
+      {!loadingHomes && !homesError && !households.length && !search ? <Text style={styles.helper}>{i18n.t('residentHouseholdFirst')}</Text> : null}</> : null}
+      {RESIDENT_WIZARD_STEPS[step].map(field => input(field))}</View>
+    {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    <View style={styles.row}>{step > 0 ? <Pressable accessibilityRole="button" style={styles.button} disabled={saving} onPress={() => { setStep(step - 1); setError(null); scrollRef.current?.scrollTo({ y: 0 }); }}>
+      <Text style={styles.text}>{i18n.t('back')}</Text></Pressable> : null}
+      <Pressable accessibilityRole="button" disabled={blocked || !loaded || saving} accessibilityState={{ disabled: blocked || !loaded || saving }} style={[styles.button, styles.selected]} onPress={next}>
+        <Text style={styles.text}>{i18n.t(step === 3 ? 'residentReviewSave' : 'next')}</Text></Pressable></View>
+  </ScrollView>
+  <Modal visible={Boolean(chooser)} transparent animationType="none" onRequestClose={closeChooser}><Pressable style={styles.backdrop} onPress={closeChooser}>
+    <Pressable accessibilityViewIsModal style={styles.modal} onPress={() => {}}><Text accessibilityRole="header" style={styles.title}>{chooser === 'household' ? i18n.t('chooseHousehold') : i18n.t(LABELS[chooser ?? ''])}</Text>
+      {chooser === 'household' ? <><TextInput accessibilityLabel={i18n.t('residentHouseholdSearch')} style={styles.input} value={search} onChangeText={setSearch} placeholder={i18n.t('residentHouseholdSearch')} />
+        {loadingHomes ? <Text style={styles.helper}>{i18n.t('loading')}</Text> : null}{homesError ? <Text accessibilityRole="alert" style={styles.error}>{i18n.t('savedRecordsError')}</Text> : null}
+        <FlatList data={homesError || loadingHomes ? [] : households} keyboardShouldPersistTaps="handled" keyExtractor={item => String(item.local_id)}
+          ListEmptyComponent={<Text style={styles.helper}>{loadingHomes || homesError ? '' : search ? i18n.t('noMatchingRecords') : i18n.t('residentHouseholdFirst')}</Text>}
+          renderItem={({ item }) => <Pressable accessibilityRole="button" style={styles.button} onPress={() => { setHousehold(item); closeChooser(); setError(null); }}>
+            <Text style={styles.text}>Household #{item.household_no}</Text><Text style={styles.helper}>{item.household_address}</Text></Pressable>} /></>
+        : <FlatList data={chooserOptions} keyExtractor={item => item} renderItem={({ item }) => <Pressable accessibilityRole="button" style={styles.button}
+          onPress={() => { change(chooser as keyof ResidentRecord, item); closeChooser(); }}><Text style={styles.text}>{item}</Text></Pressable>} />}
+      <Pressable accessibilityRole="button" style={styles.button} onPress={closeChooser}><Text style={styles.text}>{i18n.t('cancel')}</Text></Pressable>
+    </Pressable></Pressable></Modal>
+  <Modal visible={review} transparent animationType="none" onRequestClose={() => { if (!saving) setReview(false); }}><Pressable style={styles.backdrop} onPress={() => { if (!saving) setReview(false); }}>
+    <Pressable accessibilityViewIsModal style={styles.modal} onPress={() => {}}><ScrollView keyboardShouldPersistTaps="handled">
+      <Text accessibilityRole="header" style={styles.title}>{i18n.t('residentReviewSave')}</Text><Text style={styles.helper}>{i18n.t('residentSaveDeviceNote')}</Text>
+      <Text style={styles.text}>Household #{household?.household_no}{'\n'}{household?.household_address}{'\n'}{purokLabel}</Text>
+      {TITLES.map((title, index) => <View key={title} style={styles.card}><Text accessibilityRole="header" style={styles.label}>{i18n.t(title)}</Text>
+        {RESIDENT_WIZARD_STEPS[index].filter(field => field !== 'disability_type' || values.is_pwd).map(field => <Text key={field} style={styles.text}>{i18n.t(LABELS[field])}: {typeof values[field] === 'boolean'
+          ? i18n.t(values[field] ? 'yes' : 'no') : values[field] || i18n.t('notRecorded')}</Text>)}</View>)}
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      <Pressable accessibilityRole="button" disabled={saving} accessibilityState={{ disabled: saving }} style={[styles.button, styles.selected]} onPress={save}>
+        <Text style={styles.text}>{i18n.t(saving ? 'residentSaving' : 'residentSaveDevice')}</Text></Pressable>
+      <Pressable accessibilityRole="button" disabled={saving} style={styles.button} onPress={() => setReview(false)}><Text style={styles.text}>{i18n.t('back')}</Text></Pressable>
+    </ScrollView></Pressable></Pressable></Modal></KeyboardShiftView>;
 }
-
 const createStyles = (theme: AppTheme) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: theme.spacing.md, gap: theme.spacing.md },
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-  },
-  label: {
-    color: theme.colors.text,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.inputBackground,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    color: theme.colors.text,
-  },
-  helperText: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-  },
-  pickerButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.inputBackground,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  pickerLabel: {
-    color: theme.colors.text,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    alignItems: 'center',
-  },
-  dateInput: {
-    flex: 1,
-  },
-  calendarButton: {
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.primarySoft,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  calendarButtonText: {
-    color: theme.colors.primary,
-    fontWeight: '700',
-  },
-  segmentRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  segment: {
-    flex: 1,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  segmentActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  segmentText: {
-    color: theme.colors.text,
-    fontWeight: '600',
-  },
-  segmentTextActive: {
-    color: theme.colors.textOnPrimary,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 18,
-  },
-  switchLabel: {
-    color: theme.colors.text,
-    fontWeight: '600',
-  },
-  errorBox: {
-    marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.dangerSoft,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-  },
-  errorText: {
-    color: theme.colors.danger,
-    lineHeight: 21,
-    fontWeight: '600',
-  },
-  primaryButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  primaryButtonText: {
-    color: theme.colors.textOnPrimary,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: theme.colors.overlay,
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    padding: theme.spacing.md,
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: theme.spacing.md,
-  },
-  modalItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  modalItemTitle: {
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
-  modalItemText: {
-    color: theme.colors.textMuted,
-    marginTop: 4,
-  },
-  secondaryButton: {
-    marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  secondaryButtonText: {
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
+  screen: { flex: 1, backgroundColor: theme.colors.background }, content: { padding: theme.spacing.md, gap: theme.spacing.md },
+  card: { padding: theme.spacing.md, gap: 10, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.colors.border },
+  title: { color: theme.colors.text, fontSize: 19, fontWeight: '700' }, label: { color: theme.colors.text, fontWeight: '600', marginTop: 8, marginBottom: 6 },
+  text: { color: theme.colors.text }, helper: { color: theme.colors.textMuted }, error: { color: theme.colors.danger },
+  input: { minHeight: 48, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, padding: 12, color: theme.colors.text },
+  button: { minHeight: 48, padding: 12, justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md },
+  selected: { backgroundColor: theme.colors.primarySoft }, row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  progress: { height: 5, flex: 1, backgroundColor: theme.colors.border, borderRadius: 3 },
+  backdrop: { flex: 1, justifyContent: 'center', padding: 18, backgroundColor: 'rgba(15, 23, 42, 0.35)' },
+  modal: { maxHeight: '85%', gap: 12, padding: 18, borderRadius: theme.radius.lg, backgroundColor: theme.colors.surface },
 });

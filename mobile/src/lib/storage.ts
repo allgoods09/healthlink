@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { compareHouseholds, eligibleResidentHousehold, normalizeHouseholdSearch, residentChanges, residentEditBlocked,
-  residentFormMode, residentSnapshot, ResidentFormMode, validateResidentInput } from './residentWorkflow';
+  residentFormMode, residentSnapshot, ResidentFormMode, validateResidentInput, RESIDENT_PROFILE_FIELDS, RESIDENT_PROFILE_FLAGS } from './residentWorkflow';
 import { AccountSwitchBlockedError, AssignmentChangedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
 
 import {
@@ -18,7 +18,7 @@ import {
 
 const TOKEN_KEY = 'healthlink_mobile_token';
 const DB_NAME = 'healthlink_bhw.db';
-export const RESIDENT_CONTRACT_VERSION = 1;
+export const RESIDENT_CONTRACT_VERSION = 2;
 export const CURRENT_RESIDENT_PAGE_SIZE = 50;
 const SYNC_TABLES = ['households', 'residents', 'field_visits', 'risk_assessments'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
@@ -30,10 +30,10 @@ export const saveHousehold = (values: Parameters<typeof saveHouseholdInternal>[0
   ownedWrite(userId, () => saveHouseholdInternal(values));
 export const saveResident = (values: Parameters<typeof saveResidentInternal>[0], userId: number | undefined) =>
   ownedWrite(userId, async () => {
-    const scope = await currentResidentScope();
-    if (!scope) throw new AssignmentChangedError();
     const db = await getDatabase();
     const existing = values.local_id ? await db.getFirstAsync<any>('SELECT * FROM residents WHERE local_id = ?', [values.local_id]) : null;
+    const scope = await currentResidentScope(existing?.server_id == null && Boolean(existing));
+    if (!scope) throw new AssignmentChangedError();
     if (existing?.server_id != null && !await getResidentByLocalId(values.local_id!)) throw new AssignmentChangedError();
     if (existing && existing.server_id == null && !await getResidentRequestByLocalId(values.local_id!)) throw new AssignmentChangedError();
     if (!existing && values.server_id != null) throw new AssignmentChangedError();
@@ -47,7 +47,7 @@ export const saveResident = (values: Parameters<typeof saveResidentInternal>[0],
       [values.household_server_id ?? values.household_mobile_uuid ?? null]);
     if (household?.purok_id !== scope.purokId) throw new AssignmentChangedError();
     if (!eligibleResidentHousehold({ ...household, is_active: intToBool(household.is_active) },
-      existing?.server_id != null ? 'correction' : 'new', scope.purokId)) throw new Error('Choose an eligible household in your assigned purok.');
+      existing ? residentFormMode(existing) : 'new', scope.purokId, existing)) throw new Error('Choose an eligible household in your assigned purok.');
     if (values.propose_household_head && household.server_id != null) throw new Error('A head may only be proposed for a new household request.');
     let savedId: number | undefined;
     await db.withExclusiveTransactionAsync(async txn => { savedId = await saveResidentInternal(values, txn); });
@@ -333,6 +333,9 @@ export async function initializeStorage() {
   await ensureColumn(db, 'residents', 'official_snapshot_json', 'TEXT');
   await ensureColumn(db, 'residents', 'changed_fields_json', 'TEXT');
   await ensureColumn(db, 'residents', 'propose_household_head', 'INTEGER NOT NULL DEFAULT 0');
+  for (const field of RESIDENT_PROFILE_FIELDS) {
+    await ensureColumn(db, 'residents', field, (RESIDENT_PROFILE_FLAGS as readonly string[]).includes(field) ? 'INTEGER' : 'TEXT');
+  }
   await ensureColumn(db, 'households', 'current_head_name', 'TEXT');
   await ensureColumn(db, 'households', 'is_vacant', 'INTEGER');
   await db.execAsync(`CREATE INDEX IF NOT EXISTS residents_current_name
@@ -615,6 +618,7 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
       );
       const officialSnapshot = resident.id == null ? null : resident.official_snapshot ?? residentSnapshot({ ...resident,
         household_server_id: resident.household_id });
+      await writeResidentProfile(db, RESIDENT_PROFILE_FIELDS.map(field => resident[field]), 'local_id = last_insert_rowid()');
       await db.runAsync(`UPDATE residents SET official_snapshot_json = ?, changed_fields_json = NULL,
         propose_household_head = ? WHERE local_id = last_insert_rowid()`,
         [officialSnapshot ? JSON.stringify(officialSnapshot) : null, boolToInt(resident.propose_household_head ?? false)]);
@@ -769,6 +773,7 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
       verified_assignment_signature: assignmentSignature(payload.user.id, payload.assignment) ?? '',
       resident_workspace_blocked: '',
       resident_relationship_choices: JSON.stringify(payload.resident_relationship_choices ?? []),
+      resident_profile_choices: JSON.stringify(payload.resident_profile_choices ?? {}),
       resident_query_version: String(Number((await db.getFirstAsync<{ value: string }>(
         'SELECT value FROM app_state WHERE key = ?', ['resident_query_version']))?.value ?? 0) + 1),
     })) {
@@ -892,8 +897,14 @@ async function assertUploadAssignment() {
       (old && verified && old !== verified)) throw new AssignmentChangedError();
 }
 
-async function currentResidentScope() {
-  if (!await hasBootstrapData()) return null;
+async function currentResidentScope(legacyRequest = false) {
+  if (!await hasBootstrapData()) {
+    if (!legacyRequest || await getAppState('bootstrap_completed') !== '1') return null;
+    const owner = Number(await getDatasetOwnerUserId());
+    const signature = assignmentSignature(owner, storedAssignment(await getDatasetAssignment()));
+    if (!signature || signature !== await getAppState('verified_assignment_signature') ||
+      await getAppState('resident_workspace_blocked') === 'assignment') return null;
+  }
   const assignment = storedAssignment(await getDatasetAssignment());
   return { purokId: assignment.purok!.id,
     version: `${await getAppState('verified_assignment_signature')}:${await getAppState('resident_query_version') ?? '0'}` };
@@ -957,6 +968,7 @@ const RESIDENT_ORDER = `residents.last_name COLLATE NOCASE, residents.first_name
 
 function residentRecord(row: any): ResidentRecord {
   return { ...row, is_active: intToBool(row.is_active), propose_household_head: intToBool(row.propose_household_head),
+    ...Object.fromEntries(RESIDENT_PROFILE_FLAGS.map(field => [field, row[field] == null ? null : intToBool(row[field])])),
     official_snapshot: parseJsonValue(row.official_snapshot_json, null) };
 }
 
@@ -964,14 +976,18 @@ export async function getResidentRelationshipChoices(): Promise<string[]> {
   return parseJsonValue(await getAppState('resident_relationship_choices'), []);
 }
 
-export async function getResidentHouseholdOptions(mode: ResidentFormMode, search = ''): Promise<HouseholdRecord[]> {
-  const scope = await currentResidentScope();
+export async function getResidentProfileChoices(): Promise<Record<string, string[]>> {
+  return parseJsonValue(await getAppState('resident_profile_choices'), {});
+}
+
+export async function getResidentHouseholdOptions(mode: ResidentFormMode, search = '', legacy?: ResidentRecord | null): Promise<HouseholdRecord[]> {
+  const scope = await currentResidentScope(mode === 'localRequest' && Boolean(legacy));
   if (!scope) return [];
   const query = normalizeHouseholdSearch(search);
   const households = await getHouseholds();
-  const result = households.filter(h => eligibleResidentHousehold(h, mode, scope.purokId) &&
+  const result = households.filter(h => eligibleResidentHousehold(h, mode, scope.purokId, legacy) &&
     normalizeHouseholdSearch(`${h.household_no} ${h.current_head_name ?? ''} ${h.household_address}`).includes(query)).sort(compareHouseholds);
-  return (await currentResidentScope())?.version === scope.version ? result : [];
+  return (await currentResidentScope(mode === 'localRequest' && Boolean(legacy)))?.version === scope.version ? result : [];
 }
 
 function residentCriteria(criteria: CurrentResidentCriteria, purokId: number) {
@@ -1107,22 +1123,22 @@ export async function getResidents(search = ''): Promise<ResidentRecord[]> {
 }
 
 export async function getResidentRequests(search = ''): Promise<ResidentRecord[]> {
-  const scope = await currentResidentScope();
+  const scope = await currentResidentScope(true);
   if (!scope) return [];
   const db = await getDatabase();
   const rows = await db.getAllAsync<any>(`${RESIDENT_SELECT} WHERE residents.server_id IS NULL AND households.purok_id = ?
     AND (residents.first_name LIKE ? OR residents.last_name LIKE ?) ORDER BY ${RESIDENT_ORDER}`,
     [scope.purokId, `%${search}%`, `%${search}%`]);
-  return (await currentResidentScope())?.version === scope.version ? rows.map(residentRecord) : [];
+  return (await currentResidentScope(true))?.version === scope.version ? rows.map(residentRecord) : [];
 }
 
 export async function getResidentRequestByLocalId(localId: number) {
-  const scope = await currentResidentScope();
+  const scope = await currentResidentScope(true);
   if (!scope || !Number.isSafeInteger(localId) || localId < 1) return null;
   const db = await getDatabase();
   const row = await db.getFirstAsync<any>(`${RESIDENT_SELECT} WHERE residents.server_id IS NULL
     AND households.purok_id = ? AND residents.local_id = ?`, [scope.purokId, localId]);
-  return row && (await currentResidentScope())?.version === scope.version ? residentRecord(row) : null;
+  return row && (await currentResidentScope(true))?.version === scope.version ? residentRecord(row) : null;
 }
 
 export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
@@ -1355,14 +1371,22 @@ async function saveResidentInternal(
 ) {
   const stored = values.local_id ? await db.getFirstAsync<any>('SELECT * FROM residents WHERE local_id = ?', [values.local_id]) : null;
   if (stored) {
-    values = { ...stored,
+    values = { ...residentRecord(stored),
       ...Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)),
-      philsys_card_no: stored.philsys_card_no,
       is_active: intToBool(stored.is_active) };
   } else if (!values.is_active) throw new Error('New resident requests must be active.');
+  if (values.is_pwd === false && (stored?.is_pwd === 1 || values.disability_type)) values.disability_type = null;
   const validation = validateResidentInput(values);
   if (validation) throw new Error(validation);
+  const profileChoices = await getResidentProfileChoices();
+  for (const field of ['employment_status', 'highest_education_level', 'education_status'] as const) {
+    if (values[field] != null && !profileChoices[field]?.includes(values[field]!)) throw new Error('Sync to load valid profile choices.');
+  }
   const base = parseJsonValue<Record<string, unknown> | null>(stored?.official_snapshot_json ?? null, null);
+  if (stored?.server_id != null && base && RESIDENT_PROFILE_FIELDS.some(field => !Object.hasOwn(base, field) &&
+    (values[field] ?? null) !== (residentRecord(stored)[field] ?? null))) {
+    throw new Error('Sync to refresh the complete resident profile before editing these fields.');
+  }
   const changes = base ? residentChanges(values, base) : null;
   // Keep older queued work on its original contract; do not invent its base or
   // reclassify an unchanged legacy relationship as newly selected canonical data.
@@ -1406,6 +1430,7 @@ async function saveResidentInternal(
 
     await db.runAsync('UPDATE residents SET changed_fields_json = ?, propose_household_head = ? WHERE local_id = ?',
       [changedJson, boolToInt(values.propose_household_head ?? false), values.local_id]);
+    await writeResidentProfile(db, RESIDENT_PROFILE_FIELDS.map(field => values[field]), 'local_id = ?', values.local_id);
     return values.local_id;
   }
 
@@ -1458,10 +1483,18 @@ async function saveResidentInternal(
     ]
   );
   const savedId = Number(inserted.lastInsertRowId);
+  await writeResidentProfile(db, RESIDENT_PROFILE_FIELDS.map(field => values[field]), 'local_id = ?', savedId);
   await db.runAsync('UPDATE residents SET changed_fields_json = ?, propose_household_head = ? WHERE local_id = ?',
     [changedJson, boolToInt(values.propose_household_head ?? false), savedId]);
   await db.runAsync("UPDATE residents SET verification_status = 'pending' WHERE local_id = ?", [savedId]);
   return savedId;
+}
+
+async function writeResidentProfile(db: SQLite.SQLiteDatabase, values: unknown[], where: string, id?: number) {
+  const params = values.map((value, index) => (RESIDENT_PROFILE_FLAGS as readonly string[]).includes(RESIDENT_PROFILE_FIELDS[index])
+    ? value == null ? null : boolToInt(Boolean(value)) : value ?? null);
+  await db.runAsync(`UPDATE residents SET ${RESIDENT_PROFILE_FIELDS.map(field => `${field} = ?`).join(', ')} WHERE ${where}`,
+    [...params, ...(id === undefined ? [] : [id])] as (string | number | null)[]);
 }
 
 async function saveVisitInternal(
@@ -1750,6 +1783,8 @@ async function getPendingSyncPayloadInternal() {
       household_id: row.household_server_id ?? undefined,
       household_mobile_uuid: row.household_mobile_uuid ?? undefined,
       philsys_card_no: row.philsys_card_no ?? undefined,
+      ...Object.fromEntries(RESIDENT_PROFILE_FIELDS.filter(field => row[field] != null).map(field => [field,
+        (RESIDENT_PROFILE_FLAGS as readonly string[]).includes(field) ? intToBool(row[field]) : row[field]])),
       last_name: row.last_name,
       first_name: row.first_name,
       middle_name: row.middle_name ?? null,

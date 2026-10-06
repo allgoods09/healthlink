@@ -60,7 +60,7 @@ class MobileCurrentResidentScopeTest extends TestCase
         $before = Resident::withTrashed()->get()->toArray();
         Sanctum::actingAs($user, ['mobile']);
         $response = $this->getJson('/api/mobile/bootstrap')->assertOk()
-            ->assertJsonPath('resident_contract_version', 1)->assertJsonCount(2, 'residents');
+            ->assertJsonPath('resident_contract_version', 2)->assertJsonCount(2, 'residents');
         $rows = collect($response->json('residents'))->keyBy('id');
         $this->assertEqualsCanonicalizing([$active->id, $unavailable->id], $rows->keys()->all());
         $this->assertFalse($rows[$unavailable->id]['is_active']);

@@ -9,6 +9,23 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 const page = (ids, next = null) => ({ rows: ids.map(id => ({ local_id: id, server_id: id, first_name: 'Name', last_name: String(id),
   birth_date: '1990-01-01', sex: 'Male', household_no: '2', household_purok_id: 1 })), total: 100, next, invalidated: false });
 
+test('Detail displays the downloaded complete profile without filling absent values or dumping empty labels', async t => {
+  const payload = data();
+  Object.assign(payload.residents[0], { philsys_card_no: 'SYNTHETIC-PHILSYS', occupation: 'Vendor', employment_status: 'Employed',
+    highest_education_level: 'Vocational', education_status: 'Graduate', is_pwd: true, disability_type: 'Recorded disability',
+    is_ofw: false, is_solo_parent: true, is_osy: false, is_osc: false, is_ip: true, ethnicity: 'Recorded ethnicity' });
+  const h = await screenHarness(t, 'ResidentDetails', { payload, params: { localId: 1 } });
+  const text = JSON.stringify(h.render());
+  for (const value of ['SYNTHETIC-PHILSYS', 'Vendor', 'Employed', 'Vocational', 'Graduate', 'Recorded disability',
+    'Recorded ethnicity', 'residentOfw', 'residentSoloParent', 'residentOsy', 'residentOsc', 'residentIp']) assert.ok(text.includes(value), value);
+  const absent = await screenHarness(t, 'ResidentDetails', { payload: data(), params: { localId: 1 } });
+  const absentText = JSON.stringify(absent.render());
+  assert.ok(absentText.includes('notRecorded'));
+  assert.ok(!absentText.includes('residentOccupation'));
+  assert.ok(!absentText.includes('residentOfw'));
+  assert.ok(!absentText.includes('N/A'));
+});
+
 test('Directory has two official-count cards, assignment context, offline notice and correct navigation', async t => {
   const h = await screenHarness(t, 'Directory');
   const cards = h.nodes().filter(n => n.type === 'MenuCard');

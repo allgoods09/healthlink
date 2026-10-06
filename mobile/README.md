@@ -29,6 +29,16 @@ Current scope: Android only.
 - Offline records reflect the last compatible download, not a fresh server decision. Sync when connected to check assignment, approval and registry changes.
 - Household browsing/details/visits retain their existing workflow. The assigned-purok Household card count is not a count of every cached household/request in that existing list.
 
+## Resident entry and profile contract
+
+- Add Resident Request and Request Update use one four-step form: Household & Identity, Personal & Contact, Education & Livelihood, and Socio-Economic Information. Back/Next do not save; the review sheet's Save on device action saves locally. Submission still requires manual sync and Secretary approval.
+- New requests and ordinary corrections select an existing official Household in the assigned purok, including vacant/headless Households. Create and approve a Household separately, then sync before adding its Residents. There is no Resident-to-Household creation shortcut.
+- Previously queued Household+Resident packages retain their exact pending parent and hidden head proposal where applicable; this compatibility does not offer other pending Households for new work.
+- PhilSys and the existing education/livelihood/socio-economic fields are captured, reviewed, and corrected through the same request. Finite profile choices come from the server. Household address remains read-only context.
+- Resident download contract version 2 includes authoritative socio-economic values. Old downloaded official profiles require a successful refresh before full-profile editing. The additive SQLite upgrade preserves identities, revisions and pending work; unknown old fields are not submitted as clears. Older queued work can still upload before the compatible refresh.
+- Nullable text can be deliberately cleared. The authoritative enum/flag columns remain non-null; an absent profile is shown as Not recorded, not manufactured as a known value. PWD No intentionally clears disability type.
+- Deploy the additive ResidentDraft migration and matching server/mobile release together. No new lifecycle controls or full L8 support are included.
+
 ## Local setup
 
 1. Copy `.env.example` to `.env` if you want a default API URL.

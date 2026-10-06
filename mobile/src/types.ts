@@ -75,7 +75,22 @@ export type HouseholdRecord = {
   updated_at?: string | null;
 };
 
-export type ResidentRecord = {
+export type ResidentProfile = {
+  occupation?: string | null;
+  employment_status?: string | null;
+  highest_education_level?: string | null;
+  education_status?: string | null;
+  disability_type?: string | null;
+  ethnicity?: string | null;
+  is_pwd?: boolean | null;
+  is_ofw?: boolean | null;
+  is_solo_parent?: boolean | null;
+  is_osy?: boolean | null;
+  is_osc?: boolean | null;
+  is_ip?: boolean | null;
+};
+
+export type ResidentRecord = ResidentProfile & {
   local_id?: number;
   server_id?: number | null;
   mobile_uuid?: string | null;
@@ -200,6 +215,7 @@ export type FieldVisitRecord = {
 export type BootstrapPayload = {
   server_time: string;
   resident_contract_version?: number;
+  resident_profile_choices?: Record<string, string[]>;
   resident_relationship_choices?: string[];
   user: {
     id: number;
@@ -228,7 +244,7 @@ export type BootstrapPayload = {
     local_revision?: number;
     updated_at: string | null;
   }>;
-  residents: Array<{
+  residents: Array<ResidentProfile & {
     id: number | null;
     mobile_uuid: string | null;
     household_id: number | null;

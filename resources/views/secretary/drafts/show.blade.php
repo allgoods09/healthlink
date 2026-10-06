@@ -108,6 +108,12 @@
                                 {{ $residentDraft->sex }} · {{ $residentDraft->birth_date?->format('M d, Y') }} · {{ $residentDraft->civil_status }}
                             </p>
                             <p class="mt-2 text-sm text-slate-600">{{ $residentDraft->relationship_to_head }}</p>
+                            <dl class="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+                                @foreach(['philsys_card_no', 'birth_place', 'citizenship', 'religion', 'contact_number', 'email_address', ...\App\Support\ResidentProfileData::FIELDS] as $field)
+                                    <div><dt class="font-medium">{{ str($field)->replace('_', ' ')->title() }}</dt>
+                                        <dd>{{ is_bool($residentDraft->{$field}) ? ($residentDraft->{$field} ? 'Yes' : 'No') : ($residentDraft->{$field} ?? 'Not recorded') }}</dd></div>
+                                @endforeach
+                            </dl>
                             @if($residentDraft->draft_notes)
                                 <p class="mt-2 text-sm text-slate-600">{{ $residentDraft->draft_notes }}</p>
                             @endif

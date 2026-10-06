@@ -37,7 +37,7 @@ class MobileBootstrapPayload
             ->currentPopulation()
             ->whereHas('household', fn ($query) => $query->where('purok_id', $assignedPurok->id))
             ->with([
-                'household:id,mobile_uuid',
+                'household:id,mobile_uuid', 'socioEconomicProfile',
             ])
             ->orderBy('last_name')
             ->orderBy('first_name')
@@ -88,8 +88,9 @@ class MobileBootstrapPayload
 
         return [
             'server_time' => now()->toIso8601String(),
-            'resident_contract_version' => 1,
+            'resident_contract_version' => 2,
             'resident_relationship_choices' => HouseholdRelationships::choices(),
+            'resident_profile_choices' => ResidentProfileData::CHOICES,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -160,6 +161,7 @@ class MobileBootstrapPayload
                     'contact_number' => $resident->contact_number,
                     'email_address' => $resident->email_address,
                     'relationship_to_head' => $resident->relationship_to_head,
+                    ...ResidentProfileData::snapshot($resident),
                     'is_active' => $resident->is_active,
                     'resident_status' => $resident->resident_status,
                     'official_snapshot' => MobileResidentRequestData::snapshot($resident),
@@ -191,6 +193,7 @@ class MobileBootstrapPayload
                         'contact_number' => $draft->contact_number,
                         'email_address' => $draft->email_address,
                         'relationship_to_head' => $draft->relationship_to_head,
+                        ...$draft->only(ResidentProfileData::FIELDS),
                         'is_active' => true,
                         'propose_household_head' => $draft->is_household_head_candidate,
                         'verification_status' => $parent->draft_status === HouseholdDraft::STATUS_PENDING ? 'submitted' : 'rejected',

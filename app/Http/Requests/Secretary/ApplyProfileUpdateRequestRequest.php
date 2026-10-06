@@ -101,6 +101,7 @@ class ApplyProfileUpdateRequestRequest extends FormRequest
     private function residentRules(ProfileUpdateRequest $profileUpdateRequest): array
     {
         return [
+            ...\App\Support\ResidentProfileData::rules(),
             'household_id' => [
                 'required',
                 'exists:households,id',

@@ -61,10 +61,6 @@ export function HouseholdFormScreen({ route, navigation }: any) {
     if (!saveGuard.current.acquire()) return;
     setSaving(true);
     try {
-    if (route.params?.returnToResident && (!assignment?.purok?.id || !householdNo.trim() || !address.trim() || householdNo.length > 50)) {
-      setFormError('Enter the household number and address in your assigned purok.');
-      return;
-    }
     const confirmed = await requestConfirmation({
       title: i18n.t('saveHouseholdConfirmationTitle'),
       message: i18n.t('saveHouseholdConfirmationBody'),
@@ -75,7 +71,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       return;
     }
 
-    const savedId = await saveHousehold({
+    await saveHousehold({
       local_id: localId ?? undefined,
       server_id: serverId,
       mobile_uuid: mobileUuid,
@@ -84,11 +80,10 @@ export function HouseholdFormScreen({ route, navigation }: any) {
       household_no: householdNo,
       household_address: address,
       is_social_aid_beneficiary: socialAid,
-      is_active: route.params?.returnToResident ? true : active,
+      is_active: active,
     }, user?.id);
     bumpDataVersion();
-    if (route.params?.returnToResident) navigation.popTo('ResidentForm', { createdHouseholdLocalId: savedId }, { merge: true });
-    else navigation.goBack();
+    navigation.goBack();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Unable to save the household. Try again.');
     } finally { saveGuard.current.release(); setSaving(false); }
@@ -135,7 +130,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
             />
           </View>
 
-          {!route.params?.returnToResident ? <View style={styles.switchRow}>
+          <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
             <Switch
               value={active}
@@ -143,7 +138,7 @@ export function HouseholdFormScreen({ route, navigation }: any) {
               trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
               thumbColor={theme.colors.surfaceElevated}
             />
-          </View> : null}
+          </View>
         </View>
 
         {formError ? <Text style={{ color: theme.colors.danger }}>{formError}</Text> : null}

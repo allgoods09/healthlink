@@ -77,10 +77,7 @@ class SecretaryPipelineProcessor
                     'is_active' => true,
                 ]);
 
-                ResidentSocioEconomicProfile::query()->updateOrCreate(
-                    ['resident_id' => $resident->id],
-                    $this->defaultSocioEconomicProfile()
-                );
+                ResidentProfileData::persist($resident, $residentPayload, true);
 
                 AuditLog::logMutation('created', $secretary, $resident);
 
@@ -163,6 +160,7 @@ class SecretaryPipelineProcessor
     private function applyResidentUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Resident
     {
         $resident = Resident::query()->lockForUpdate()->findOrFail($profileUpdateRequest->subject_id);
+        $resident->setRelation('socioEconomicProfile', $resident->socioEconomicProfile()->lockForUpdate()->first());
         $resident->loadMissing('household');
 
         if ($profileUpdateRequest->mobile_submission_key) {
@@ -174,7 +172,8 @@ class SecretaryPipelineProcessor
             ? Arr::only($payload, [...MobileResidentRequestData::EDITABLE, 'philsys_card_no', 'is_active'])
             : $this->normalizeResidentLifecycle(Arr::except($payload, ['review_notes', 'set_as_household_head']));
 
-        $resident->update($data);
+        $resident->update(Arr::except($data, ResidentProfileData::FIELDS));
+        ResidentProfileData::persist($resident, $payload);
 
         AuditLog::logMutation('updated', $secretary, $resident, $oldResidentValues, $resident->fresh()->load('household.purok', 'socioEconomicProfile')->toArray());
 

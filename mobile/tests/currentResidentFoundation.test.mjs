@@ -9,7 +9,7 @@ export const resident = (id = 1, overrides = {}) => ({ id, mobile_uuid: null, ho
   birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
   citizenship: 'Filipino', relationship_to_head: 'Child', is_active: true,
   resident_status: 'active', deleted_at: null, ...overrides });
-export const payload = (purok = 1, barangay = 1) => ({ resident_contract_version: 1,
+export const payload = (purok = 1, barangay = 1) => ({ resident_contract_version: 2,
   user: { id: 1 }, assignment: { barangay: { id: barangay }, purok: { id: purok } },
   server_time: '2026-10-06', households: [home(1, purok)], residents: [resident()], field_visits: [], risk_assessments: [] });
 async function fixture(t, data = payload()) {
@@ -171,5 +171,5 @@ test('bootstrap cancellation during inserts rolls back records, assignment and c
   await assert.rejects(storage.replaceBootstrapData(payload(), () => applicable), { name: 'DatasetOwnershipError' });
   assert.deepEqual(await db.getAllAsync('SELECT * FROM residents'), before);
   assert.equal(await storage.getDatasetAssignment(), oldAssignment);
-  assert.equal(await storage.getAppState('resident_contract_version'), '1');
+  assert.equal(await storage.getAppState('resident_contract_version'), '2');
 });
