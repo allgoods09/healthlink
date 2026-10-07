@@ -44,10 +44,13 @@ export async function screenHarness(t, name, options = {}) {
       '../lib/storage': { ...h.storage, ...options.storage }, '../lib/residentWorkflow': h.workflow,
       '../lib/residentPresentation': h.presentation, '../i18n': { i18n: { t: key => key } },
       '../components/MenuCard': { MenuCard: 'MenuCard' }, '../components/TopHeader': { TopHeader: 'TopHeader' },
+      '../components/RootHeader': { RootHeader: 'RootHeader' },
       '../components/KeyboardShiftView': { KeyboardShiftView: 'KeyboardShiftView' },
     };
     const localRequire = dep => {
       if (dep === '../components/ResidentUi') return load('components/ResidentUi.tsx');
+      if (dep === '../components/CompactUi') return load('components/CompactUi.tsx');
+      if (dep === '../lib/confirmLogout') return load('lib/confirmLogout.ts');
       if (dep === '../lib/format') return load('lib/format.ts');
       if (!(dep in deps)) throw new Error(dep); return deps[dep];
     };

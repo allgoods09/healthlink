@@ -21,7 +21,7 @@ export function textContent(tree) {
 }
 
 // Execute real screen/component code with host primitives, not a native layout simulator.
-export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {} } = {}) {
+export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage } = {}) {
   const cache = new Map();
   const calls = { navigation: [], confirmations: [], signOut: 0, logout: 0 };
   const context = {
@@ -39,8 +39,27 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     ...overrides,
   };
   const element = (type, props) => typeof type === 'function' ? type(props) : { type, props };
+  const hooks = [];
+  let cursor = 0;
+  let effects = [];
+  let focused = true;
+  const react = {
+    useState(initial) {
+      const index = cursor++;
+      if (!(index in hooks)) hooks[index] = initial;
+      return [hooks[index], (value) => { hooks[index] = typeof value === 'function' ? value(hooks[index]) : value; }];
+    },
+    useEffect(callback, deps) {
+      const index = cursor++;
+      const old = hooks[index];
+      if (!old || deps.some((value, n) => !Object.is(value, old.deps[n]))) {
+        effects.push(() => { old?.cleanup?.(); hooks[index].cleanup = callback(); });
+      }
+      hooks[index] = { deps, cleanup: old?.cleanup };
+    },
+  };
   const native = {
-    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image',
+    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: (styles) => styles, hairlineWidth: 0.5 },
   };
   function load(relative) {
@@ -49,7 +68,8 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     const module = { exports: {} };
     cache.set(filename, module);
     const localRequire = (id) => {
-      if (id === 'react') return { default: {}, __esModule: true };
+      if (id === 'react') return { ...react, default: {}, __esModule: true };
+      if (id === '@react-navigation/native') return { useIsFocused: () => focused };
       if (id === 'react/jsx-runtime') return { jsx: element, jsxs: element };
       if (id === 'react-native') return native;
       if (id === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
@@ -67,6 +87,7 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
         readFileSync(resolve(dirname(filename), id));
         return { uri: 'test-asset:tubigon-logo.png' };
       }
+      if (id.endsWith('/lib/storage') && storage) return storage;
       if (id.includes('storage') || !id.startsWith('.')) throw new Error(`Unexpected dependency: ${id}`);
       const dependency = resolve(dirname(filename), `${id}.ts${id.includes('components/') ? 'x' : ''}`);
       const actual = id.endsWith('confirmLogout') ? load('lib/confirmLogout.ts') : load(dependency);
@@ -82,8 +103,16 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     return module.exports;
   }
   const navigation = { navigate: (...args) => calls.navigation.push(args) };
+  function render(screen = 'Home') {
+    cursor = 0;
+    effects = [];
+    const tree = load(`screens/${screen}Screen.tsx`)[`${screen}Screen`]({ navigation });
+    effects.forEach((effect) => effect());
+    return tree;
+  }
   return {
-    context, calls, load,
-    render: (screen = 'Home') => load(`screens/${screen}Screen.tsx`)[`${screen}Screen`]({ navigation }),
+    context, calls, load, render,
+    setFocused: (value) => { focused = value; },
+    unmount: () => hooks.forEach((hook) => hook?.cleanup?.()),
   };
 }

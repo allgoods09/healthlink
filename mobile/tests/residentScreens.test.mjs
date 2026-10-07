@@ -26,19 +26,19 @@ test('Detail displays the downloaded complete profile without filling absent val
   assert.ok(!absentText.includes('N/A'));
 });
 
-test('Directory has two official-count cards, assignment context, offline notice and correct navigation', async t => {
+test('Directory has two official-count navigation rows, no normal helper copy and correct destinations', async t => {
   const h = await screenHarness(t, 'Directory');
-  const cards = h.nodes().filter(n => n.type === 'MenuCard');
-  assert.deepEqual(cards.map(c => [c.props.title, c.props.badge]), [['directoryResidents', '5'], ['directoryHouseholds', '4']]);
-  cards.forEach(c => c.props.onPress()); assert.deepEqual(h.calls, [['Residents'], ['Households']]);
-  assert.ok(JSON.stringify(h.render()).includes('Purok 1'));
-  assert.ok(JSON.stringify(h.render()).includes('cachedResidentNote'));
-  assert.equal(h.nodes().find(n => n.type === 'TopHeader').props.actionAccessibilityLabel, 'sync');
+  const rows = h.nodes().filter(n => n.type === 'Pressable');
+  assert.deepEqual(rows.map(c => c.props.accessibilityLabel), ['directoryResidents: 5', 'directoryHouseholds: 4']);
+  rows.forEach(c => c.props.onPress()); assert.deepEqual(h.calls, [['Residents'], ['Households']]);
+  assert.ok(!JSON.stringify(h.render()).includes('cachedResidentNote'));
+  assert.ok(!JSON.stringify(h.render()).includes('viewResidentRecords'));
+  assert.equal(h.nodes().find(n => n.type === 'RootHeader').props.title, 'directory');
 });
 
-test('Directory assignment unavailable hides cards and query errors offer retry without fabricating counts', async t => {
+test('Directory assignment unavailable hides rows and query errors offer retry without fabricating counts', async t => {
   const h = await screenHarness(t, 'Directory', { storage: { hasBootstrapData: async () => false } });
-  assert.equal(h.nodes().filter(n => n.type === 'MenuCard').length, 0);
+  assert.equal(h.nodes().filter(n => n.type === 'Pressable').length, 0);
   assert.ok(JSON.stringify(h.render()).includes('assignmentUnavailable'));
   const error = await screenHarness(t, 'Directory', { storage: { getCurrentOfficialResidentCount: async () => { throw new Error('private'); } } });
   assert.ok(error.button('retry')); assert.ok(!JSON.stringify(error.render()).includes('private'));
