@@ -376,6 +376,7 @@ export async function initializeStorage() {
   await ensureColumn(db, 'households', 'current_head_name', 'TEXT');
   await ensureColumn(db, 'households', 'is_vacant', 'INTEGER');
   await ensureColumn(db, 'field_visits', 'protection_reason', 'TEXT');
+  await ensureColumn(db, 'field_visits', 'recorded_by_name', 'TEXT');
   for (const [column, definition] of Object.entries({ barangay_id: 'INTEGER', submitted_by_user_id: 'INTEGER',
     access_mode: 'TEXT', member_coverage: 'TEXT', current_member_count: 'INTEGER', resident_count: 'INTEGER',
     base_snapshot_json: 'TEXT', changed_fields_json: 'TEXT', protection_reason: 'TEXT', reviewed_outcome_json: 'TEXT' })) {
@@ -701,6 +702,8 @@ async function replaceBootstrapDataInternal(payload: BootstrapPayload, applicabl
           visit.updated_at,
         ]
       );
+      await db.runAsync('UPDATE field_visits SET recorded_by_name = ? WHERE local_id = last_insert_rowid()',
+        [visit.recorded_by_name ?? null]);
     }
 
     for (const assessment of payload.risk_assessments) {
@@ -1027,6 +1030,28 @@ export const getHouseholds = (search = '') => householdDataset('operational', se
 export const getHouseholdRequests = (search = '') => householdDataset('request', search);
 export const getHouseholdLookup = (search = '') => householdDataset('lookup', search);
 export const getVisitHouseholdOptions = () => getHouseholds();
+export async function hasHouseholdData(expected?: { userId?: number; barangayId?: number; purokId?: number }) {
+  const scope = await currentHouseholdScope();
+  return Boolean(scope && (!expected || scope.owner === expected.userId && scope.barangayId === expected.barangayId && scope.purokId === expected.purokId));
+}
+
+// Presentation only: retained work is never offered as an operational Visit or
+// acknowledged by this reader. Keep the same owner, assignment and cache gate.
+export async function getWaitingHouseholdVisits(): Promise<(FieldVisitRecord & { waiting_status: 'waiting' | 'rejected' | 'approved' | 'protected'; verification_notes: string | null })[]> {
+  const scope = await currentHouseholdScope();
+  if (!scope) return [];
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<any>(`SELECT v.*, h.household_no, h.verification_status AS parent_status,
+    h.verification_notes, h.protection_reason AS parent_protection FROM field_visits v JOIN households h
+    ON (v.household_server_id IS NOT NULL AND h.server_id = v.household_server_id)
+    OR (v.household_server_id IS NULL AND v.household_mobile_uuid IS NOT NULL AND TRIM(v.household_mobile_uuid) <> '' AND h.mobile_uuid = v.household_mobile_uuid)
+    WHERE h.access_mode = 'request' AND h.submitted_by_user_id = ? AND h.purok_id = ? AND h.barangay_id = ?
+    AND v.sync_status != 'synced' ORDER BY v.visited_at DESC, v.local_id DESC`, [scope.owner, scope.purokId, scope.barangayId]);
+  if ((await currentHouseholdScope())?.signature !== scope.signature) return [];
+  return rows.map(row => ({ ...row, photos: parsePhotos(row.photos_json),
+    waiting_status: row.parent_status === 'rejected' ? 'rejected' : row.parent_status === 'approved' ? 'approved' :
+      row.parent_protection || row.protection_reason ? 'protected' : 'waiting' }));
+}
 export async function hasPendingHouseholdDependencies() {
   const db = await getDatabase();
   return Boolean(await db.getFirstAsync(`SELECT 1 FROM field_visits v JOIN households h

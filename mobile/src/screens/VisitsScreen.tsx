@@ -1,222 +1,72 @@
 import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-
+import { FlatList, Text, TextInput, View } from 'react-native';
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
+import { HouseholdAction, HouseholdState, householdUiStyles } from '../components/HouseholdUi';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
-import { getVisits } from '../lib/storage';
-import { AppTheme } from '../theme';
+import { getVisits, getWaitingHouseholdVisits, hasHouseholdData } from '../lib/storage';
+import { normalizeHouseholdQuery } from '../lib/householdPresentation';
 import { FieldVisitRecord } from '../types';
 
+type WaitingVisit = Awaited<ReturnType<typeof getWaitingHouseholdVisits>>[number];
+
 export function VisitsScreen({ navigation }: any) {
-  const styles = useThemedStyles(createStyles);
-  const theme = useAppTheme();
-  const isFocused = useIsFocused();
-  const { bootstrapCompleted, dataVersion, syncNow } = useAppContext();
-  const [search, setSearch] = useState('');
-  const [records, setRecords] = useState<FieldVisitRecord[]>([]);
-
+  const styles = useThemedStyles(householdUiStyles); const theme = useAppTheme(); const focused = useIsFocused();
+  const { user, assignment, dataVersion } = useAppContext();
+  const [search, setSearch] = useState(''); const [query, setQuery] = useState('');
+  const [records, setRecords] = useState<FieldVisitRecord[]>([]); const [waiting, setWaiting] = useState<WaitingVisit[]>([]);
+  const [state, setState] = useState('loading'); const [loadedKey, setLoadedKey] = useState(''); const [retry, setRetry] = useState(0);
+  const [limit, setLimit] = useState(30); const [waitingLimit, setWaitingLimit] = useState(5);
+  const key = `${user?.id}:${assignment?.barangay?.id}:${assignment?.purok?.id}:${dataVersion}:${retry}`;
+  useEffect(() => { const timer = setTimeout(() => { setQuery(search); setLimit(30); setWaitingLimit(5); }, 300); return () => clearTimeout(timer); }, [search]);
   useEffect(() => {
-    if (!isFocused) return;
-
-    void getVisits(search).then(setRecords);
-  }, [dataVersion, isFocused, search]);
-
-  return (
-    <KeyboardShiftView style={styles.screen}>
-      <TopHeader
-        title={i18n.t('visits')}
-        onActionPress={() => navigation.navigate('SyncTab')}
-      />
-
-      <FlatList
-        data={records}
-        keyExtractor={(item) => String(item.local_id ?? item.server_id ?? item.mobile_uuid)}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.headerBlock}>
-            <MenuCard
-              title={i18n.t('startVisitNow')}
-              subtitle={i18n.t('startVisitNowBody')}
-              icon="clipboard-outline"
-              onPress={() => navigation.navigate('VisitForm')}
-              tone="primary"
-            />
-
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder={i18n.t('visits')}
-              placeholderTextColor={theme.colors.placeholder}
-              style={styles.search}
-            />
-
-            <Text style={styles.sectionTitle}>{i18n.t('visitHistoryTitle')}</Text>
-
-            {!bootstrapCompleted && records.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>{i18n.t('syncRequiredTitle')}</Text>
-                <Text style={styles.emptyBody}>{i18n.t('noDataSyncPrompt')}</Text>
-                <Pressable onPress={syncNow} style={styles.primaryButton}>
-                  <Text style={styles.primaryButtonText}>{i18n.t('syncNow')}</Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
-        }
-        ListEmptyComponent={
-          bootstrapCompleted ? (
-            <View style={styles.emptyHistoryCard}>
-              <Text style={styles.emptyBody}>{i18n.t('noRecentVisits')}</Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>{item.household_no ?? 'Household'}</Text>
-              <Text style={styles.badge}>{item.sync_status}</Text>
-            </View>
-            <Text style={styles.cardText}>
-              {formatFriendlyDateTime(item.visited_at) ?? item.visited_at}
-            </Text>
-            <Text style={styles.cardText}>{item.notes || i18n.t('noNotesSaved')}</Text>
-            <Text style={styles.cardMeta}>
-              {i18n.t('photoCountLabel', { count: item.photos.length })}
-            </Text>
-            <Pressable
-              onPress={() => navigation.navigate('VisitForm', { localId: item.local_id })}
-              style={styles.textAction}
-            >
-              <Text style={styles.textActionLabel}>{i18n.t('edit')}</Text>
-            </Pressable>
-          </View>
-        )}
-      />
-    </KeyboardShiftView>
-  );
+    if (!focused) return;
+    let applicable = true; setState('loading'); setRecords([]); setWaiting([]);
+    void (async () => {
+      try {
+        const compatible = await hasHouseholdData({ userId: user?.id, barangayId: assignment?.barangay?.id, purokId: assignment?.purok?.id });
+        const [history, retained] = compatible ? await Promise.all([getVisits(), getWaitingHouseholdVisits()]) : [[], []];
+        if (applicable) { setRecords(history); setWaiting(retained); setState(compatible ? 'ready' : 'refresh'); setLoadedKey(key); }
+      } catch { if (applicable) { setState('error'); setLoadedKey(key); } }
+    })();
+    return () => { applicable = false; };
+  }, [key, focused]);
+  const visible = focused && loadedKey === key && state === 'ready';
+  const matches = (row: FieldVisitRecord) => normalizeHouseholdQuery(`${row.household_no ?? ''} ${row.notes ?? ''}`).includes(normalizeHouseholdQuery(query));
+  const history = visible ? records.filter(matches) : []; const retained = visible ? waiting.filter(matches) : [];
+  return <KeyboardShiftView style={styles.screen}>
+    <TopHeader title={i18n.t('visits')} onActionPress={() => navigation.navigate('SyncTab')} />
+    <FlatList data={history.slice(0, limit)} keyExtractor={item => String(item.local_id)} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+      ListHeaderComponent={<View style={{ gap: theme.spacing.md }}>
+        {visible ? <HouseholdAction primary label={i18n.t('startVisitNow')} onPress={() => navigation.navigate('VisitForm')} /> : null}
+        <TextInput accessibilityLabel={i18n.t('hhVisitSearch')} value={search} onChangeText={setSearch} placeholder={i18n.t('hhVisitSearch')}
+          placeholderTextColor={theme.colors.placeholder} style={styles.input} />
+        {retained.length ? <View><Text accessibilityRole="header" style={styles.title}>{i18n.t('hhRetainedVisits')}</Text>
+          {retained.slice(0, waitingLimit).map(visit => <View key={visit.local_id} style={styles.card}>
+            <Text style={styles.text}>{visit.household_no}</Text><Text style={styles.helper}>{formatFriendlyDateTime(visit.visited_at) ?? visit.visited_at}</Text>
+            <Text style={styles.statusText}>{i18n.t(visit.waiting_status === 'rejected' ? 'hhVisitRejected' : visit.waiting_status === 'approved' ? 'hhVisitApproved' : visit.waiting_status === 'protected' ? 'hhVisitProtected' : 'hhVisitWaiting')}</Text>
+            {visit.verification_notes ? <Text style={styles.helper}>{visit.verification_notes}</Text> : null}
+            <Text style={styles.helper}>{visit.notes ? visit.notes.slice(0, 180) : i18n.t('noNotesSaved')}</Text>
+            <Text style={styles.helper}>{i18n.t('photoCountLabel', { count: visit.photos.length })}</Text>
+          </View>)}
+          {waitingLimit < retained.length ? <HouseholdAction label={i18n.t('hhShowMore')} onPress={() => setWaitingLimit(value => value + 5)} /> : null}
+        </View> : null}
+        <Text accessibilityRole="header" style={styles.title}>{i18n.t('visitHistoryTitle')}</Text>
+      </View>}
+      ListEmptyComponent={<HouseholdState message={i18n.t(!focused || loadedKey !== key || state === 'loading' ? 'loading' : state === 'error' ? 'savedRecordsError' : state === 'refresh' ? 'hhRefresh' : query.trim() ? 'noMatchingRecords' : 'noRecentVisits')}
+        error={state === 'error'} retry={state === 'error' ? () => setRetry(value => value + 1) : undefined} />}
+      ListFooterComponent={limit < history.length ? <HouseholdAction label={i18n.t('hhShowMore')} onPress={() => setLimit(value => value + 30)} /> : null}
+      renderItem={({ item }) => <View style={styles.card}>
+        <Text style={styles.title}>{item.household_no ?? i18n.t('noHouseholdNumber')}</Text>
+        <Text style={styles.statusText}>{i18n.t(item.sync_status === 'synced' ? 'hhVisitSynced' : 'hhVisitPending')}</Text>
+        <Text style={styles.text}>{formatFriendlyDateTime(item.visited_at) ?? item.visited_at}</Text>
+        <Text style={styles.helper}>{item.recorded_by_name ? i18n.t('hhRecorder', { name: item.recorded_by_name }) : i18n.t('hhRecorderUnknown')}</Text>
+        <Text style={styles.helper}>{item.notes ? item.notes.slice(0, 180) : i18n.t('noNotesSaved')}</Text>
+        <Text style={styles.helper}>{i18n.t('photoCountLabel', { count: item.photos.length })}</Text>
+        <HouseholdAction label={i18n.t('viewDetails')} onPress={() => navigation.navigate('VisitForm', { localId: item.local_id })} />
+      </View>} />
+  </KeyboardShiftView>;
 }
-
-const createStyles = (theme: AppTheme) => StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  headerBlock: {
-    padding: theme.spacing.md,
-  },
-  search: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  list: {
-    paddingBottom: theme.spacing.xl,
-  },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: theme.spacing.sm,
-  },
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
-    marginHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  badge: {
-    color: theme.colors.primary,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  cardText: {
-    marginTop: 8,
-    color: theme.colors.text,
-  },
-  cardMeta: {
-    marginTop: 8,
-    color: theme.colors.textMuted,
-  },
-  textAction: {
-    marginTop: 12,
-  },
-  textActionLabel: {
-    color: theme.colors.primary,
-    fontWeight: '700',
-  },
-  emptyState: {
-    marginTop: theme.spacing.lg,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-  },
-  emptyTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  emptyBody: {
-    marginTop: 10,
-    color: theme.colors.textMuted,
-    lineHeight: 22,
-  },
-  primaryButton: {
-    marginTop: 16,
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: theme.colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  emptyHistoryCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-    marginHorizontal: theme.spacing.md,
-  },
-});

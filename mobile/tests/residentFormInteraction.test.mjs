@@ -74,6 +74,16 @@ async function formHarness(t, name = 'ResidentForm', overrides = {}) {
   deps['../lib/format'] = formatModule.exports;
   deps['../lib/householdIdentity'] = { findHouseholdByReference: (rows, record) => rows.find(row => record.household_server_id != null
     ? row.server_id === record.household_server_id : record.household_mobile_uuid && row.mobile_uuid === record.household_mobile_uuid) };
+  // Household presentation dependencies only; the frozen Resident harness and
+  // its assertions continue to execute the same production Resident callbacks.
+  for (const [key, path] of [['../lib/householdWorkflow', 'lib/householdWorkflow.ts'],
+    ['../lib/householdPresentation', 'lib/householdPresentation.ts'], ['../components/HouseholdUi', 'components/HouseholdUi.tsx']]) {
+    const loaded = { exports: {} };
+    const output = ts.transpileModule(readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
+    vm.runInThisContext(`(function(require, module, exports){${output}})`)(n => deps[n === './householdWorkflow' ? '../lib/householdWorkflow' : n], loaded, loaded.exports);
+    deps[key] = loaded.exports;
+  }
   const module = { exports: {} };
   const source = readFileSync(new URL(`../src/screens/${name}Screen.tsx`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
@@ -142,6 +152,7 @@ test('standalone Household save retains double-tap protection and returns normal
   h.field('householdNo').props.onChangeText('9'); h.field('householdAddress').props.onChangeText('Created home'); h.render();
   const save = h.button('save').props.onPress;
   const first = save(); const second = save(); finish(true); await Promise.all([first, second]);
+  await h.settle();
   const rows = [...await h.storage.getHouseholds(), ...await h.storage.getHouseholdRequests()];
   assert.equal(rows.length, 2);
   assert.equal(h.calls.filter(c => c.key === 'goBack').length, 1);
@@ -168,6 +179,7 @@ test('standalone Household storage failure retains values and allows retry witho
   assert.equal(h.calls.some(c => c.key === 'popTo'), false);
   assert.equal(h.button('save').props.disabled, false);
   fail = false; await h.button('save').props.onPress();
+  await h.settle();
   assert.equal(h.calls.filter(c => c.key === 'goBack').length, 1);
   assert.equal(h.calls.some(c => c.key === 'popTo'), false);
 });
