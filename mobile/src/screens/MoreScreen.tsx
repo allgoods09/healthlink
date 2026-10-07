@@ -10,6 +10,7 @@ import { MenuCard } from '../components/MenuCard';
 import { TopHeader } from '../components/TopHeader';
 import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
+import { confirmLogout } from '../lib/confirmLogout';
 import { formatFriendlyDateTime } from '../lib/format';
 import { AppTheme } from '../theme';
 
@@ -35,23 +36,7 @@ export function MoreScreen({ navigation }: any) {
     user,
   } = useAppContext();
   async function handleLogout() {
-    const hasPendingDrafts = pendingSyncCount > 0;
-    const confirmed = await requestConfirmation({
-      title: hasPendingDrafts
-        ? i18n.t('logoutWarningTitle')
-        : i18n.t('logoutConfirmationTitle'),
-      message: hasPendingDrafts
-        ? i18n.t('logoutWarningBody', { count: pendingSyncCount })
-        : i18n.t('logoutConfirmationBody'),
-      confirmLabel: hasPendingDrafts ? i18n.t('logoutAnyway') : i18n.t('logout'),
-      tone: hasPendingDrafts ? 'warning' : 'danger',
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
-    await signOut();
+    await confirmLogout({ pendingSyncCount, requestConfirmation, signOut });
   }
 
   return (

@@ -1,278 +1,75 @@
-import React, { useEffect, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import React from 'react';
+import { Image, ScrollView, Text, View } from 'react-native';
 
-import { MenuCard } from '../components/MenuCard';
-import { TopHeader } from '../components/TopHeader';
+import { CompactActionRow, compactStyles } from '../components/CompactUi';
+import { RootHeader } from '../components/RootHeader';
 import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
+import { confirmLogout } from '../lib/confirmLogout';
 import { formatFriendlyDateTime } from '../lib/format';
-import { getHouseholds, getCurrentOfficialResidentCount, getVisits } from '../lib/storage';
-import { AppTheme } from '../theme';
-import { FieldVisitRecord } from '../types';
 
 export function HomeScreen({ navigation }: any) {
-  const styles = useThemedStyles(createStyles);
-  const isFocused = useIsFocused();
+  const styles = useThemedStyles(compactStyles);
   const {
     assignment,
-    dataVersion,
     lastSyncAt,
     pendingSyncCount,
+    requestConfirmation,
+    signOut,
+    unreadNotificationCount,
     user,
   } = useAppContext();
-  const [counts, setCounts] = useState({
-    households: 0,
-    residents: 0,
-    visits: 0,
-  });
-  const [recentVisits, setRecentVisits] = useState<FieldVisitRecord[]>([]);
-
-  useEffect(() => {
-    if (!isFocused) {
-      return;
-    }
-
-    async function loadDashboard() {
-      const [households, residents, visits] = await Promise.all([
-        getHouseholds(),
-        getCurrentOfficialResidentCount(),
-        getVisits(),
-      ]);
-
-      setCounts({
-        households: households.length,
-        residents,
-        visits: visits.length,
-      });
-      setRecentVisits(visits.slice(0, 3));
-    }
-
-    void loadDashboard();
-  }, [dataVersion, isFocused]);
 
   return (
     <View style={styles.screen}>
-      <TopHeader
+      <RootHeader
         title={i18n.t('home')}
-        onActionPress={() => navigation.navigate('SyncTab')}
+        unreadCount={unreadNotificationCount}
+        onNotificationPress={() => navigation.navigate('Notifications')}
+        onLogoutPress={() => void confirmLogout({ pendingSyncCount, requestConfirmation, signOut })}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.heroKicker}>{i18n.t('appTitle')}</Text>
-          <Text style={styles.heroTitle}>
-            {user?.name ?? i18n.t('home')}
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            {assignment?.barangay?.name ?? 'Barangay'} · {assignment?.purok?.display_name ?? 'Unassigned Purok'}
-          </Text>
-          <View style={styles.heroMetaRow}>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>
-                {i18n.t('pendingUploads')}: {pendingSyncCount}
-              </Text>
-            </View>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>
-                {lastSyncAt
-                  ? `${i18n.t('lastSync')}: ${formatFriendlyDateTime(lastSyncAt) ?? lastSyncAt}`
-                  : i18n.t('bootstrapPending')}
-              </Text>
-            </View>
+        <View style={styles.banner}>
+          <View style={styles.bannerContext}>
+            <Text accessibilityRole="header" style={[styles.welcome, styles.bannerText]}>
+              {i18n.t('homeWelcome', { name: user?.name ?? i18n.t('home') })}
+            </Text>
+            <Text style={[styles.body, styles.bannerText]}>{i18n.t('homeRole')}</Text>
+            <Text style={styles.bannerLabel}>{i18n.t('assignmentTitle')}</Text>
+            <Text style={[styles.secondary, styles.bannerText]}>
+              {assignment?.barangay?.name ?? 'Barangay'} · {assignment?.purok?.display_name ?? 'Unassigned Purok'}
+            </Text>
+          </View>
+          <View style={styles.bannerBrand}>
+            <Image accessible={false} source={require('../../assets/tubigon-logo.png')} resizeMode="contain" style={styles.bannerLogo} />
+            <Text style={styles.bannerBrandName}>{i18n.t('appTitle')}</Text>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>{i18n.t('quickActions')}</Text>
-
-        <MenuCard
-          title={i18n.t('openDirectory')}
-          subtitle={i18n.t('openDirectoryBody')}
-          icon="search-outline"
-          onPress={() => navigation.navigate('DirectoryTab')}
-        />
-        <MenuCard
-          title={i18n.t('recordVisitAction')}
-          subtitle={i18n.t('recordVisitActionBody')}
-          icon="clipboard-outline"
-          onPress={() => navigation.navigate('VisitForm')}
-        />
-        <MenuCard
-          title={i18n.t('newHouseholdDraft')}
-          subtitle={i18n.t('newHouseholdDraftBody')}
-          icon="home-outline"
-          onPress={() => navigation.navigate('HouseholdForm')}
-        />
-        <MenuCard
-          title={i18n.t('newResidentDraft')}
-          subtitle={i18n.t('newResidentDraftBody')}
-          icon="person-add-outline"
-          onPress={() => navigation.navigate('ResidentForm')}
-        />
-
-        <Text style={styles.sectionTitle}>{i18n.t('offlineData')}</Text>
-
-        <View style={styles.metricRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricNumber}>{counts.households}</Text>
-            <Text style={styles.metricLabel}>{i18n.t('householdsOnDevice')}</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricNumber}>{counts.residents}</Text>
-            <Text style={styles.metricLabel}>{i18n.t('residentsOnDevice')}</Text>
-          </View>
-        </View>
-        <View style={styles.metricRow}>
-          <View style={styles.metricCardFull}>
-            <Text style={styles.metricNumber}>{counts.visits}</Text>
-            <Text style={styles.metricLabel}>{i18n.t('visitsOnDevice')}</Text>
-          </View>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{i18n.t('quickActions')}</Text>
+          <CompactActionRow label={i18n.t('openDirectory')} onPress={() => navigation.navigate('DirectoryTab')} />
+          <CompactActionRow label={i18n.t('recordVisitAction')} onPress={() => navigation.navigate('VisitForm')} />
+          <CompactActionRow label={i18n.t('newHouseholdDraft')} onPress={() => navigation.navigate('HouseholdForm')} />
+          <CompactActionRow label={i18n.t('newResidentDraft')} onPress={() => navigation.navigate('ResidentForm')} />
         </View>
 
-        <Text style={styles.sectionTitle}>{i18n.t('recentVisits')}</Text>
-
-        {recentVisits.length > 0 ? (
-          recentVisits.map((visit) => (
-            <MenuCard
-              key={String(visit.local_id ?? visit.server_id ?? visit.mobile_uuid)}
-              title={visit.household_no ?? 'Household Visit'}
-              subtitle={[
-                formatFriendlyDateTime(visit.visited_at) ?? visit.visited_at,
-                visit.notes,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              icon="time-outline"
-              badge={String(visit.photos.length)}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{i18n.t('noRecentVisits')}</Text>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{i18n.t('sync')}</Text>
+          <View style={styles.factRow}>
+            <Text style={styles.factLabel}>{i18n.t('homePendingSync')}</Text>
+            <Text style={styles.factValue}>{pendingSyncCount}</Text>
           </View>
-        )}
+          <View style={styles.factRow}>
+            <Text style={styles.factLabel}>{i18n.t('lastSync')}</Text>
+            <Text style={styles.factValue}>
+              {lastSyncAt ? formatFriendlyDateTime(lastSyncAt) ?? lastSyncAt : i18n.t('bootstrapPending')}
+            </Text>
+          </View>
+          <CompactActionRow textAction label={i18n.t('sync')} onPress={() => navigation.navigate('SyncTab')} />
+        </View>
       </ScrollView>
     </View>
   );
 }
-
-const createStyles = (theme: AppTheme) => StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-  },
-  hero: {
-    backgroundColor: theme.colors.heroBackground,
-    borderRadius: 28,
-    borderWidth: theme.mode === 'dark' ? 2 : 0,
-    borderColor: theme.colors.heroBorder,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-  },
-  heroKicker: {
-    color: theme.colors.heroMuted,
-    fontSize: 12,
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  heroTitle: {
-    color: theme.colors.heroText,
-    fontSize: 28,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  heroSubtitle: {
-    color: theme.colors.heroMuted,
-    marginTop: 8,
-    lineHeight: 21,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-  },
-  heroPill: {
-    borderRadius: 999,
-    backgroundColor: theme.colors.heroSurface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  heroPillText: {
-    color: theme.colors.heroText,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-  },
-  metricRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  metricCardFull: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  metricNumber: {
-    color: theme.colors.primary,
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  metricLabel: {
-    color: theme.colors.textMuted,
-    marginTop: 6,
-    lineHeight: 20,
-  },
-  emptyCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-  },
-  emptyText: {
-    color: theme.colors.textMuted,
-    lineHeight: 21,
-  },
-});
