@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 export const household = {
+  purok_id: 1,
   mobile_uuid: '00000000-0000-4000-8000-000000000001', household_no: '1',
   household_address: 'Synthetic address', is_active: true, is_social_aid_beneficiary: false,
 };
 const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
-export const bootstrap = (userId = 1) => ({
+export const bootstrap = (userId = 1) => withHouseholdContract({
   resident_contract_version: 2,
   user: { id: userId }, assignment: { barangay: { id: userId }, purok: { id: userId } },
   server_time: '2026-10-03T12:00:00Z', households: [], residents: [], field_visits: [], risk_assessments: [],
@@ -16,7 +18,7 @@ async function fixture(t) {
   const h = await storageHarness();
   t.after(h.close);
   await h.storage.prepareDatasetForUser(1);
-  await h.storage.replaceBootstrapData({ ...bootstrap(), households: [{ ...household, mobile_uuid: null, id: 1, purok_id: 1 }] });
+  await h.storage.replaceBootstrapData(withHouseholdContract({ ...bootstrap(), households: [{ ...household, mobile_uuid: null, id: 1, purok_id: 1 }] }));
   return h;
 }
 async function snapshot(db) {
@@ -72,7 +74,7 @@ test('same account logs out and returns to pending records/photos without cleari
 
 test('clean downloaded dataset can switch accounts and bootstrap the new scope', async t => {
   const { storage } = await fixture(t);
-  await storage.replaceBootstrapData({ ...bootstrap(), households: [{ ...household, id: 1 }] });
+  await storage.replaceBootstrapData(withHouseholdContract({ ...bootstrap(), households: [{ ...household, id: 1 }] }));
   await storage.clearLocalSession();
   await storage.prepareDatasetForUser(2);
   assert.equal(await storage.getDatasetOwnerUserId(), '2');
@@ -117,7 +119,7 @@ test('pending work without ownership metadata is not claimed by a new account', 
 
 test('normal same-account logout/login without pending work reuses downloaded data', async t => {
   const { storage } = await fixture(t);
-  await storage.replaceBootstrapData({ ...bootstrap(), households: [{ ...household, id: 1 }] });
+  await storage.replaceBootstrapData(withHouseholdContract({ ...bootstrap(), households: [{ ...household, id: 1 }] }));
   await storage.clearLocalSession();
   await storage.prepareDatasetForUser(1);
   assert.equal(await storage.hasBootstrapData(), true);

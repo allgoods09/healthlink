@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const tables = ['households', 'residents', 'field_visits', 'risk_assessments'];
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const emptyResolved = () => Object.fromEntries(tables.map(table => [table, []]));
-const bootstrap = (households = []) => ({
+const bootstrap = (households = []) => withHouseholdContract({
   resident_contract_version: 2,
   user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } }, server_time: '2026-10-03T10:00:00Z',
   households, residents: [], field_visits: [], risk_assessments: [],
@@ -23,6 +24,7 @@ async function fixture(t) {
   await raw.replaceBootstrapData({ ...bootstrap(), server_time: '' });
   // C3 scenarios run as the established owner; C4 tests exercise different users.
   harness.storage = { ...raw,
+    getHouseholds: async search => [...await raw.getHouseholds(search), ...await raw.getHouseholdRequests(search)],
     saveHousehold: values => raw.saveHousehold(values, 1),
     saveResident: values => raw.saveResident(values, 1),
     saveVisit: values => raw.saveVisit(values, 1),
@@ -38,7 +40,10 @@ async function seedLegacyResident(db) {
     VALUES (?, ?, 'Ana', 'Test', '1990-01-01', 'Tubigon', 'Female', 'Single', 'Filipino', 'Head', 1, 'pending_create', 'pending')`, [uuid(2), uuid(1)]);
 }
 async function seedAll(storage, db) {
-  await storage.saveHousehold(household());
+  // Current Visit capture requires an official parent; the Resident row below
+  // represents an older queued package. All C3 acknowledgment checks remain.
+  await storage.replaceBootstrapData(bootstrap([serverHousehold()]));
+  await storage.saveHousehold({ ...(await storage.getHouseholds())[0], household_address: 'Local address' });
   await seedLegacyResident(db);
   await storage.saveVisit({ mobile_uuid: uuid(3), household_mobile_uuid: uuid(1), visited_at: '2026-10-03', notes: 'Original', photos: [] });
   await storage.saveRiskAssessment({ mobile_uuid: uuid(4), resident_server_id: 2, assessment_date: '2026-10-03', red_flags: {}, remarks: 'Original' });
@@ -260,7 +265,7 @@ test('additive revision migration preserves existing rows and is repeatable', as
     const rows = await db.getAllAsync(`SELECT * FROM ${table}`);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].local_revision, 0);
-    assert.equal(rows[0].sync_status, 'pending_create');
+    assert.equal(rows[0].sync_status, table === 'households' ? 'pending_update' : 'pending_create');
   }
 });
 
@@ -272,12 +277,14 @@ test('unsent acknowledgments cannot clear pending records', async t => {
   assert.equal((await storage.getPendingChangeSummary()).total, 1);
 });
 
-test('edit using pre-acknowledgment form values keeps the assigned server identity', async t => {
+test('edit using pre-acknowledgment values needs an official baseline and keeps the assigned server identity', async t => {
   const { storage } = await fixture(t);
   await storage.saveHousehold(household());
   const form = (await storage.getHouseholds())[0];
   const { snapshot } = await storage.getPendingSyncPayload();
   await storage.applyResolvedRecords(resolvedAll(), snapshot);
+  await assert.rejects(storage.saveHousehold({ ...form, household_address: 'Saved after acknowledgment' }), /verified original values/);
+  await storage.replaceBootstrapData(bootstrap([serverHousehold()]));
   await storage.saveHousehold({ ...form, household_address: 'Saved after acknowledgment' });
   const current = (await storage.getHouseholds())[0];
   assert.equal(current.server_id, 1);

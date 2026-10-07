@@ -1,4 +1,5 @@
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 export const home = (id, number = String(id), purok = 1) => ({ id, purok_id: purok, household_no: number,
   household_address: 'Synthetic', is_active: true, is_social_aid_beneficiary: false });
@@ -6,7 +7,7 @@ export const person = (id, changes = {}) => ({ id, household_id: 1, first_name: 
   last_name: 'Ybañez', suffix: 'Jr.', birth_date: '1960-01-01', birth_place: 'Tubigon', sex: 'Male',
   civil_status: 'Single', citizenship: 'Filipino', relationship_to_head: 'Son', is_active: true,
   resident_status: 'active', deleted_at: null, ...changes });
-export const data = () => ({ resident_contract_version: 2, user: { id: 1 },
+export const data = () => withHouseholdContract({ resident_contract_version: 2, user: { id: 1 },
   assignment: { barangay: { id: 1 }, purok: { id: 1, display_name: 'Purok 1' } }, server_time: '2026-10-06',
   households: [home(1, 'A10'), home(2, 'A2'), home(3, '10'), home(4, '2'), home(5, '99', 2)],
   residents: [person(1), person(2, { first_name: 'Ana', household_id: 2, sex: 'Female', birth_date: '1990-02-01' }),

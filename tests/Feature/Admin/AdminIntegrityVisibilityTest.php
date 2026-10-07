@@ -261,7 +261,9 @@ class AdminIntegrityVisibilityTest extends TestCase
                 [
                     'id' => $validHousehold->id,
                     'mobile_uuid' => '00000000-0000-4000-8000-000000000801',
-                    'household_address' => 'Updated from mobile',
+                    'request_contract_version' => 1,
+                    'base_snapshot' => \App\Support\MobileHouseholdRequestData::snapshot($validHousehold),
+                    'proposed_changes' => ['household_address' => 'Updated from mobile'],
                 ],
             ],
             'residents' => [

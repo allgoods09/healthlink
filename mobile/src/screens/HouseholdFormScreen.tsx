@@ -13,7 +13,7 @@ import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
-import { getHouseholdByLocalId, saveHousehold } from '../lib/storage';
+import { getHouseholdForCorrection, saveHousehold } from '../lib/storage';
 import { AppTheme } from '../theme';
 import { createSaveGuard } from '../lib/residentWorkflow';
 
@@ -35,29 +35,33 @@ export function HouseholdFormScreen({ route, navigation }: any) {
   const [localId, setLocalId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [ready, setReady] = useState(route.params?.localId == null);
   const saveGuard = useRef(createSaveGuard());
 
   useEffect(() => {
     async function loadExisting() {
-      if (!route.params?.localId) return;
+      if (route.params?.localId == null) return;
 
-      const existing = await getHouseholdByLocalId(route.params.localId);
+      setReady(false);
+      const existing = await getHouseholdForCorrection(route.params.localId);
 
-      if (!existing) return;
+      if (!existing) { setFormError('This household is unavailable or read-only. Go back and reopen the correct record.'); return; }
 
       setLocalId(existing.local_id ?? null);
       setServerId(existing.server_id ?? null);
       setMobileUuid(existing.mobile_uuid ?? null);
       setHouseholdNo(existing.household_no);
       setAddress(existing.household_address);
-      setSocialAid(existing.is_social_aid_beneficiary);
+      setSocialAid(existing.is_social_aid_beneficiary ?? false);
       setActive(existing.is_active);
+      setReady(true);
     }
 
     void loadExisting();
   }, [route.params?.localId]);
 
   async function handleSave() {
+    if (!ready || (route.params?.localId != null && localId !== route.params.localId)) return;
     if (!saveGuard.current.acquire()) return;
     setSaving(true);
     try {
@@ -130,19 +134,10 @@ export function HouseholdFormScreen({ route, navigation }: any) {
             />
           </View>
 
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{i18n.t('active')}</Text>
-            <Switch
-              value={active}
-              onValueChange={setActive}
-              trackColor={{ false: theme.colors.inactiveSoft, true: theme.colors.primary }}
-              thumbColor={theme.colors.surfaceElevated}
-            />
-          </View>
         </View>
 
         {formError ? <Text style={{ color: theme.colors.danger }}>{formError}</Text> : null}
-        <Pressable disabled={saving} onPress={handleSave} style={styles.primaryButton}>
+        <Pressable disabled={saving || !ready} onPress={handleSave} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
         </Pressable>
       </ScrollView>

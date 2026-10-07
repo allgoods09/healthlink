@@ -210,9 +210,11 @@ class MobileRegistryVerificationTest extends TestCase
             'civil_status' => 'Single', 'citizenship' => 'Filipino',
             'relationship_to_head' => 'Daughter', 'is_active' => true,
         ]);
-        $this->sync($bhw, [$this->householdInput([
-            'id' => $household->id, 'household_no' => 'M-301', 'household_address' => 'New address',
-        ])], [$this->residentInput([
+        $this->sync($bhw, [[
+            'id' => $household->id, 'mobile_uuid' => $this->householdInput()['mobile_uuid'],
+            'request_contract_version' => 1, 'base_snapshot' => \App\Support\MobileHouseholdRequestData::snapshot($household),
+            'proposed_changes' => ['household_address' => 'New address'],
+        ]], [$this->residentInput([
             'id' => $resident->id, 'household_id' => $household->id,
             'household_mobile_uuid' => null, 'first_name' => 'Lina Maria',
             'relationship_to_head' => 'Daughter',

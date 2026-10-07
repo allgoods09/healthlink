@@ -4,16 +4,17 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const tick = () => new Promise(setImmediate);
-const payload = { resident_contract_version: 2, user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } },
+const payload = withHouseholdContract({ resident_contract_version: 2, user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } },
   server_time: '2026-10-06', resident_relationship_choices: ['Daughter', 'Son'],
   resident_profile_choices: { employment_status: ['Employed', 'Unemployed', 'N/A'],
     highest_education_level: ['None', 'Elementary', 'High School', 'College', 'Post Grad', 'Vocational'], education_status: ['Graduate', 'Undergraduate', 'N/A'] },
   households: [{ id: 1, purok_id: 1, household_no: '2', household_address: 'Pilot home', is_active: true }],
-  residents: [], field_visits: [], risk_assessments: [] };
+  residents: [], field_visits: [], risk_assessments: [] });
 
 // Execute the production form callbacks with controlled hooks/navigation and real
 // SQLite. This is not a claim of native rendering or device-level interaction QA.
@@ -141,10 +142,21 @@ test('standalone Household save retains double-tap protection and returns normal
   h.field('householdNo').props.onChangeText('9'); h.field('householdAddress').props.onChangeText('Created home'); h.render();
   const save = h.button('save').props.onPress;
   const first = save(); const second = save(); finish(true); await Promise.all([first, second]);
-  const rows = await h.storage.getHouseholds();
+  const rows = [...await h.storage.getHouseholds(), ...await h.storage.getHouseholdRequests()];
   assert.equal(rows.length, 2);
   assert.equal(h.calls.filter(c => c.key === 'goBack').length, 1);
   assert.equal(h.calls.some(c => c.key === 'popTo'), false);
+});
+
+test('stale and zero Household edit IDs remain unavailable and cannot become new requests', async t => {
+  for (const localId of [0, 99999]) {
+    const h = await formHarness(t, 'HouseholdForm', { params: { localId } });
+    h.field('householdNo').props.onChangeText('9'); h.field('householdAddress').props.onChangeText('Unsafe new home'); h.render();
+    assert.equal(h.button('save').props.disabled, true);
+    await h.button('save').props.onPress();
+    assert.equal((await h.storage.getHouseholdRequests()).length, 0);
+    assert.equal(h.calls.some(c => c.key === 'goBack'), false);
+  }
 });
 
 test('standalone Household storage failure retains values and allows retry without Resident handoff', async t => {
@@ -272,6 +284,24 @@ test('rejected/submitted modes and incompatible official cache cannot save throu
   }
   const h = await formHarness(t, 'ResidentForm', { params: { localId: 999 } });
   assert.equal(h.button('next').props.disabled, true); assert.ok(JSON.stringify(h.render()).includes('residentProfileRefreshRequired'));
+});
+
+test('legacy linked Resident edit keeps its existing parent without granting Household operational access', async t => {
+  const parent = '00000000-0000-4000-8000-000000000081';
+  const data = { ...payload, household_contract_version: undefined,
+    households: [{ id: null, mobile_uuid: parent, purok_id: 1, household_no: 'Legacy-81', household_address: 'Retained home',
+      is_active: true, is_social_aid_beneficiary: false, verification_status: 'pending' }],
+    residents: [{ id: null, household_id: null, household_mobile_uuid: parent,
+      mobile_uuid: '00000000-0000-4000-8000-000000000082', first_name: 'Legacy', last_name: 'Pilot',
+      birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
+      citizenship: 'Filipino', relationship_to_head: 'Daughter', is_active: true, verification_status: 'pending' }] };
+  const h = await formHarness(t, 'ResidentForm', { payload: data, params: { localId: 1 } });
+  assert.deepEqual(await h.storage.getHouseholds(), []);
+  assert.ok(JSON.stringify(h.render()).includes('Legacy-81'));
+  assert.equal(h.button('next').props.disabled, false);
+  h.button('next').props.onPress(); await h.settle();
+  assert.ok(JSON.stringify(h.render()).includes('Step 2 of 5'));
+  assert.equal((await h.storage.getPendingChangeSummary()).residents, 0);
 });
 
 test('inline Review contains no technical request identifiers and Back returns to Step 4 without saving', async t => {

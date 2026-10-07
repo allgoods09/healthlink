@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const uuid = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const household = (id, extra = {}) => ({ id, household_no: String(id), purok_id: 1,
@@ -10,7 +11,7 @@ const resident = (extra = {}) => ({ id: 1, household_id: 1, mobile_uuid: uuid(1)
   birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
   citizenship: 'Filipino', religion: 'Old religion', contact_number: '09123456789', email_address: 'old@example.test',
   relationship_to_head: 'Daughter', philsys_card_no: 'UNSEEN-123', is_active: false, resident_status: 'active', ...extra });
-const bootstrap = (extra = {}) => ({ resident_contract_version: 2, user: { id: 1 },
+const bootstrap = (extra = {}) => withHouseholdContract({ resident_contract_version: 2, user: { id: 1 },
   assignment: { barangay: { id: 1 }, purok: { id: 1 } }, server_time: '2026-10-06',
   resident_relationship_choices: ['Daughter', 'Son', 'Spouse / Partner'],
   households: [household(1)], residents: [resident()], field_visits: [], risk_assessments: [], ...extra });
@@ -96,7 +97,7 @@ test('new work refuses pending households while a legacy queued package retains 
   const { storage, db } = await fixture(t, bootstrap({ residents: [] }));
   const id = await storage.saveHousehold({ household_no: '11', household_address: 'New home', purok_id: 1,
     is_active: true, is_social_aid_beneficiary: false }, 1);
-  const created = (await storage.getHouseholds()).find(h => h.local_id === id);
+  const created = (await storage.getHouseholdRequests()).find(h => h.local_id === id);
   assert.ok(created.mobile_uuid);
   assert.equal((await storage.getResidentHouseholdOptions('new')).some(h => h.local_id === id), false);
   assert.equal((await storage.getResidentHouseholdOptions('correction')).some(h => h.local_id === id), false);

@@ -27,6 +27,7 @@ class MobileSyncProcessor
      */
     public function process(User $user, array $payload): array
     {
+        MobileBarangayScope::requirePurok($user);
         $households = array_values($payload['households'] ?? []);
         $residents = array_values($payload['residents'] ?? []);
         $fieldVisits = array_values($payload['field_visits'] ?? []);
@@ -177,6 +178,10 @@ class MobileSyncProcessor
 
         $creating = ! $visit;
 
+        if (isset($validated['id']) && ! $visit) {
+            return $this->failure('field_visits', $index, 'Visit identity not found or does not match in the assigned purok.');
+        }
+
         if (! $visit && empty($validated['mobile_uuid'])) {
             return $this->failure('field_visits', $index, 'New field visits require a mobile UUID.');
         }
@@ -237,14 +242,17 @@ class MobileSyncProcessor
         }
 
         try {
-            DB::transaction(function () use ($visit, $attributes, $household, $user, $retainedPhotos, $storedPhotos): void {
+            DB::transaction(function () use ($visit, $attributes, $household, $user, $creating, $retainedPhotos, $storedPhotos): void {
                 $visit->fill(array_merge($attributes, [
                     'household_id' => $household->id,
-                    'recorded_by_user_id' => $user->id,
                     'photos' => array_values([...$retainedPhotos, ...$storedPhotos]),
                     'source' => 'mobile',
                     'last_synced_at' => now(),
                 ]));
+
+                if ($creating) {
+                    $visit->recorded_by_user_id = $user->id;
+                }
 
                 $visit->save();
             });
@@ -449,6 +457,11 @@ class MobileSyncProcessor
      */
     private function validateHouseholdRecord(mixed $record): array
     {
+        if (is_array($record) && isset($record['proposed_changes']) && array_diff(array_keys($record), [
+            'id', 'mobile_uuid', 'local_revision', 'request_contract_version', 'base_snapshot', 'proposed_changes',
+        ])) {
+            throw ValidationException::withMessages(['household' => 'Unexpected household correction fields.']);
+        }
         return Validator::make(is_array($record) ? $record : [], [
             'barangay_id' => ['prohibited'],
             'purok_id' => ['prohibited'],
@@ -456,11 +469,21 @@ class MobileSyncProcessor
             'approval_state' => ['prohibited'],
             'id' => ['nullable', 'integer'],
             'mobile_uuid' => ['nullable', 'uuid', 'required_without:id'],
-            'household_no' => ['sometimes', 'string', 'max:50'],
-            'household_address' => ['sometimes', 'string'],
+            'household_no' => ['sometimes', 'required', 'string', 'max:50'],
+            'household_address' => ['sometimes', 'required', 'string'],
             'is_social_aid_beneficiary' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'local_revision' => ['nullable', 'integer', 'min:0'],
+            'request_contract_version' => ['sometimes', 'integer', 'in:1'],
+            'base_snapshot' => ['required_with:proposed_changes', 'array:purok_id,household_no,household_address,is_social_aid_beneficiary'],
+            'base_snapshot.purok_id' => ['required_with:proposed_changes', 'integer', 'min:1'],
+            'base_snapshot.household_no' => ['required_with:proposed_changes', 'string', 'max:50'],
+            'base_snapshot.household_address' => ['required_with:proposed_changes', 'string'],
+            'base_snapshot.is_social_aid_beneficiary' => ['required_with:proposed_changes', 'boolean'],
+            'proposed_changes' => ['sometimes', 'array:household_no,household_address,is_social_aid_beneficiary', 'min:1'],
+            'proposed_changes.household_no' => ['sometimes', 'required', 'string', 'max:50'],
+            'proposed_changes.household_address' => ['sometimes', 'required', 'string'],
+            'proposed_changes.is_social_aid_beneficiary' => ['sometimes', 'required', 'boolean'],
         ])->validate();
     }
 
@@ -598,15 +621,13 @@ class MobileSyncProcessor
      */
     private function resolveHouseholdForUser(User $user, ?int $id, ?string $mobileUuid): ?Household
     {
-        if ($id) {
+        if ($id !== null) {
             $household = Household::query()
                 ->whereKey($id)
                 ->where('purok_id', $user->assigned_purok_id)
                 ->first();
 
-            if ($household) {
-                return $household;
-            }
+            return $household && (! $mobileUuid || $household->mobile_uuid === $mobileUuid) ? $household : null;
         }
 
         if ($mobileUuid) {
@@ -652,12 +673,10 @@ class MobileSyncProcessor
             $builder->where('purok_id', $user->assigned_purok_id);
         });
 
-        if ($id) {
+        if ($id !== null) {
             $visit = (clone $query)->whereKey($id)->first();
 
-            if ($visit) {
-                return $visit;
-            }
+            return $visit && (! $mobileUuid || $visit->mobile_uuid === $mobileUuid) ? $visit : null;
         }
 
         if ($mobileUuid) {

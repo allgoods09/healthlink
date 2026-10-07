@@ -47,7 +47,7 @@ class MobileBootstrapPayload
             ->get();
 
         $fieldVisits = FieldVisit::query()
-            ->whereHas('household.purok', fn ($purokQuery) => $purokQuery->where('barangay_id', $barangayId))
+            ->whereHas('household', fn ($query) => $query->where('purok_id', $assignedPurok->id))
             ->with([
                 'household:id,mobile_uuid',
                 'recordedBy:id,name',
@@ -67,6 +67,7 @@ class MobileBootstrapPayload
         $drafts = HouseholdDraft::query()
             ->where('submitted_by_user_id', $user->id)
             ->where('barangay_id', $barangayId)
+            ->where('purok_id', $assignedPurok->id)
             ->whereIn('draft_status', [HouseholdDraft::STATUS_PENDING, HouseholdDraft::STATUS_REJECTED])
             ->with(['purok', 'targetHousehold'])
             ->get();
@@ -89,6 +90,16 @@ class MobileBootstrapPayload
         return [
             'server_time' => now()->toIso8601String(),
             'resident_contract_version' => 2,
+            'household_contract_version' => MobileHouseholdRequestData::VERSION,
+            'household_request_outcomes' => HouseholdDraft::query()->where('submitted_by_user_id', $user->id)
+                ->where('barangay_id', $barangayId)->where('purok_id', $assignedPurok->id)
+                ->whereNull('target_household_id')->whereNotNull('mobile_uuid')->get()
+                ->map(fn (HouseholdDraft $draft) => [
+                    'mobile_uuid' => $draft->mobile_uuid, 'id' => $draft->approved_household_id,
+                    'purok_id' => $draft->purok_id, 'local_revision' => $draft->mobile_revision,
+                    'verification_status' => $draft->draft_status === HouseholdDraft::STATUS_PENDING ? 'submitted' : $draft->draft_status,
+                    'verification_notes' => $draft->verification_notes,
+                ])->values()->all(),
             'resident_relationship_choices' => HouseholdRelationships::choices(),
             'resident_profile_choices' => ResidentProfileData::CHOICES,
             'user' => [
@@ -115,9 +126,26 @@ class MobileBootstrapPayload
                 ] : null,
             ],
             'households' => $households
-                ->map(function (Household $household) use ($corrections) {
+                ->map(function (Household $household) use ($corrections, $assignedPurok) {
+                    $operational = (int) $household->purok_id === (int) $assignedPurok->id;
+                    if (! $operational) {
+                        return [
+                            'id' => $household->id, 'mobile_uuid' => $household->mobile_uuid,
+                            'purok_id' => $household->purok_id,
+                            'purok_display_name' => $household->purok?->display_name,
+                            'household_no' => $household->household_no,
+                            'household_address' => $household->household_address,
+                            'is_active' => $household->is_active,
+                            'barangay_id' => $assignedPurok->barangay_id,
+                            'access_mode' => 'lookup', 'member_coverage' => 'undisclosed',
+                            'updated_at' => $household->updated_at?->toIso8601String(),
+                        ];
+                    }
                     $correction = $corrections->get('household:'.$household->id);
                     return [...$this->householdPayload($household),
+                        'barangay_id' => $assignedPurok->barangay_id,
+                        'access_mode' => 'operational', 'member_coverage' => 'complete',
+                        'base_snapshot' => MobileHouseholdRequestData::snapshot($household),
                         'local_revision' => $this->correctionRevision($correction),
                         'verification_status' => $this->reviewStatus($correction),
                         'verification_notes' => $correction?->review_notes];
@@ -127,6 +155,9 @@ class MobileBootstrapPayload
                         'id' => null,
                         'mobile_uuid' => $draft->mobile_uuid,
                         'purok_id' => $draft->purok_id,
+                        'barangay_id' => $draft->barangay_id,
+                        'submitted_by_user_id' => $draft->submitted_by_user_id,
+                        'access_mode' => 'request', 'member_coverage' => 'unverified',
                         'purok_display_name' => $draft->purok?->display_name,
                         'household_no' => $draft->proposed_household_no,
                         'household_address' => $draft->household_address,
@@ -322,6 +353,7 @@ class MobileBootstrapPayload
             'is_social_aid_beneficiary' => $household->is_social_aid_beneficiary,
             'is_active' => $household->is_active,
             'resident_count' => $household->residents_count ?? $household->residents()->count(),
+            'current_member_count' => $household->current_members_count ?? $household->currentMemberCount(),
             'current_head_name' => $household->currentHeadResident()?->formal_name,
             'is_vacant' => ($household->current_members_count ?? $household->currentMemberCount()) === 0,
             'updated_at' => optional($household->updated_at)->toIso8601String(),

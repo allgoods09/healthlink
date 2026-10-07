@@ -27,6 +27,9 @@ import {
 import { MOBILE_API_BASE_URL } from '../lib/config';
 import {
   applyResolvedRecords,
+  applyHouseholdReviewOutcomes,
+  hasPendingHouseholdDependencies,
+  getHouseholdWorkProtectionMessage,
   assertDatasetOwner,
   clearLocalSession,
   prepareDatasetForUser,
@@ -601,8 +604,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remainingSummary = await refreshPendingSyncCount();
 
         if (syncResponse.status !== 'success' || remainingSummary.total > 0) {
+          if (snapshot.rows.households.length > 0 || await hasPendingHouseholdDependencies()) {
+            const review = await mobileBootstrap(MOBILE_API_BASE_URL, activeToken);
+            if (epoch !== sessionEpoch.current) return;
+            await applyHouseholdReviewOutcomes(review, () => epoch === sessionEpoch.current);
+            if (epoch !== sessionEpoch.current) return;
+          }
           const message =
-            syncResponse.failed_records[0]?.message ??
+            await getHouseholdWorkProtectionMessage() ?? syncResponse.failed_records[0]?.message ??
             i18n.t('syncUploadIncomplete');
           setStatusMessage(message);
           showToast(message, 'warning');

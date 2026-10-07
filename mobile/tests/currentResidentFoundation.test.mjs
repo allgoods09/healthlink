@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 export const home = (id = 1, purok = 1) => ({ id, mobile_uuid: null, purok_id: purok,
   household_no: String(id), household_address: 'Synthetic fixture', is_active: true, is_social_aid_beneficiary: false });
@@ -9,7 +10,7 @@ export const resident = (id = 1, overrides = {}) => ({ id, mobile_uuid: null, ho
   birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single',
   citizenship: 'Filipino', relationship_to_head: 'Child', is_active: true,
   resident_status: 'active', deleted_at: null, ...overrides });
-export const payload = (purok = 1, barangay = 1) => ({ resident_contract_version: 2,
+export const payload = (purok = 1, barangay = 1) => withHouseholdContract({ resident_contract_version: 2,
   user: { id: 1 }, assignment: { barangay: { id: barangay }, purok: { id: purok } },
   server_time: '2026-10-06', households: [home(1, purok)], residents: [resident()], field_visits: [], risk_assessments: [] });
 async function fixture(t, data = payload()) {

@@ -10,7 +10,7 @@ import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { i18n } from '../i18n';
 import { birthDateInputFromServer, dateInputFromPicker, datePickerValueFromInput, formatBirthDateInput, normalizeBirthDateInput } from '../lib/format';
 import { findHouseholdByReference } from '../lib/householdIdentity';
-import { getHouseholds, getResidentHouseholdOptions, getResidentRelationshipChoices, getResidentProfileChoices,
+import { getResidentHouseholdOptions, getResidentRelationshipChoices, getResidentProfileChoices,
   getResidentByLocalId, getResidentRequestByLocalId, saveResident } from '../lib/storage';
 import { createSaveGuard, residentEditBlocked, residentFormMode, residentRequestLabel, validateResidentStep,
   RESIDENT_EDITABLE_FIELDS, RESIDENT_PROFILE_FLAGS, RESIDENT_WIZARD_STEPS } from '../lib/residentWorkflow';
@@ -81,7 +81,7 @@ export function ResidentFormScreen({ route, navigation }: any) {
       try {
         const record = await getResidentByLocalId(route.params.localId) ?? await getResidentRequestByLocalId(route.params.localId);
         if (!record) { if (applicable) setError(i18n.t('residentProfileRefreshRequired')); return; }
-        const home = findHouseholdByReference(await getHouseholds(), record) ?? null;
+        const home = findHouseholdByReference(await getResidentHouseholdOptions(residentFormMode(record), '', record), record) ?? null;
         if (!applicable) return;
         const initial = formValues(record); original.current = JSON.stringify([initial, home?.server_id ?? null, home?.mobile_uuid ?? null]);
         setExisting(record); setValues(initial); setHousehold(home); setLoaded(true);

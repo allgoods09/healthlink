@@ -27,7 +27,7 @@ import {
 import { findHouseholdByReference } from '../lib/householdIdentity';
 import {
   getHouseholdByLocalId,
-  getHouseholds,
+  getVisitHouseholdOptions,
   getVisitByLocalId,
   saveVisit,
 } from '../lib/storage';
@@ -56,16 +56,14 @@ export function VisitFormScreen({ route, navigation }: any) {
   const [visitedAt, setVisitedAt] = useState(() => new Date());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [ready, setReady] = useState(route.params?.localId == null && route.params?.householdLocalId == null);
   const assignedPurokId = assignment?.purok?.id ?? null;
 
   useEffect(() => {
     async function loadWritableHouseholds() {
-      const records = await getHouseholds();
-      setHouseholds(
-        assignedPurokId === null
-          ? records
-          : records.filter((household) => household.purok_id === assignedPurokId)
-      );
+      const records = await getVisitHouseholdOptions();
+      setHouseholds(records);
     }
 
     void loadWritableHouseholds();
@@ -73,18 +71,19 @@ export function VisitFormScreen({ route, navigation }: any) {
 
   useEffect(() => {
     async function loadExisting() {
-      if (route.params?.householdLocalId) {
+      if (route.params?.householdLocalId != null) {
         const preselected = await getHouseholdByLocalId(route.params.householdLocalId);
         if (preselected) {
           setSelectedHousehold(preselected);
-        }
+          setReady(true);
+        } else { setReady(false); setFormError('Choose a verified household in your assigned purok.'); }
       }
 
-      if (!route.params?.localId) return;
+      if (route.params?.localId == null) return;
 
       const existing = await getVisitByLocalId(route.params.localId);
 
-      if (!existing) return;
+      if (!existing) { setReady(false); setFormError('This visit is unavailable. Go back and reopen it.'); return; }
 
       setLocalId(existing.local_id ?? null);
       setServerId(existing.server_id ?? null);
@@ -94,10 +93,11 @@ export function VisitFormScreen({ route, navigation }: any) {
       setNotes(existing.notes ?? '');
       setPhotos(existing.photos ?? []);
 
-      const existingHousehold = findHouseholdByReference(await getHouseholds(), existing);
+      const existingHousehold = findHouseholdByReference(await getVisitHouseholdOptions(), existing);
 
       if (existingHousehold) {
         setSelectedHousehold(existingHousehold);
+        setReady(true);
       }
     }
 
@@ -235,7 +235,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   }
 
   async function handleSave() {
-    if (!selectedHousehold) return;
+    if (!ready || !selectedHousehold) return;
 
     const confirmed = await requestConfirmation({
       title: i18n.t('saveVisitConfirmationTitle'),
@@ -247,7 +247,7 @@ export function VisitFormScreen({ route, navigation }: any) {
       return;
     }
 
-    await saveVisit({
+    try { await saveVisit({
       local_id: localId ?? undefined,
       server_id: serverId,
       mobile_uuid: mobileUuid,
@@ -259,6 +259,7 @@ export function VisitFormScreen({ route, navigation }: any) {
     }, user?.id);
     bumpDataVersion();
     navigation.goBack();
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'Unable to save this visit.'); }
   }
 
   return (
@@ -355,7 +356,8 @@ export function VisitFormScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <Pressable onPress={handleSave} style={styles.primaryButton}>
+        {formError ? <Text accessibilityRole="alert">{formError}</Text> : null}
+        <Pressable disabled={!ready} onPress={handleSave} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>{i18n.t('save')}</Text>
         </Pressable>
 

@@ -4,29 +4,30 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDate, formatPurokLabel, formatResidentFormalName } from '../lib/format';
-import { getHouseholdByLocalId, getResidentsForHousehold } from '../lib/storage';
+import { getHouseholdByLocalId, getHouseholdRequestByLocalId, getHouseholdLookupByLocalId, getResidentsForHousehold } from '../lib/storage';
+import { householdEditBlocked } from '../lib/householdWorkflow';
 import { AppTheme } from '../theme';
 import { HouseholdRecord, ResidentRecord } from '../types';
 
 export function HouseholdDetailsScreen({ route, navigation }: any) {
   const styles = useThemedStyles(createStyles);
-  const { assignment } = useAppContext();
+  const { assignment, dataVersion } = useAppContext();
   const [household, setHousehold] = useState<HouseholdRecord | null>(null);
   const [members, setMembers] = useState<ResidentRecord[]>([]);
 
   useEffect(() => {
     async function loadHousehold() {
-      const nextHousehold = await getHouseholdByLocalId(route.params?.localId);
+      const nextHousehold = await getHouseholdByLocalId(route.params?.localId) ?? await getHouseholdRequestByLocalId(route.params?.localId) ?? await getHouseholdLookupByLocalId(route.params?.localId);
       setHousehold(nextHousehold);
 
-      if (nextHousehold) {
+      if (nextHousehold?.member_coverage === 'complete') {
         const nextMembers = await getResidentsForHousehold(nextHousehold);
         setMembers(nextMembers);
-      }
+      } else setMembers([]);
     }
 
     void loadHousehold();
-  }, [route.params?.localId]);
+  }, [route.params?.localId, dataVersion]);
 
   if (!household) {
     return (
@@ -36,10 +37,9 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
     );
   }
 
-  const canEdit =
-    assignment?.purok?.id === null ||
-    assignment?.purok?.id === undefined ||
-    household.purok_id === assignment?.purok?.id;
+  const canEdit = assignment?.purok?.id != null && household.purok_id === assignment.purok.id &&
+    household.access_mode !== 'lookup' && !householdEditBlocked(household);
+  const canVisit = household.access_mode === 'operational' && household.server_id != null;
   const purokLabel = formatPurokLabel(
     household.purok_display_name,
     household.purok_id,
@@ -58,7 +58,7 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
             </Text>
           </View>
           <View style={styles.badge}>
-            <Text style={styles.badgePlainText}>{members.length} {i18n.t('residents')}</Text>
+            <Text style={styles.badgePlainText}>{household.member_coverage === 'complete' ? `${household.current_member_count ?? members.length} ${i18n.t('residents')}` : i18n.t('readOnly')}</Text>
           </View>
         </View>
       </View>
@@ -71,13 +71,13 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
           label={i18n.t('active')}
           value={household.is_active ? i18n.t('active') : i18n.t('inactive')}
         />
-        <DetailRow
+        {household.access_mode !== 'lookup' ? <DetailRow
           label={i18n.t('socialAid')}
           value={household.is_social_aid_beneficiary ? 'Yes' : 'No'}
-        />
+        /> : null}
       </View>
 
-      <View style={styles.card}>
+      {household.member_coverage === 'complete' ? <View style={styles.card}>
         <Text style={styles.sectionTitle}>{i18n.t('householdMembers')}</Text>
 
         {members.length > 0 ? (
@@ -94,18 +94,21 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
         ) : (
           <Text style={styles.emptyText}>{i18n.t('noHouseholdMembers')}</Text>
         )}
-      </View>
+      </View> : null}
 
-      {canEdit ? (
+      {household.verification_status && household.access_mode === 'request' ? <Text style={styles.emptyText}>{household.verification_status} {household.verification_notes ?? ''}</Text> : null}
+      {household.protection_reason ? <Text style={styles.emptyText}>{household.protection_reason}</Text> : null}
+
+      {canEdit || canVisit ? (
         <View style={styles.actionRow}>
-          <Pressable
+          {canEdit ? <Pressable
             onPress={() => navigation.navigate('HouseholdForm', { localId: household.local_id })}
             style={styles.secondaryButton}
           >
             <Text style={styles.secondaryButtonText}>{i18n.t('edit')}</Text>
-          </Pressable>
+          </Pressable> : null}
 
-          <Pressable
+          {canVisit ? <Pressable
             onPress={() =>
               navigation.navigate('VisitForm', {
                 householdLocalId: household.local_id,
@@ -114,7 +117,7 @@ export function HouseholdDetailsScreen({ route, navigation }: any) {
             style={styles.primaryButton}
           >
             <Text style={styles.primaryButtonText}>{i18n.t('createVisit')}</Text>
-          </Pressable>
+          </Pressable> : null}
         </View>
       ) : (
         <View style={styles.readOnlyCard}>

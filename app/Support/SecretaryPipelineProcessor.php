@@ -127,6 +127,10 @@ class SecretaryPipelineProcessor
             }
             $oldRequestValues = $profileUpdateRequest->toArray();
 
+            if ($profileUpdateRequest->subject_type === ProfileUpdateRequest::SUBJECT_HOUSEHOLD && $profileUpdateRequest->mobile_submission_key) {
+                $payload = Arr::only($payload, [...array_intersect(array_keys($profileUpdateRequest->proposed_changes ?? []), MobileHouseholdRequestData::EDITABLE), 'review_notes']);
+            }
+
             $subject = match ($profileUpdateRequest->subject_type) {
                 ProfileUpdateRequest::SUBJECT_RESIDENT => $this->applyResidentUpdateRequest($profileUpdateRequest, $payload, $secretary),
                 ProfileUpdateRequest::SUBJECT_HOUSEHOLD => $this->applyHouseholdUpdateRequest($profileUpdateRequest, $payload, $secretary),
@@ -147,6 +151,11 @@ class SecretaryPipelineProcessor
             return $subject;
         };
         $workflow = app(HouseholdHeadReview::class);
+
+        if ($profileUpdateRequest->subject_type === ProfileUpdateRequest::SUBJECT_HOUSEHOLD && $profileUpdateRequest->mobile_submission_key) {
+            // Mobile Household proposals cannot change heads or unrelated form fields.
+            return DB::transaction(fn () => $apply($payload));
+        }
 
         return match ($profileUpdateRequest->subject_type) {
             ProfileUpdateRequest::SUBJECT_RESIDENT => $workflow->resident(request(), $payload,
@@ -182,8 +191,19 @@ class SecretaryPipelineProcessor
 
     private function applyHouseholdUpdateRequest(ProfileUpdateRequest $profileUpdateRequest, array $payload, User $secretary): Household
     {
-        $household = Household::query()->findOrFail($profileUpdateRequest->subject_id);
+        $household = Household::query()->lockForUpdate()->findOrFail($profileUpdateRequest->subject_id);
         $oldHouseholdValues = $household->load('purok', 'headResident')->toArray();
+
+        if ($profileUpdateRequest->mobile_submission_key) {
+            $base = $profileUpdateRequest->current_snapshot ?? [];
+            if (($base['_household_contract_version'] ?? 0) !== MobileHouseholdRequestData::VERSION) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['household' =>
+                    'This legacy mobile correction has no downloaded baseline. Preserve it for review and prepare a fresh correction.']);
+            }
+            $fields = array_keys($profileUpdateRequest->proposed_changes ?? []);
+            MobileHouseholdRequestData::assertUnchanged($household, $base, $fields);
+            $payload = Arr::only($payload, array_intersect($fields, MobileHouseholdRequestData::EDITABLE));
+        }
 
         $household->update(Arr::except($payload, ['review_notes']));
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const choices = { employment_status: ['Employed', 'Unemployed', 'N/A'],
   highest_education_level: ['None', 'Elementary', 'High School', 'College', 'Post Grad', 'Vocational'], education_status: ['Graduate', 'Undergraduate', 'N/A'] };
@@ -9,7 +10,7 @@ const profile = { occupation: 'Farmer', employment_status: 'Employed', highest_e
 const resident = { id: 1, household_id: 1, philsys_card_no: 'SYNTHETIC-123', first_name: 'Ana', last_name: 'Pilot',
   birth_date: '1990-01-01', birth_place: 'Tubigon', sex: 'Female', civil_status: 'Single', citizenship: 'Filipino',
   relationship_to_head: 'Daughter', resident_status: 'active', is_active: false, ...profile };
-const payload = () => ({ resident_contract_version: 2, user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } },
+const payload = () => withHouseholdContract({ resident_contract_version: 2, user: { id: 1 }, assignment: { barangay: { id: 1 }, purok: { id: 1 } },
   resident_profile_choices: choices, server_time: '2026-10-06', households: [{ id: 1, purok_id: 1, household_no: '2', household_address: 'Synthetic home', is_active: false,
     is_vacant: true, current_head_name: null }], residents: [resident], field_visits: [], risk_assessments: [] });
 async function fixture(t, data = payload()) {
@@ -91,7 +92,7 @@ test('new destinations are official and assigned only; headless/vacant official 
   const h = await fixture(t); assert.equal((await h.storage.getResidentHouseholdOptions('new')).length, 1);
   await h.storage.saveResident({ ...resident, server_id: null, household_server_id: 1, philsys_card_no: null, is_active: true }, 1);
   const pending = await h.storage.saveHousehold({ purok_id: 1, household_no: '3', household_address: 'Pending', is_active: true, is_social_aid_beneficiary: false }, 1);
-  const home = (await h.storage.getHouseholds()).find(x => x.local_id === pending);
+  const home = (await h.storage.getHouseholdRequests()).find(x => x.local_id === pending);
   await assert.rejects(h.storage.saveResident({ ...resident, household_server_id: null, household_mobile_uuid: home.mobile_uuid, is_active: true }, 1), /eligible household/);
   await h.db.execAsync('DELETE FROM households WHERE server_id IS NOT NULL');
   assert.deepEqual(await h.storage.getResidentHouseholdOptions('new'), []);

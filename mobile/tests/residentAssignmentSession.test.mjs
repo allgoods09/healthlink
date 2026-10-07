@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { appContextHarness } from './appContextHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const ids = (purok = 1, barangay = 1) => ({ id: 1, assigned_barangay_id: barangay, assigned_purok_id: purok });
 const assignment = (purok = 1, barangay = 1) => ({ barangay: { id: barangay }, purok: { id: purok } });
-const data = (purok = 1, barangay = 1) => ({ resident_contract_version: 2, user: { id: 1 },
+const data = (purok = 1, barangay = 1) => withHouseholdContract({ resident_contract_version: 2, user: { id: 1 },
   assignment: assignment(purok, barangay), server_time: '2026-10-06',
   households: [{ id: purok, mobile_uuid: null, purok_id: purok, household_no: '1', household_address: 'Synthetic',
     is_active: true, is_social_aid_beneficiary: false }],

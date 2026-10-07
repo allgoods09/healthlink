@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { storageHarness } from './storageHarness.mjs';
+import { withHouseholdContract } from './householdFixture.mjs';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
-export const bootstrap = id => ({
+export const bootstrap = id => withHouseholdContract({
   resident_contract_version: 2,
   user: { id }, assignment: { barangay: { id }, purok: { id } }, server_time: '2026-10-03',
   households: [], residents: [], field_visits: [], risk_assessments: [],

@@ -6,7 +6,8 @@ import { MenuCard } from '../components/MenuCard';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatPurokLabel } from '../lib/format';
-import { getHouseholds } from '../lib/storage';
+import { getHouseholds, getHouseholdRequests, getHouseholdLookup } from '../lib/storage';
+import { householdEditBlocked } from '../lib/householdWorkflow';
 import { AppTheme } from '../theme';
 import { HouseholdRecord } from '../types';
 
@@ -23,12 +24,13 @@ export function HouseholdDirectoryScreen({ navigation }: any) {
   useEffect(() => {
     if (!isFocused) return;
     let applicable = true;
-    getHouseholds(search).then(rows => { if (applicable) { setHouseholds(rows); setError(false); } })
+    Promise.all([getHouseholds(search), getHouseholdRequests(search), getHouseholdLookup(search)]).then(groups => { if (applicable) { setHouseholds(groups.flat()); setError(false); } })
       .catch(() => { if (applicable) setError(true); });
     return () => { applicable = false; };
   }, [search, dataVersion, isFocused]);
   function renderHouseholdCard(item: HouseholdRecord) {
-    const canEdit = assignedPurokId === null || item.purok_id === assignedPurokId;
+    const canEdit = assignedPurokId != null && item.purok_id === assignedPurokId && item.access_mode !== 'lookup' && !householdEditBlocked(item);
+    const canVisit = item.access_mode === 'operational' && item.server_id != null;
     const purokLabel = formatPurokLabel(
       item.purok_display_name,
       item.purok_id,
@@ -47,7 +49,7 @@ export function HouseholdDirectoryScreen({ navigation }: any) {
         <Text style={styles.dataMeta}>{purokLabel}</Text>
         <Text style={styles.dataMeta}>
           {item.is_active ? i18n.t('active') : i18n.t('inactive')} ·{' '}
-          {item.is_social_aid_beneficiary ? 'Social aid' : 'Standard'}
+          {item.access_mode === 'lookup' ? i18n.t('readOnly') : item.is_social_aid_beneficiary ? 'Social aid' : 'Standard'}
         </Text>
         <View style={styles.inlineActionsRow}>
           <Pressable
@@ -57,15 +59,15 @@ export function HouseholdDirectoryScreen({ navigation }: any) {
             <Text style={styles.inlineActionText}>{i18n.t('viewDetails')}</Text>
           </Pressable>
 
-          {canEdit ? (
+          {canEdit || canVisit ? (
             <>
-              <Pressable
+              {canEdit ? <Pressable
                 onPress={() => navigation.navigate('HouseholdForm', { localId: item.local_id })}
                 style={styles.inlineAction}
               >
                 <Text style={styles.inlineActionText}>{i18n.t('edit')}</Text>
-              </Pressable>
-              <Pressable
+              </Pressable> : null}
+              {canVisit ? <Pressable
                 onPress={() =>
                   navigation.navigate('VisitForm', {
                     householdLocalId: item.local_id,
@@ -74,7 +76,7 @@ export function HouseholdDirectoryScreen({ navigation }: any) {
                 style={styles.inlineAction}
               >
                 <Text style={styles.inlineActionText}>{i18n.t('createVisit')}</Text>
-              </Pressable>
+              </Pressable> : null}
             </>
           ) : null}
         </View>
@@ -189,4 +191,3 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     lineHeight: 21,
   },
 });
-

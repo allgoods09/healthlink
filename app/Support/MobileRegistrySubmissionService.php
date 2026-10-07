@@ -30,11 +30,24 @@ class MobileRegistrySubmissionService
     {
         $purok = $this->assignedPurok($user);
         $uuid = $input['mobile_uuid'] ?? null;
+        if (! isset($input['id']) && $uuid) {
+            $prior = HouseholdDraft::query()->where('mobile_uuid', $uuid)->first();
+            if ($prior && ((int) $prior->submitted_by_user_id !== (int) $user->id ||
+                (int) $prior->purok_id !== (int) $purok->id || $prior->target_household_id)) {
+                throw new \RuntimeException('This household submission belongs to another assignment.');
+            }
+            if ($prior && $prior->draft_status !== HouseholdDraft::STATUS_PENDING) {
+                if (($input['local_revision'] ?? 0) !== (int) $prior->mobile_revision) {
+                    throw new \RuntimeException('The Secretary reviewed this household before your newer changes were uploaded. Those changes remain unsubmitted.');
+                }
+                return $this->draftResult($prior, $uuid);
+            }
+        }
         $official = $this->officialHousehold($user, $input['id'] ?? null, $uuid);
 
         if ($official) {
             return $this->submitCorrection($user, $official, 'household', $input,
-                Arr::only($input, self::HOUSEHOLD_FIELDS));
+                $input['proposed_changes'] ?? Arr::only($input, self::HOUSEHOLD_FIELDS));
         }
 
         if (! $uuid || isset($input['id'])) {
@@ -68,6 +81,8 @@ class MobileRegistrySubmissionService
                 ]);
                 AuditLog::logMutation('created', $user, $draft);
                 $created = true;
+            } elseif ($draft->draft_status !== HouseholdDraft::STATUS_PENDING && ($input['local_revision'] ?? 0) !== (int) $draft->mobile_revision) {
+                throw new \RuntimeException('The Secretary reviewed this household before your newer changes were uploaded. Those changes remain unsubmitted.');
             } elseif ($draft->draft_status === HouseholdDraft::STATUS_PENDING &&
                 ($input['local_revision'] ?? 0) > $draft->mobile_revision) {
                 $old = $draft->toArray();
@@ -270,6 +285,15 @@ class MobileRegistrySubmissionService
                 return $this->submitLockedCorrection($user, $locked, $type, $input, $proposed);
             });
         }
+        if ($type === 'household') {
+            return DB::transaction(function () use ($user, $subject, $type, $input, $proposed) {
+                $locked = Household::query()->lockForUpdate()->findOrFail($subject->id);
+                if ((int) $locked->purok_id !== (int) $this->assignedPurok($user)->id) {
+                    throw new \RuntimeException('Household not found in your assigned purok.');
+                }
+                return $this->submitLockedCorrection($user, $locked, $type, $input, $proposed);
+            });
+        }
         return $this->submitLockedCorrection($user, $subject, $type, $input, $proposed);
     }
 
@@ -283,6 +307,10 @@ class MobileRegistrySubmissionService
         if ($request && ((int) $request->submitted_by_user_id !== (int) $user->id ||
             (int) $request->subject_id !== (int) $subject->id || $request->subject_type !== $type)) {
             throw new \RuntimeException('This correction belongs to another account.');
+        }
+        if ($request && $type === 'household' &&
+            ($request->current_snapshot['_household_contract_version'] ?? 0) !== MobileHouseholdRequestData::VERSION) {
+            throw new \RuntimeException('This legacy household correction has no verified original values. Its work is protected for Secretary review and recovery.');
         }
 
         if (! $request && $type === 'resident') {
@@ -303,6 +331,17 @@ class MobileRegistrySubmissionService
             }
         }
 
+        if (! $request && $type === 'household') {
+            if (($input['request_contract_version'] ?? 0) !== MobileHouseholdRequestData::VERSION ||
+                ! isset($input['base_snapshot'], $input['proposed_changes'])) {
+                throw new \RuntimeException('This saved household correction has no verified original values. Its work is protected; ask the Secretary to review it before preparing a fresh correction.');
+            }
+            if (ProfileUpdateRequest::query()->where('subject_type', $type)->where('subject_id', $subject->id)->pending()->exists()) {
+                throw new \RuntimeException('This household already has an update under review. Wait for the Secretary decision.');
+            }
+            MobileHouseholdRequestData::assertUnchanged($subject, $input['base_snapshot'], array_keys($proposed));
+        }
+
         if (! $request && $this->matchesOfficial($subject, $proposed)) {
             return $this->result($subject->id, $uuid, 'approved', 'unchanged', $subject->updated_at);
         }
@@ -314,7 +353,8 @@ class MobileRegistrySubmissionService
                 'barangay_id' => $user->assigned_barangay_id,
                 'subject_type' => $type,
                 'subject_id' => $subject->id,
-                'current_snapshot' => $type === 'resident' ? MobileResidentRequestData::snapshot($subject) : $subject->toArray(),
+                'current_snapshot' => $type === 'resident' ? MobileResidentRequestData::snapshot($subject) :
+                    [...$input['base_snapshot'], '_household_contract_version' => MobileHouseholdRequestData::VERSION],
                 'proposed_changes' => $proposed,
                 'request_reason' => 'Submitted from BHW mobile field correction.',
                 'request_status' => ProfileUpdateRequest::STATUS_PENDING,

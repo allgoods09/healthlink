@@ -64,9 +64,16 @@ export type HouseholdRecord = {
   purok_display_name?: string | null;
   household_no: string;
   household_address: string;
-  is_social_aid_beneficiary: boolean;
+  is_social_aid_beneficiary?: boolean | null;
   is_active: boolean;
   resident_count?: number;
+  current_member_count?: number | null;
+  member_coverage?: 'complete' | 'undisclosed' | 'unverified';
+  access_mode?: 'operational' | 'lookup' | 'request';
+  barangay_id?: number | null;
+  submitted_by_user_id?: number | null;
+  base_snapshot?: Record<string, unknown> | null;
+  protection_reason?: string | null;
   current_head_name?: string | null;
   is_vacant?: boolean;
   sync_status: SyncStatus;
@@ -215,6 +222,9 @@ export type FieldVisitRecord = {
 export type BootstrapPayload = {
   server_time: string;
   resident_contract_version?: number;
+  household_contract_version?: number;
+  household_request_outcomes?: Array<{ mobile_uuid: string; id: number | null; local_revision: number;
+    verification_status: VerificationStatus; verification_notes?: string | null; purok_id: number }>;
   resident_profile_choices?: Record<string, string[]>;
   resident_relationship_choices?: string[];
   user: {
@@ -227,7 +237,7 @@ export type BootstrapPayload = {
     locale: string;
   };
   assignment: MobileAssignment;
-  households: Array<{
+  households: Array<Pick<HouseholdRecord, 'barangay_id' | 'submitted_by_user_id' | 'access_mode' | 'member_coverage' | 'current_member_count' | 'base_snapshot'> & {
     id: number | null;
     mobile_uuid: string | null;
     purok_id: number;
@@ -236,7 +246,7 @@ export type BootstrapPayload = {
     household_address: string;
     current_head_name?: string | null;
     is_vacant?: boolean;
-    is_social_aid_beneficiary: boolean;
+    is_social_aid_beneficiary?: boolean;
     is_active: boolean;
     resident_count?: number;
     verification_status?: VerificationStatus;
