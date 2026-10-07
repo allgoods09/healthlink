@@ -33,11 +33,14 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     requestConfirmation: async (request) => { calls.confirmations.push(request); return false; },
     signOut: async () => { calls.signOut += 1; },
     refreshReleaseStatus: () => { throw new Error('Unexpected release refresh'); },
+    refreshNotifications: () => { throw new Error('Unexpected notification refresh'); },
+    markNotificationRead: () => { throw new Error('Unexpected mark-read'); },
+    syncNow: () => { throw new Error('Unexpected Home sync'); },
     ...overrides,
   };
   const element = (type, props) => typeof type === 'function' ? type(props) : { type, props };
   const native = {
-    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView',
+    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image',
     StyleSheet: { create: (styles) => styles, hairlineWidth: 0.5 },
   };
   function load(relative) {
@@ -60,6 +63,10 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
       };
       if (id.endsWith('/components/MenuCard')) return { MenuCard: 'MenuCard' };
       if (id.endsWith('/components/TopHeader')) return { TopHeader: 'TopHeader' };
+      if (id === '../../assets/tubigon-logo.png') {
+        readFileSync(resolve(dirname(filename), id));
+        return { uri: 'test-asset:tubigon-logo.png' };
+      }
       if (id.includes('storage') || !id.startsWith('.')) throw new Error(`Unexpected dependency: ${id}`);
       const dependency = resolve(dirname(filename), `${id}.ts${id.includes('components/') ? 'x' : ''}`);
       const actual = id.endsWith('confirmLogout') ? load('lib/confirmLogout.ts') : load(dependency);

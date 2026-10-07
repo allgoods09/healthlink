@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createHomeHarness, nodes, textContent } from './homePresentationHarness.mjs';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+const styleOf = (node) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean));
 
 test('Home keeps four exact quick routes, separate Sync and notification navigation', () => {
   const h = createHomeHarness();
@@ -37,6 +38,11 @@ for (const count of [0, 4, 120]) {
     else {
       assert.equal(textContent(badge), count > 99 ? '99+' : String(count));
       assert.equal(badge.props.accessible, false);
+      assert.equal(styleOf(badge).position, 'absolute');
+      assert.ok(styleOf(badge).top < 0);
+      const iconContainer = nodes(button).find((node) => node.type === 'View');
+      assert.equal(styleOf(iconContainer).position, 'relative');
+      assert.ok(nodes(iconContainer).includes(badge));
     }
     button.props.onPress();
     assert.deepEqual(h.calls.navigation, [['Notifications']]);
@@ -50,9 +56,17 @@ for (const locale of ['en', 'ceb']) {
     const i18n = h.load('i18n.ts').i18n;
     const output = textContent(h.render());
     for (const expected of [name, 'Pooc Oriental', 'Purok 2', '7', i18n.t('home'),
-      i18n.t('homeRole'), i18n.t('quickActions'), i18n.t('homePendingSync'), i18n.t('bootstrapPending')]) {
+      i18n.t('homeWelcome', { name }), i18n.t('assignmentTitle'), i18n.t('homeRole'),
+      i18n.t('quickActions'), i18n.t('homePendingSync'), i18n.t('bootstrapPending')]) {
       assert.ok(output.includes(expected), expected);
     }
+    const buttons = nodes(h.render()).filter((node) => node.type === 'Pressable').slice(2);
+    assert.deepEqual(buttons.map((node) => node.props.accessibilityLabel), [
+      i18n.t('openDirectory'), i18n.t('recordVisitAction'), i18n.t('newHouseholdDraft'),
+      i18n.t('newResidentDraft'), i18n.t('sync'),
+    ]);
+    h.context.user = null;
+    assert.ok(textContent(h.render()).includes(i18n.t('homeWelcome', { name: i18n.t('home') })));
     for (const removed of ['offlineData', 'recentVisits', 'householdsOnDevice', 'residentsOnDevice',
       'visitsOnDevice', 'openDirectoryBody', 'recordVisitActionBody', 'newHouseholdDraftBody', 'newResidentDraftBody']) {
       assert.ok(!output.includes(i18n.t(removed)), removed);
@@ -137,6 +151,8 @@ for (const mode of ['light', 'dark']) {
     assert.equal(header.title.color, theme.colors.text);
     assert.equal(header.title.flex, 1);
     assert.equal(header.title.minWidth, 0);
+    assert.equal(header.title.textAlign, 'center');
+    assert.ok(['400', '500', 'normal'].includes(header.title.fontWeight));
     assert.equal(header.action.flexShrink, 0);
     assert.equal(header.action.minHeight, 48);
     assert.equal(header.action.minWidth, 48);
@@ -146,18 +162,47 @@ for (const mode of ['light', 'dark']) {
     assert.equal(compact.actionLabel.color, theme.colors.text);
     assert.equal(compact.secondary.color, theme.colors.textMuted);
     assert.equal(compact.textActionLabel.color, theme.colors.primary);
+    assert.equal(compact.textAction.borderColor, theme.colors.primary);
+    assert.notEqual(compact.textAction.borderWidth, 0);
+    assert.equal(compact.banner.backgroundColor, theme.colors.brandBackground);
+    assert.equal(compact.bannerText.color, theme.colors.textOnBrand);
+    assert.equal(compact.banner.flexWrap, 'wrap');
+    assert.equal(compact.bannerContext.minWidth, 0);
+    assert.equal(compact.bannerContext.flexShrink, 1);
     assert.equal(header.badge.color, theme.colors.textOnPrimary);
     assert.equal(compact.factRow.flexWrap, 'wrap');
     assert.equal(compact.factValue.minWidth, 0);
     assert.equal(compact.actionLabel.flexShrink, 1);
-    for (const style of [...Object.values(header), ...Object.values(compact)]) {
+    for (const [key, style] of [...Object.entries(header), ...Object.entries(compact)]) {
+      if (key === 'bannerLogo') continue; // Decorative image dimensions do not constrain text.
       assert.equal(style.height, undefined);
       assert.equal(style.elevation, undefined);
       assert.equal(style.shadowOpacity, undefined);
-      assert.equal(style.position, undefined);
+      if (!['notificationIcon', 'badge'].includes(key)) assert.equal(style.position, undefined);
     }
     assert.equal(JSON.stringify(theme.radius), JSON.stringify({ sm: 10, md: 16, lg: 22 }));
     assert.equal(h.load('theme.ts').resolveTheme('system', mode).mode, mode);
     assert.equal(nodes(h.render()).filter((node) => node.type === 'ScrollView').length, 1);
+    const tree = h.render();
+    const title = nodes(tree).find((node) => node.type === 'Text' && textContent(node) === 'Home');
+    const headerRow = nodes(tree).find((node) => Array.isArray(node.props.children) && node.props.children.includes(title));
+    const [leftTrack, , rightTrack] = headerRow.props.children;
+    assert.equal(styleOf(leftTrack).width, styleOf(rightTrack).width);
+    assert.equal(nodes(leftTrack).filter((node) => node.type === 'Pressable').length, 0);
+    assert.equal(nodes(rightTrack).filter((node) => node.type === 'Pressable').length, 2);
+    assert.equal(styleOf(title).position, undefined);
+    for (const label of ['homePendingSync', 'lastSync']) {
+      const fact = nodes(tree).find((node) => node.type === 'Text' && textContent(node) === h.load('i18n.ts').i18n.t(label));
+      const row = nodes(tree).find((node) => Array.isArray(node.props.children) && node.props.children.includes(fact));
+      assert.equal(row.type, 'View');
+      assert.equal(row.props.onPress, undefined);
+      assert.equal(nodes(row).filter((node) => node.type === 'Pressable').length, 0);
+    }
+    const sync = nodes(tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === 'Sync');
+    assert.equal(styleOf(sync).borderColor, theme.colors.primary);
+    assert.ok(styleOf(sync).borderWidth > 0);
+    assert.ok(styleOf(sync).minHeight >= 48);
+    sync.props.onPress();
+    assert.deepEqual(h.calls.navigation, [['SyncTab']]);
   });
 }
