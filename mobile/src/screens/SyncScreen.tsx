@@ -1,99 +1,91 @@
 import React from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { MenuCard } from '../components/MenuCard';
-import { TopHeader } from '../components/TopHeader';
+import { RootHeader } from '../components/RootHeader';
 import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
+import { confirmLogout } from '../lib/confirmLogout';
 import { formatFriendlyDateTime } from '../lib/format';
 import { AppTheme } from '../theme';
 
-export function SyncScreen() {
+export function SyncScreen({ navigation }: any) {
   const styles = useThemedStyles(createStyles);
   const {
-    assignment,
-    bootstrapCompleted,
-    isOnline,
-    isSyncing,
-    lastSyncAt,
-    pendingSyncCount,
-    releaseCheck,
-    statusMessage,
-    syncNow,
+    assignment, bootstrapCompleted, isOnline, isSyncing, lastSyncAt,
+    pendingSyncCount, releaseCheck, statusMessage, syncNow,
+    unreadNotificationCount, requestConfirmation, signOut,
   } = useAppContext();
+  const actionLabel = isSyncing ? i18n.t('syncing') : i18n.t('syncNow');
 
   return (
     <View style={styles.screen}>
-      <TopHeader title={i18n.t('sync')} />
+      <RootHeader title={i18n.t('sync')} unreadCount={unreadNotificationCount}
+        onNotificationPress={() => navigation.navigate('Notifications')}
+        onLogoutPress={() => void confirmLogout({ pendingSyncCount, requestConfirmation, signOut })} />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.heroKicker}>{i18n.t('currentStatus')}</Text>
-          <Text style={styles.heroTitle}>{i18n.t('syncWorkspaceTitle')}</Text>
-          <Text style={styles.heroBody}>{i18n.t('syncWorkspaceBody')}</Text>
-          <View style={styles.heroMetaRow}>
-            <View style={styles.heroMetaCard}>
-              <Text style={styles.heroMetaLabel}>{i18n.t('pendingUploads')}</Text>
-              <Text style={styles.heroMetaValue}>{pendingSyncCount}</Text>
-            </View>
-            <View style={styles.heroMetaCard}>
-              <Text style={styles.heroMetaLabel}>{i18n.t('assignment')}</Text>
-              <Text style={styles.heroMetaValueSmall}>
-                {assignment?.purok?.display_name ?? 'Unassigned'}
-              </Text>
-            </View>
+        <View style={styles.facts}>
+          <View style={styles.fact}>
+            <Text style={styles.label}>{i18n.t('syncPendingChanges')}</Text>
+            <Text style={styles.value}>{pendingSyncCount}</Text>
+          </View>
+          <View style={styles.fact}>
+            <Text style={styles.label}>{i18n.t('lastSync')}</Text>
+            <Text style={styles.value}>
+              {bootstrapCompleted && lastSyncAt
+                ? formatFriendlyDateTime(lastSyncAt) ?? lastSyncAt
+                : i18n.t('bootstrapPending')}
+            </Text>
+          </View>
+          <View style={styles.fact}>
+            <Text style={styles.label}>{i18n.t('syncConnection')}</Text>
+            <Text style={styles.value}>{isOnline ? i18n.t('online') : i18n.t('offline')}</Text>
+          </View>
+          <View style={styles.fact}>
+            <Text style={styles.label}>{i18n.t('assignment')}</Text>
+            <Text style={styles.value}>
+              {assignment?.barangay?.name ? `${assignment.barangay.name} · ` : ''}
+              {assignment?.purok?.display_name ?? 'Unassigned'}
+            </Text>
           </View>
         </View>
 
-        <MenuCard
-          title={isSyncing ? i18n.t('syncing') : i18n.t('syncNow')}
-          subtitle={statusMessage ?? i18n.t('syncWorkspaceBody')}
-          icon="cloud-upload-outline"
-          onPress={syncNow}
-          tone="primary"
-          badge={isOnline ? i18n.t('online') : i18n.t('offline')}
-        />
+        <Pressable accessibilityRole="button" accessibilityLabel={actionLabel}
+          accessibilityState={{ disabled: isSyncing, busy: isSyncing }}
+          disabled={isSyncing} onPress={syncNow}
+          style={[styles.syncAction, isSyncing && styles.syncActionDisabled]}>
+          <Text style={styles.syncActionLabel}>{actionLabel}</Text>
+        </Pressable>
+
+        {statusMessage ? (
+          <View style={styles.alert}>
+            <Text accessibilityLiveRegion="polite" style={styles.value}>{statusMessage}</Text>
+          </View>
+        ) : null}
 
         {releaseCheck?.update.available ? (
-          <MenuCard
-            title={releaseCheck.update.required ? i18n.t('updateRequiredTitle') : i18n.t('updateAvailableTitle')}
-            subtitle={releaseCheck.update.message ?? i18n.t('updateAvailableBody')}
-            icon="cloud-download-outline"
-          />
+          <View style={styles.alert}>
+            <Text accessibilityRole="header" style={styles.alertTitle}>
+              {releaseCheck.update.required ? i18n.t('updateRequiredTitle') : i18n.t('updateAvailableTitle')}
+            </Text>
+            <Text style={styles.value}>{releaseCheck.update.message ?? i18n.t('updateAvailableBody')}</Text>
+          </View>
         ) : null}
 
         {releaseCheck?.maintenance.maintenance_message ? (
-          <MenuCard
-            title={i18n.t('mobileMaintenanceTitle')}
-            subtitle={releaseCheck.maintenance.maintenance_message}
-            icon="build-outline"
-          />
+          <View style={styles.alert}>
+            <Text accessibilityRole="header" style={styles.alertTitle}>{i18n.t('mobileMaintenanceTitle')}</Text>
+            <Text style={styles.value}>{releaseCheck.maintenance.maintenance_message}</Text>
+          </View>
         ) : null}
 
-        <MenuCard
-          title={i18n.t('dataProtectionTitle')}
-          subtitle={i18n.t('dataProtectionBody')}
-          icon="shield-checkmark-outline"
-        />
-
-        <MenuCard
-          title={i18n.t('devicePolicyTitle')}
-          subtitle={i18n.t('devicePolicyBody')}
-          icon="phone-portrait-outline"
-        />
-
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>{i18n.t('lastSync')}</Text>
-          <Text style={styles.infoValue}>
-            {bootstrapCompleted && lastSyncAt
-              ? formatFriendlyDateTime(lastSyncAt) ?? lastSyncAt
-              : i18n.t('bootstrapPending')}
-          </Text>
+        <View style={styles.fact}>
+          <Text style={styles.policyTitle}>{i18n.t('dataProtectionTitle')}</Text>
+          <Text style={styles.policyBody}>{i18n.t('dataProtectionBody')}</Text>
+        </View>
+        <View style={styles.fact}>
+          <Text style={styles.policyTitle}>{i18n.t('devicePolicyTitle')}</Text>
+          <Text style={styles.policyBody}>{i18n.t('devicePolicyBody')}</Text>
         </View>
       </ScrollView>
     </View>
@@ -101,88 +93,19 @@ export function SyncScreen() {
 }
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-  },
-  hero: {
-    backgroundColor: theme.colors.heroBackground,
-    borderRadius: 28,
-    borderWidth: theme.mode === 'dark' ? 2 : 0,
-    borderColor: theme.colors.heroBorder,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-  },
-  heroKicker: {
-    color: theme.colors.heroMuted,
-    fontSize: 12,
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  heroTitle: {
-    color: theme.colors.heroText,
-    fontSize: 26,
-    fontWeight: '700',
-    marginTop: 10,
-  },
-  heroBody: {
-    color: theme.colors.heroMuted,
-    lineHeight: 21,
-    marginTop: 10,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-  },
-  heroMetaCard: {
-    flex: 1,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.heroSurface,
-    padding: theme.spacing.md,
-  },
-  heroMetaLabel: {
-    color: theme.colors.heroMuted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  heroMetaValue: {
-    color: theme.colors.heroText,
-    fontSize: 28,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  heroMetaValueSmall: {
-    color: theme.colors.heroText,
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  infoCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  infoTitle: {
-    color: theme.colors.textMuted,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  infoValue: {
-    color: theme.colors.text,
-    lineHeight: 22,
-  },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { padding: 16, paddingBottom: 32, gap: 24 },
+  facts: { gap: 18 },
+  fact: { gap: 4 },
+  label: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 20, fontWeight: '400' },
+  value: { color: theme.colors.text, fontSize: 16, lineHeight: 24 },
+  syncAction: { backgroundColor: theme.colors.primary, borderRadius: 6, minHeight: 50,
+    paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  syncActionDisabled: { opacity: 0.6 },
+  syncActionLabel: { color: theme.colors.textOnPrimary, fontSize: 16, lineHeight: 24, fontWeight: '600', textAlign: 'center' },
+  alert: { backgroundColor: theme.colors.infoSoft, borderColor: theme.colors.infoBorder,
+    borderWidth: 1, borderRadius: 6, padding: 16, gap: 6 },
+  alertTitle: { color: theme.colors.text, fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  policyTitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  policyBody: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 20 },
 });
