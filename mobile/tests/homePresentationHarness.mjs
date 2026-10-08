@@ -22,7 +22,7 @@ export function textContent(tree) {
 
 // Execute real screen/component code with host primitives, not a native layout simulator.
 export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage, apiBaseUrl, linking,
-  width = 390, fontScale = 1 } = {}) {
+  width = 390, fontScale = 1, platform = 'android', keyboardInset = 0 } = {}) {
   const cache = new Map();
   const calls = { navigation: [], confirmations: [], signOut: 0, logout: 0, back: 0 };
   const context = {
@@ -60,6 +60,8 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     },
   };
   const native = {
+    Platform: { OS: platform },
+    TextInput: 'TextInput', ImageBackground: 'ImageBackground', KeyboardAvoidingView: 'KeyboardAvoidingView',
     useWindowDimensions: () => ({ width, height: 844, fontScale, scale: 1 }),
     Linking: linking,
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
@@ -71,12 +73,17 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     const module = { exports: {} };
     cache.set(filename, module);
     const localRequire = (id) => {
-      if (id === 'react') return { ...react, default: {}, __esModule: true };
+      if (id === 'react') return { ...react, default: react, __esModule: true };
+      if (id === 'expo-status-bar') return { StatusBar: 'StatusBar' };
+      if (id.endsWith('/hooks/useKeyboardAwareScroll')) return { useKeyboardAwareScroll: () => ({
+        scrollRef: { current: null }, keyboardInset, handleInputFocus: () => calls.navigation.push(['test:focus']),
+        handleScroll: () => calls.navigation.push(['test:scroll']),
+      }) };
       if (id === '@react-navigation/native') return { useIsFocused: () => focused };
       if (id === 'react/jsx-runtime') return { jsx: element, jsxs: element };
       if (id === 'react-native') return native;
       if (id === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
-      if (id === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24 }) };
+      if (id === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }) };
       if (id === 'expo-localization') return { getLocales: () => [{ languageCode: locale }] };
       if (id === 'i18n-js') return require(id);
       if (id.endsWith('/context/AppContext')) return {
@@ -86,7 +93,7 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
       };
       if (id.endsWith('/components/MenuCard')) return { MenuCard: 'MenuCard' };
       if (id.endsWith('/components/TopHeader')) return { TopHeader: 'TopHeader' };
-      if (id === '../../assets/tubigon-logo.png' || id === '../../assets/apk-logo-icon.png') {
+      if (id === '../../assets/tubigon-logo.png' || id === '../../assets/apk-logo-icon.png' || id === '../../assets/healthlink-bg.jpg') {
         readFileSync(resolve(dirname(filename), id));
         return { uri: `test-asset:${id.split('/').at(-1)}` };
       }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     ActivityIndicator,
     ImageBackground,
@@ -23,6 +24,7 @@ import { authBackgroundImage, BrandMark } from "../components/BrandMark";
 export function LoginScreen({ navigation }: any) {
     const theme = useAppTheme();
     const styles = useThemedStyles(createStyles);
+    const insets = useSafeAreaInsets();
     const { showToast, signIn, statusMessage } = useAppContext();
     const { handleInputFocus, handleScroll, keyboardInset, scrollRef } =
         useKeyboardAwareScroll();
@@ -63,13 +65,8 @@ export function LoginScreen({ navigation }: any) {
     }, [error, showToast, statusMessage]);
 
     return (
-        <ImageBackground
-            source={authBackgroundImage}
-            style={styles.background}
-            imageStyle={styles.backgroundImage}
-        >
+        <View style={styles.background}>
             <StatusBar style="light" />
-            <View style={styles.overlay} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -82,23 +79,33 @@ export function LoginScreen({ navigation }: any) {
                     onScroll={handleScroll}
                     scrollEventThrottle={16}
                 >
-                    <View style={styles.hero}>
+                    <ImageBackground source={authBackgroundImage} style={[styles.hero, { paddingTop: insets.top + 20 }]}
+                        imageStyle={styles.backgroundImage}>
+                        <View pointerEvents="none" style={styles.overlay} />
                         <BrandMark
-                            logoSize={118}
-                            titleSize={34}
-                            subtitleSize={28}
+                            logoSize={92}
+                            titleSize={28}
+                            subtitleSize={18}
                         />
-                    </View>
+                        <Text style={styles.portal}>{i18n.t("loginPortal")}</Text>
+                    </ImageBackground>
 
                     <View style={styles.formSection}>
+                        <View style={styles.introduction}>
+                            <Text accessibilityRole="header" style={styles.heading}>{i18n.t("loginWelcome")}</Text>
+                            <Text style={styles.support}>{i18n.t("loginAccess")}</Text>
+                        </View>
+                        <Text style={styles.label}>{i18n.t("email")}</Text>
                         <View style={styles.inputShell}>
                             <Ionicons
-                                name="person-outline"
-                                size={28}
+                                accessible={false}
+                                name="mail-outline"
+                                size={22}
                                 color={theme.colors.primary}
                                 style={styles.leftIcon}
                             />
                             <TextInput
+                                accessibilityLabel={i18n.t("email")}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                                 placeholder={i18n.t("email")}
@@ -110,14 +117,17 @@ export function LoginScreen({ navigation }: any) {
                             />
                         </View>
 
+                        <Text style={styles.label}>{i18n.t("password")}</Text>
                         <View style={styles.inputShell}>
                             <Ionicons
                                 name="lock-closed-outline"
-                                size={26}
+                                accessible={false}
+                                size={22}
                                 color={theme.colors.primary}
                                 style={styles.leftIcon}
                             />
                             <TextInput
+                                accessibilityLabel={i18n.t("password")}
                                 secureTextEntry={!showPassword}
                                 placeholder={i18n.t("password")}
                                 placeholderTextColor={theme.colors.placeholder}
@@ -139,18 +149,21 @@ export function LoginScreen({ navigation }: any) {
                                 style={styles.eyeButton}
                             >
                                 <Ionicons
+                                    accessible={false}
                                     name={
                                         showPassword
                                             ? "eye-off-outline"
                                             : "eye-outline"
                                     }
-                                    size={28}
+                                    size={22}
                                     color={theme.colors.primaryDark}
                                 />
                             </Pressable>
                         </View>
 
                         <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t("forgotPassword")}
                             onPress={() => navigation.navigate("ForgotPassword")}
                             style={styles.forgotButton}
                         >
@@ -160,6 +173,9 @@ export function LoginScreen({ navigation }: any) {
                         </Pressable>
 
                         <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t("signIn")}
+                            accessibilityState={{ disabled: submitting, busy: submitting }}
                             onPress={handleSubmit}
                             style={[
                                 styles.primaryButton,
@@ -175,123 +191,110 @@ export function LoginScreen({ navigation }: any) {
                                 </Text>
                             )}
                         </Pressable>
-                    </View>
-
-                    <View style={[styles.notes, { paddingBottom: keyboardInset }]}>
-                        <Text style={styles.notePrimary}>
-                            {i18n.t("loginSubtitle")}
-                        </Text>
-                        <Text style={styles.noteSecondary}>
-                            {i18n.t("loginSecondaryNote")}
-                        </Text>
+                        <View style={[styles.notes, { paddingBottom: keyboardInset + insets.bottom }]}>
+                            <Text style={styles.notePrimary}>
+                                {i18n.t("loginGuidance")}
+                            </Text>
+                        </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </ImageBackground>
+        </View>
     );
 }
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
     background: {
         flex: 1,
-        backgroundColor: theme.colors.brandBackground,
+        backgroundColor: theme.colors.surface,
     },
     backgroundImage: {
         resizeMode: "cover",
     },
     overlay: {
         ...StyleSheet.absoluteFill,
-        backgroundColor: theme.colors.imageOverlay,
+        backgroundColor: "rgba(0, 45, 92, 0.88)",
     },
     flex: { flex: 1 },
     scroll: {
         flexGrow: 1,
-        justifyContent: "space-between",
-        paddingHorizontal: theme.spacing.lg,
-        paddingTop: 56,
-        paddingBottom: 34,
     },
     hero: {
         alignItems: "center",
-        marginBottom: theme.spacing.xl,
+        backgroundColor: theme.colors.brandBackground,
+        paddingHorizontal: 20,
+        paddingBottom: 24,
+        gap: 12,
     },
+    portal: { color: theme.colors.textOnBrand, fontSize: 14, lineHeight: 21, textAlign: "center" },
+    introduction: { gap: 6, marginBottom: 8 },
+    heading: { color: theme.colors.text, fontSize: 22, lineHeight: 28, fontWeight: "600" },
+    support: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 22 },
+    label: { color: theme.colors.text, fontSize: 14, lineHeight: 20, fontWeight: "500" },
     formSection: {
-        gap: 14,
+        backgroundColor: theme.colors.surface,
+        padding: 20,
+        gap: 8,
     },
     inputShell: {
-        minHeight: 74,
-        borderRadius: 16,
-        borderWidth: 1.2,
-        borderColor: theme.colors.authInputBorder,
-        backgroundColor: theme.colors.authInputBackground,
+        minHeight: 54,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.inputBackground,
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 18,
-        shadowColor: theme.colors.shadow,
-        shadowOpacity: 0.16,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 4,
+        paddingHorizontal: 12,
     },
     leftIcon: {
         marginRight: 12,
     },
     input: {
         flex: 1,
+        minWidth: 0,
         color: theme.colors.text,
         fontSize: 16,
-        paddingVertical: 18,
+        paddingVertical: 12,
     },
     eyeButton: {
-        paddingLeft: 10,
+        minWidth: 48,
+        minHeight: 48,
+        alignItems: "center",
+        justifyContent: "center",
     },
     forgotButton: {
         alignSelf: "flex-end",
-        marginTop: -2,
+        minHeight: 48,
+        justifyContent: "center",
+        maxWidth: "100%",
     },
     forgotButtonText: {
-        color: theme.colors.textOnBrand,
+        color: theme.colors.primary,
         fontSize: 15,
         fontWeight: "500",
         textDecorationLine: "underline",
     },
     primaryButton: {
-        backgroundColor: theme.colors.accent,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: theme.colors.primaryDark,
-        minHeight: 76,
-        paddingVertical: 15,
+        backgroundColor: theme.colors.primary,
+        borderRadius: 6,
+        minHeight: 54,
+        paddingVertical: 12,
         alignItems: "center",
         justifyContent: "center",
-        shadowColor: theme.colors.shadow,
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 4,
     },
     primaryButtonText: {
         color: theme.colors.textOnPrimary,
-        fontSize: 18,
+        fontSize: 16,
+        lineHeight: 24,
         fontWeight: "700",
     },
     notes: {
-        marginTop: theme.spacing.xl,
-        paddingHorizontal: 4,
+        marginTop: 12,
     },
     notePrimary: {
-        color: theme.colors.textOnBrand,
-        textAlign: "center",
-        fontSize: 14,
-        lineHeight: 24,
-        fontWeight: "500",
-    },
-    noteSecondary: {
-        color: theme.colors.textOnBrand,
-        textAlign: "center",
-        fontSize: 14,
-        lineHeight: 24,
-        marginTop: 18,
+        color: theme.colors.textMuted,
+        fontSize: 13,
+        lineHeight: 20,
     },
     buttonDisabled: {
         opacity: 0.7,
