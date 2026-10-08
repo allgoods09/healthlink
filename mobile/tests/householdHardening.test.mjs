@@ -264,3 +264,51 @@ test('AppContext partial legacy-parent sync consumes only safe outcome metadata 
   assert.equal((await h.storage.getPendingSyncPayload(1)).payload.field_visits[0].household_id, 30);
   assert.equal((await h.db.getFirstAsync('SELECT * FROM households WHERE local_id = ?', [parent.local_id])).sync_status, 'synced');
 });
+
+test('failed Visit photo upload preserves pending identity/bytes, blocks refresh and permits manual retry', async t => {
+  let accepted;
+  let attempts = 0;
+  const h = await appContextHarness({
+    mobileBootstrap: async () => ({ ...download(), field_visits: accepted ? [{
+      id: 700, mobile_uuid: accepted.mobile_uuid, household_id: 1, household_mobile_uuid: uuid(1),
+      visited_at: accepted.visited_at, notes: accepted.notes,
+      photos: [{ path: 'visit-photos/2026/10/synthetic.jpg', mime_type: 'image/jpeg' }],
+    }] : [] }),
+    mobileSync: async (_base, _token, payload) => {
+      if (++attempts === 1) return { status: 'failed', synced_at: '2026-10-08',
+        failed_records: [{ collection: 'field_visits', index: 0, message: 'Visit photo upload failed. Please retry.' }],
+        resolved_records: empty() };
+      accepted = payload.field_visits[0];
+      return { status: 'success', synced_at: '2026-10-08', failed_records: [],
+        resolved_records: { ...empty(), field_visits: [{ id: 700, mobile_uuid: accepted.mobile_uuid, household_id: 1 }] } };
+    },
+  });
+  t.after(async () => {
+    for (let n = 0; n < 30; n++) await new Promise(setImmediate);
+    h.close();
+  });
+  await h.render().signIn({ email: '1', password: 'password' });
+  await h.storage.saveVisit({ household_server_id: 1, visited_at: '2026-10-08', notes: 'Test visit',
+    photos: [{ uri: 'file:///pending.jpg', file_name: 'pending.jpg', mime_type: 'image/jpeg', base64: 'cGhvdG8=' }] }, 1);
+  const before = await h.db.getFirstAsync("SELECT * FROM field_visits WHERE sync_status = 'pending_create'");
+  const localId = before.local_id;
+  const downloads = h.calls.filter(call => call.name === 'mobileBootstrap').length;
+  await h.render().syncNow();
+  assert.deepEqual(await h.db.getFirstAsync('SELECT * FROM field_visits WHERE local_id = ?', [localId]), before);
+  assert.equal(h.render().pendingSyncCount, 1);
+  assert.equal(h.calls.filter(call => call.name === 'mobileBootstrap').length, downloads);
+  await assert.rejects(h.storage.replaceBootstrapData(download()), { name: 'RefreshDeferredError' });
+  assert.deepEqual(await h.db.getFirstAsync('SELECT * FROM field_visits WHERE local_id = ?', [localId]), before);
+  await h.render().syncNow();
+  const uploads = h.calls.filter(call => call.name === 'mobileSync').map(call => call.args[2].field_visits[0]);
+  assert.equal(uploads.length, 2);
+  assert.deepEqual(uploads[1], uploads[0]);
+  assert.equal(uploads[1].mobile_uuid, before.mobile_uuid);
+  assert.equal(uploads[1].photos[0].data, 'cGhvdG8=');
+  const after = await h.storage.getVisitByLocalId(localId);
+  assert.equal(after.local_id, before.local_id);
+  assert.equal(after.mobile_uuid, before.mobile_uuid);
+  assert.equal(after.server_id, 700);
+  assert.equal(after.sync_status, 'synced');
+  assert.equal(h.render().pendingSyncCount, 0);
+});

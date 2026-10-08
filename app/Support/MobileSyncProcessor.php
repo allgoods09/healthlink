@@ -212,7 +212,7 @@ class MobileSyncProcessor
         try {
             $storedPhotos = $this->storeVisitPhotos($validated['photos'] ?? []);
         } catch (\Throwable $exception) {
-            return $this->failure('field_visits', $index, 'Visit photo upload failed: '.$exception->getMessage());
+            return $this->failure('field_visits', $index, 'Visit photo upload failed. Please retry.');
         }
 
         $retainedPhotos = $currentPhotos
@@ -259,7 +259,7 @@ class MobileSyncProcessor
         } catch (\Throwable $exception) {
             $this->deleteVisitPhotos($storedPhotos);
 
-            return $this->failure('field_visits', $index, 'Field visit update failed: '.$exception->getMessage());
+            return $this->failure('field_visits', $index, 'Field visit update failed. Please retry.');
         }
 
         $this->deleteVisitPhotos($deletedPhotos);
@@ -838,21 +838,30 @@ class MobileSyncProcessor
     {
         $storedPhotos = [];
 
-        foreach ($photos as $photo) {
-            $binary = $this->decodePhotoPayload($photo['data']);
-            $mimeType = strtolower((string) ($photo['mime_type'] ?? 'image/jpeg'));
-            $extension = $this->extensionForMimeType($mimeType);
-            $path = 'visit-photos/'.now()->format('Y/m').'/'.Str::uuid().'.'.$extension;
+        try {
+            foreach ($photos as $photo) {
+                $binary = $this->decodePhotoPayload($photo['data']);
+                $mimeType = strtolower((string) ($photo['mime_type'] ?? 'image/jpeg'));
+                $extension = $this->extensionForMimeType($mimeType);
+                $path = 'visit-photos/'.now()->format('Y/m').'/'.Str::uuid().'.'.$extension;
 
-            Storage::disk('local')->put($path, $binary);
+                if (Storage::disk('local')->put($path, $binary) !== true) {
+                    throw new \RuntimeException('Visit photo storage failed.');
+                }
 
-            $storedPhotos[] = [
-                'path' => $path,
-                'file_name' => $photo['file_name'] ?? basename($path),
-                'mime_type' => $mimeType,
-                'file_size_bytes' => strlen($binary),
-                'captured_at' => $photo['captured_at'] ?? null,
-            ];
+                $storedPhotos[] = [
+                    'path' => $path,
+                    'file_name' => $photo['file_name'] ?? basename($path),
+                    'mime_type' => $mimeType,
+                    'file_size_bytes' => strlen($binary),
+                    'captured_at' => $photo['captured_at'] ?? null,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            // The caller only owns cleanup after the complete photo operation returns.
+            $this->deleteVisitPhotos($storedPhotos);
+
+            throw $exception;
         }
 
         return $storedPhotos;
