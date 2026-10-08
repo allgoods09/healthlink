@@ -99,9 +99,8 @@ for (const locale of ['en', 'ceb']) {
           };
           const i18n = h.load('i18n.ts').i18n;
           const tree = h.render(screen);
-          const button = nodes(tree).find((node) => screen === 'Home'
-            ? node.type === 'Pressable' && node.props.accessibilityLabel === i18n.t('logout')
-            : node.type === 'MenuCard' && node.props.title === i18n.t('logout'));
+          const button = nodes(tree).find((node) =>
+            node.type === 'Pressable' && node.props.accessibilityLabel === i18n.t('logout'));
           button.props.onPress();
           await flush();
           assert.equal(h.calls.logout, 1);

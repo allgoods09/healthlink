@@ -21,9 +21,9 @@ export function textContent(tree) {
 }
 
 // Execute real screen/component code with host primitives, not a native layout simulator.
-export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage } = {}) {
+export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage, apiBaseUrl, linking } = {}) {
   const cache = new Map();
-  const calls = { navigation: [], confirmations: [], signOut: 0, logout: 0 };
+  const calls = { navigation: [], confirmations: [], signOut: 0, logout: 0, back: 0 };
   const context = {
     user: { name: 'Jose Test', email: 'test@example.test' },
     assignment: { barangay: { name: 'Pooc Oriental' }, purok: { display_name: 'Purok 2' } },
@@ -59,6 +59,7 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     },
   };
   const native = {
+    Linking: linking,
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: (styles) => styles, hairlineWidth: 0.5 },
   };
@@ -83,11 +84,12 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
       };
       if (id.endsWith('/components/MenuCard')) return { MenuCard: 'MenuCard' };
       if (id.endsWith('/components/TopHeader')) return { TopHeader: 'TopHeader' };
-      if (id === '../../assets/tubigon-logo.png') {
+      if (id === '../../assets/tubigon-logo.png' || id === '../../assets/apk-logo-icon.png') {
         readFileSync(resolve(dirname(filename), id));
-        return { uri: 'test-asset:tubigon-logo.png' };
+        return { uri: `test-asset:${id.split('/').at(-1)}` };
       }
       if (id.endsWith('/lib/storage') && storage) return storage;
+      if (id.endsWith('/lib/config') && apiBaseUrl !== undefined) return { MOBILE_API_BASE_URL: apiBaseUrl };
       if (id.includes('storage') || !id.startsWith('.')) throw new Error(`Unexpected dependency: ${id}`);
       const dependency = resolve(dirname(filename), `${id}.ts${id.includes('components/') ? 'x' : ''}`);
       const actual = id.endsWith('confirmLogout') ? load('lib/confirmLogout.ts') : load(dependency);
@@ -99,10 +101,10 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
     }).outputText;
-    vm.runInNewContext(code, { module, exports: module.exports, require: localRequire, Intl, Date }, { filename });
+    vm.runInNewContext(code, { module, exports: module.exports, require: localRequire, Intl, Date, URL }, { filename });
     return module.exports;
   }
-  const navigation = { navigate: (...args) => calls.navigation.push(args) };
+  const navigation = { navigate: (...args) => calls.navigation.push(args), goBack: () => { calls.back++; } };
   function render(screen = 'Home') {
     cursor = 0;
     effects = [];

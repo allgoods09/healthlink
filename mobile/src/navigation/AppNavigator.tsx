@@ -29,6 +29,10 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { InitialSyncScreen } from '../screens/InitialSyncScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { MoreScreen } from '../screens/MoreScreen';
+import { AccountScreen } from '../screens/AccountScreen';
+import { LanguageScreen } from '../screens/LanguageScreen';
+import { AppearanceScreen } from '../screens/AppearanceScreen';
+import { AboutAppScreen } from '../screens/AboutAppScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { ResidentDetailsScreen } from '../screens/ResidentDetailsScreen';
 import { ResidentFormScreen } from '../screens/ResidentFormScreen';
@@ -205,6 +209,10 @@ export function AppNavigator() {
                 component={HouseholdFormScreen}
                 options={{ title: i18n.t('createHousehold') }}
               />
+              <Stack.Screen name="Account" component={AccountScreen} options={{ headerShown: false }} />
+              <Stack.Screen name="Language" component={LanguageScreen} options={{ headerShown: false }} />
+              <Stack.Screen name="Appearance" component={AppearanceScreen} options={{ headerShown: false }} />
+              <Stack.Screen name="AboutApp" component={AboutAppScreen} options={{ headerShown: false }} />
               <Stack.Screen name="Residents" component={ResidentsScreen} options={{ title: i18n.t('directoryResidents') }} />
               <Stack.Screen name="Households" component={HouseholdDirectoryScreen} options={{ title: i18n.t('directoryHouseholds') }} />
               <Stack.Screen name="ResidentRequests" component={ResidentRequestsScreen} options={{ title: i18n.t('residentRequests') }} />
