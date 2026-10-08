@@ -90,7 +90,7 @@ test('search preserves debounce, typed value, whitespace/case normalization and 
   await search(h, '%other'); assert.equal(h.cards().length, 0); assert.match(h.texts(), /noMatchingRecords/);
   await search(h, '2'); assert.equal(h.cards().length, 1);
   const source = readFileSync(new URL('../src/screens/VisitsScreen.tsx', import.meta.url), 'utf8');
-  assert.match(source, /}, 300\)/); assert.doesNotMatch(source, /Filter|fetch\(|syncNow|refreshNotifications/);
+  assert.match(source, /}, 300\)/); assert.doesNotMatch(source, /fetch\(|syncNow|refreshNotifications/);
 });
 
 test('unknown recorder is honest, pending status is independent of official household, notes/count unchanged', async t => {

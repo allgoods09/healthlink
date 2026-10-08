@@ -36,12 +36,14 @@ export async function householdUiHarness(t, name, options = {}) {
   const route = { params: options.params ?? {} };
   const cache = new Map();
   const rn = Object.fromEntries(['Pressable', 'Text', 'TextInput', 'ScrollView', 'View', 'Modal', 'Switch', 'FlatList', 'Image', 'KeyboardAvoidingView'].map(n => [n, n]));
-  Object.assign(rn, { Platform: { OS: 'android' }, Alert: { alert() {} }, useWindowDimensions: () => ({ width: 320, height: 640 }),
+  Object.assign(rn, { Platform: { OS: options.platform ?? 'android' }, Alert: { alert() {} }, useWindowDimensions: () => ({ width: 320, height: 640 }),
+    Keyboard: { dismiss: () => calls.push({ key: 'dismissKeyboard', args: [] }) },
     StyleSheet: { create: value => value, absoluteFill: { position: 'absolute' }, hairlineWidth: 1 } });
   const libs = {
     react, 'react-native': rn, '@react-navigation/native': { useIsFocused: () => focused, usePreventRemove: (blocked, callback) => { removal = { blocked, callback }; } },
     '@expo/vector-icons': { Ionicons: 'Ionicons' }, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 24, bottom: 20 }) },
-    '@react-native-community/datetimepicker': { DateTimePickerAndroid: { open(value) { pickers.push(value); } } },
+    '@react-native-community/datetimepicker': { __esModule: true, default: 'DateTimePicker',
+      DateTimePickerAndroid: { open(value) { pickers.push(value); }, dismiss: async mode => { calls.push({ key: 'dismissPicker', args: [mode] }); } } },
     'expo-camera': { CameraView: props => { props.ref.current = { takePictureAsync: options.capture ?? (async () => ({ uri: 'file:///camera.jpg', base64: 'photo' })) }; return { type: 'CameraView', props }; },
       useCameraPermissions: () => [{ granted: true }, async () => ({ granted: true })] },
     'expo-image-picker': { useMediaLibraryPermissions: () => [{ granted: true }, async () => ({ granted: true })],
