@@ -1,9 +1,9 @@
 import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
-import { FlatList, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FilterIconButton } from '../components/filters/FilterIconButton';
+import { FilterModal } from '../components/filters/FilterModal';
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
 import { RootHeader } from '../components/RootHeader';
 import { HouseholdAction, HouseholdState, householdUiStyles } from '../components/HouseholdUi';
@@ -50,7 +50,6 @@ export function VisitsScreen({ navigation }: any) {
   const [rangeError, setRangeError] = useState(false);
   const [pickerField, setPickerField] = useState<keyof DateRange | null>(null);
   const filterGeneration = useRef(0); const androidPickerOpen = useRef(false);
-  const insets = useSafeAreaInsets();
   const key = `${user?.id}:${assignment?.barangay?.id}:${assignment?.purok?.id}:${dataVersion}:${retry}`;
   useEffect(() => { const timer = setTimeout(() => { setQuery(search); setLimit(30); setWaitingLimit(5); }, 300); return () => clearTimeout(timer); }, [search]);
   function closeFilter() {
@@ -121,11 +120,8 @@ export function VisitsScreen({ navigation }: any) {
         <View style={styles.searchRow}>
           <TextInput accessibilityLabel={i18n.t('hhVisitSearch')} value={search} onChangeText={setSearch} placeholder={i18n.t('hhVisitSearch')}
             placeholderTextColor={theme.colors.placeholder} style={[styles.input, styles.searchInput]} />
-          <Pressable accessibilityRole="button" accessibilityLabel={i18n.t(filterActive ? 'hhVisitFilterActive' : 'hhVisitFilter')}
-            accessibilityState={{ selected: filterActive }} style={[styles.filterButton, filterActive && styles.filterActive]} onPress={openFilter}>
-            <Ionicons accessible={false} name="filter-outline" size={22} color={filterActive ? theme.colors.primary : theme.colors.textMuted} />
-            {filterActive ? <View accessible={false} style={styles.filterDot} /> : null}
-          </Pressable>
+          <FilterIconButton accessibilityLabel={i18n.t(filterActive ? 'hhVisitFilterActive' : 'hhVisitFilter')}
+            active={filterActive} onPress={openFilter} />
         </View>
         {retained.length ? <View style={styles.retained}><Text accessibilityRole="header" style={styles.title}>{i18n.t('hhRetainedVisits')}</Text>
           {retained.slice(0, waitingLimit).map(visit => <View key={visit.local_id} style={styles.card}>
@@ -165,44 +161,24 @@ export function VisitsScreen({ navigation }: any) {
         </View>
       </View>} />
     </View>
-    {filterVisible ? <Modal transparent visible animationType="none" onRequestClose={closeFilter}>
-      <View style={[styles.filterOverlay, { paddingTop: Math.max(16, insets.top), paddingBottom: Math.max(16, insets.bottom) }]}>
-        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={i18n.t('cancel')} importantForAccessibility="no" onPress={closeFilter} />
-        <View style={styles.filterPanel} accessibilityViewIsModal onAccessibilityEscape={closeFilter}>
-          <View style={styles.sectionRow}>
-            <Text accessibilityRole="header" style={styles.sectionTitle}>{i18n.t('hhVisitFilter')}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('close')} style={styles.inlineAction} onPress={closeFilter}>
-              <Ionicons accessible={false} name="close-outline" size={22} color={theme.colors.text} />
-            </Pressable>
-          </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.filterFields}>
-            <Text style={styles.helper}>{i18n.t('hhVisitDateRange')}</Text>
-            {(['from', 'to'] as const).map(field => <View key={field} style={styles.filterFields}>
-              <Text style={styles.helper}>{i18n.t(field === 'from' ? 'hhVisitFrom' : 'hhVisitTo')}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`${i18n.t(field === 'from' ? 'hhVisitFrom' : 'hhVisitTo')}: ${draftRange[field] ? dateInputFromPicker(draftRange[field]!) : i18n.t('hhVisitSelectDate')}`}
-                style={styles.input} onPress={() => selectDate(field)}>
-                <Text style={styles.dateText}>{draftRange[field] ? dateInputFromPicker(draftRange[field]!) : i18n.t('hhVisitSelectDate')}</Text>
-              </Pressable>
-            </View>)}
-            {pickerField && Platform.OS === 'ios' ? <DateTimePicker value={draftRange[pickerField] ?? new Date()} mode="date" display="spinner"
-              themeVariant={theme.mode} onChange={(event, date) => {
-                if (filterVisible && pickerGeneration === filterGeneration.current && event.type === 'set' && date && !Number.isNaN(date.getTime())) {
-                  setDraftRange(current => ({ ...current, [pickerField]: date })); setRangeError(false);
-                }
-              }} /> : null}
-            {rangeError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{i18n.t('hhVisitInvalidRange')}</Text> : null}
-          </ScrollView>
-          <View style={styles.filterActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('clearFilters')} style={styles.filterAction} onPress={clearFilter}>
-              <Text style={styles.actionText}>{i18n.t('clearFilters')}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('hhVisitApply')} style={[styles.filterAction, styles.applyAction]} onPress={applyFilter}>
-              <Text style={styles.newVisitText}>{i18n.t('hhVisitApply')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal> : null}
+    <FilterModal visible={filterVisible} title={i18n.t('hhVisitFilter')} onClose={closeFilter}
+      onClear={clearFilter} onApply={applyFilter} clearLabel={i18n.t('clearFilters')} applyLabel={i18n.t('hhVisitApply')}
+      error={rangeError ? i18n.t('hhVisitInvalidRange') : null}>
+      <Text style={styles.helper}>{i18n.t('hhVisitDateRange')}</Text>
+      {(['from', 'to'] as const).map(field => <View key={field} style={styles.filterFields}>
+        <Text style={styles.helper}>{i18n.t(field === 'from' ? 'hhVisitFrom' : 'hhVisitTo')}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${i18n.t(field === 'from' ? 'hhVisitFrom' : 'hhVisitTo')}: ${draftRange[field] ? dateInputFromPicker(draftRange[field]!) : i18n.t('hhVisitSelectDate')}`}
+          style={styles.input} onPress={() => selectDate(field)}>
+          <Text style={styles.dateText}>{draftRange[field] ? dateInputFromPicker(draftRange[field]!) : i18n.t('hhVisitSelectDate')}</Text>
+        </Pressable>
+      </View>)}
+      {pickerField && Platform.OS === 'ios' ? <DateTimePicker value={draftRange[pickerField] ?? new Date()} mode="date" display="spinner"
+        themeVariant={theme.mode} onChange={(event, date) => {
+          if (filterVisible && pickerGeneration === filterGeneration.current && event.type === 'set' && date && !Number.isNaN(date.getTime())) {
+            setDraftRange(current => ({ ...current, [pickerField]: date })); setRangeError(false);
+          }
+        }} /> : null}
+    </FilterModal>
   </KeyboardShiftView>;
 }
 
@@ -231,16 +207,6 @@ const visitStyles = (theme: AppTheme) => StyleSheet.create({
   actionText: { color: theme.colors.primary, fontSize: 14, lineHeight: 22, fontWeight: '600', flexShrink: 1 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchInput: { flex: 1, minWidth: 0 },
-  filterButton: { width: 50, height: 50, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
-  filterActive: { borderColor: theme.colors.primary },
-  filterDot: { position: 'absolute', top: 5, right: 5, width: 5, height: 5, borderRadius: 3, backgroundColor: theme.colors.primary },
-  filterOverlay: { flex: 1, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: theme.colors.overlay },
-  filterPanel: { maxHeight: '100%', borderRadius: 8, padding: 16, gap: 12, backgroundColor: theme.colors.surface },
   filterFields: { gap: 8 },
   dateText: { color: theme.colors.text, fontSize: 16, lineHeight: 24 },
-  filterActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterAction: { flexGrow: 1, minHeight: 48, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-  applyAction: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
 });

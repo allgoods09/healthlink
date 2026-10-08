@@ -60,6 +60,12 @@ export async function householdUiHarness(t, name, options = {}) {
     const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
     vm.runInThisContext(`(function(require, module, exports, setTimeout, clearTimeout){${code}})`)(n => {
       if (n in libs) return libs[n];
+      // Nested shared filter components use root-relative context/theme imports.
+      if (n.startsWith('../../')) {
+        const rootImport = `../${n.slice(6)}`;
+        if (rootImport in libs) return libs[rootImport];
+        return load(`${n.slice(6)}.ts`);
+      }
       if (n.startsWith('../')) return load(`${n.slice(3)}.${n.includes('components/') ? 'tsx' : 'ts'}`);
       if (n.startsWith('./')) return load(`lib/${n.slice(2)}.ts`);
       throw new Error(`Unexpected dependency ${n}`);
