@@ -64,6 +64,8 @@ export async function storageHarness() {
       if (name === './syncGuard') return load('syncGuard');
       if (name === './residentWorkflow') return load('residentWorkflow');
       if (name === './householdWorkflow') return load('householdWorkflow');
+      if (name === './householdPresentation') return load('householdPresentation');
+      if (name === './householdIdentity') return load('householdIdentity');
       if (name === './residentPresentation') return load('residentPresentation');
       if (name === './format') return load('format');
       throw new Error(`Unexpected storage dependency: ${name}`);

@@ -35,7 +35,7 @@ import {
   saveVisit,
   hasHouseholdData,
 } from '../lib/storage';
-import { householdPage, HOUSEHOLD_PAGE_SIZE } from '../lib/householdPresentation';
+import { householdOfficialProfile, householdPage, HOUSEHOLD_PAGE_SIZE } from '../lib/householdPresentation';
 import { createSaveGuard } from '../lib/residentWorkflow';
 import { AppTheme } from '../theme';
 import { HouseholdRecord, VisitPhoto } from '../types';
@@ -117,7 +117,7 @@ export function VisitFormScreen({ route, navigation }: any) {
         if (Number.isNaN(date.getTime())) { setFormError(i18n.t('hhVisitUnavailable')); return; }
         const nextNotes = existing?.notes ?? ''; const nextPhotos = existing?.photos ?? [];
         original.current = JSON.stringify([home?.local_id ?? null, date.toISOString(), nextNotes, nextPhotos]);
-        loadedScope.current = scope; setSelectedHousehold(home); setLocalId(existing?.local_id ?? null); setServerId(existing?.server_id ?? null);
+        loadedScope.current = scope; setSelectedHousehold(home ? householdOfficialProfile(home) : null); setLocalId(existing?.local_id ?? null); setServerId(existing?.server_id ?? null);
         setMobileUuid(existing?.mobile_uuid ?? null); setVisitedAt(date); setNotes(nextNotes); photosRef.current = nextPhotos; setPhotos(nextPhotos); setReady(true);
         if (requiresPhotoReduction(nextPhotos, existing?.server_id ?? null)) setFormError(i18n.t('hhPhotoLimitResolve'));
       } catch { if (applicable) { setFormError(i18n.t('savedRecordsError')); setLoadError(true); } }
@@ -315,6 +315,7 @@ export function VisitFormScreen({ route, navigation }: any) {
       visited_at: visitedAt.toISOString(),
       notes,
       photos: photosRef.current,
+      recorded_by_name: localId == null ? user?.name?.trim() || null : undefined,
     }, user?.id);
     if (!live.current || token !== generation.current) return;
     savedRef.current = true; original.current = fingerprint; setSaved(true);

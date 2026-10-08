@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { HOUSEHOLD_CONTRACT_VERSION, householdChanges, householdEditBlocked, validateHouseholdInput } from './householdWorkflow';
+import { householdOfficialProfile, normalizeHouseholdQuery } from './householdPresentation';
+import { findHouseholdByReference } from './householdIdentity';
 import { compareHouseholds, eligibleResidentHousehold, normalizeHouseholdSearch, residentChanges, residentEditBlocked,
   residentFormMode, residentSnapshot, ResidentFormMode, validateResidentInput, RESIDENT_PROFILE_FIELDS, RESIDENT_PROFILE_FLAGS } from './residentWorkflow';
 import { AccountSwitchBlockedError, AssignmentChangedError, DatasetOwnershipError, hasLocalEditor, RefreshDeferredError, serializeLocalWrite } from './syncGuard';
@@ -1029,7 +1031,7 @@ async function householdDataset(mode: 'operational' | 'request' | 'lookup', sear
 export const getHouseholds = (search = '') => householdDataset('operational', search);
 export const getHouseholdRequests = (search = '') => householdDataset('request', search);
 export const getHouseholdLookup = (search = '') => householdDataset('lookup', search);
-export const getVisitHouseholdOptions = () => getHouseholds();
+export const getVisitHouseholdOptions = async () => (await getHouseholds()).map(householdOfficialProfile);
 export async function hasHouseholdData(expected?: { userId?: number; barangayId?: number; purokId?: number }) {
   const scope = await currentHouseholdScope();
   return Boolean(scope && (!expected || scope.owner === expected.userId && scope.barangayId === expected.barangayId && scope.purokId === expected.purokId));
@@ -1329,17 +1331,20 @@ export async function getVisits(search = ''): Promise<FieldVisitRecord[]> {
      JOIN households ON (field_visits.household_server_id IS NOT NULL AND households.server_id = field_visits.household_server_id)
        OR (field_visits.household_server_id IS NULL AND field_visits.household_mobile_uuid IS NOT NULL AND TRIM(field_visits.household_mobile_uuid) <> '' AND households.mobile_uuid = field_visits.household_mobile_uuid)
      WHERE households.server_id IS NOT NULL AND households.access_mode = 'operational' AND households.purok_id = ?
-       AND households.barangay_id = ? AND (COALESCE(households.household_no, '') LIKE ? OR COALESCE(field_visits.notes, '') LIKE ?)
+       AND households.barangay_id = ?
      ORDER BY field_visits.visited_at DESC`,
-    [scope.purokId, scope.barangayId, `%${search}%`, `%${search}%`]
+    [scope.purokId, scope.barangayId]
   );
 
+  const households = await getVisitHouseholdOptions();
   if ((await currentHouseholdScope())?.signature !== scope.signature) return [];
-  return rows.map((row: any) => ({
-    ...row,
-    household_purok_id: row.household_purok_id ?? null,
-    photos: parsePhotos(row.photos_json),
-  }));
+  const query = normalizeHouseholdQuery(search);
+  return rows.flatMap((row: any) => {
+    const household = findHouseholdByReference(households, row);
+    if (!household || !normalizeHouseholdQuery(`${household.household_no} ${row.notes ?? ''}`).includes(query)) return [];
+    return [{ ...row, household_no: household.household_no,
+      household_purok_id: row.household_purok_id ?? null, photos: parsePhotos(row.photos_json) }];
+  });
 }
 
 export async function getHouseholdByLocalId(localId: number) {
@@ -1718,10 +1723,11 @@ async function saveVisitInternal(
       household_mobile_uuid,
       visited_at,
       notes,
+      recorded_by_name,
       photos_json,
       sync_status,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       values.server_id ?? null,
       mobileUuid,
@@ -1729,6 +1735,7 @@ async function saveVisitInternal(
       values.household_mobile_uuid ?? null,
       values.visited_at,
       values.notes ?? null,
+      values.recorded_by_name ?? null,
       JSON.stringify(values.photos ?? []),
       syncStatus,
       new Date().toISOString(),
