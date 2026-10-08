@@ -21,7 +21,8 @@ export function textContent(tree) {
 }
 
 // Execute real screen/component code with host primitives, not a native layout simulator.
-export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage, apiBaseUrl, linking } = {}) {
+export function createHomeHarness({ locale = 'en', mode = 'light', context: overrides = {}, storage, apiBaseUrl, linking,
+  width = 390, fontScale = 1 } = {}) {
   const cache = new Map();
   const calls = { navigation: [], confirmations: [], signOut: 0, logout: 0, back: 0 };
   const context = {
@@ -59,6 +60,7 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     },
   };
   const native = {
+    useWindowDimensions: () => ({ width, height: 844, fontScale, scale: 1 }),
     Linking: linking,
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: (styles) => styles, hairlineWidth: 0.5 },
