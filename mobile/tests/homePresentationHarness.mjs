@@ -101,7 +101,7 @@ export function createHomeHarness({ locale = 'en', mode = 'light', context: over
     const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
     }).outputText;
-    vm.runInNewContext(code, { module, exports: module.exports, require: localRequire, Intl, Date, URL }, { filename });
+    vm.runInNewContext(code, { module, exports: module.exports, require: localRequire, Intl, Date, URL, Error }, { filename });
     return module.exports;
   }
   const navigation = { navigate: (...args) => calls.navigation.push(args), goBack: () => { calls.back++; } };

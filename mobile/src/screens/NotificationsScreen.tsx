@@ -8,14 +8,13 @@ import {
   View,
 } from 'react-native';
 
-import { TopHeader } from '../components/TopHeader';
-import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
+import { ChildHeader } from '../components/ChildHeader';
+import { useAppContext, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
 import { AppTheme } from '../theme';
 
-export function NotificationsScreen() {
-  const theme = useAppTheme();
+export function NotificationsScreen({ navigation }: any) {
   const styles = useThemedStyles(createStyles);
   const {
     isOnline,
@@ -54,34 +53,38 @@ export function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <TopHeader
+      <ChildHeader
         title={i18n.t('notifications')}
-        actionIcon="refresh-outline"
-        onActionPress={() => void refreshNotifications()}
+        onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.heroKicker}>{i18n.t('notificationCenter')}</Text>
-          <Text style={styles.heroTitle}>{i18n.t('notifications')}</Text>
-          <Text style={styles.heroBody}>{i18n.t('notificationsBody')}</Text>
-          <View style={styles.heroMeta}>
-            <Text style={styles.heroMetaText}>
-              {i18n.t('unreadNotificationsLabel', {
-                count: unreadNotificationCount,
-              })}
-            </Text>
-            {unreadNotificationCount > 0 ? (
-              <Pressable
-                onPress={() => void markAllNotificationsRead()}
-                style={styles.markAllButton}
-              >
-                <Text style={styles.markAllButtonText}>
-                  {i18n.t('markAllRead')}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+        <View style={styles.summary}>
+          <Text style={styles.summaryText}>
+            {i18n.t('unreadNotificationsLabel', {
+              count: unreadNotificationCount,
+            })}
+          </Text>
+          {unreadNotificationCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={i18n.t('markAllRead')}
+              onPress={() => void markAllNotificationsRead()}
+              style={styles.inlineAction}
+            >
+              <Text style={styles.actionText}>
+                {i18n.t('markAllRead')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.sectionRow}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{i18n.t('recentNotifications')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('refreshNotifications')}
+            onPress={() => void refreshNotifications()} style={styles.inlineAction}>
+            <Text style={styles.actionText}>{i18n.t('refreshNotifications')}</Text>
+          </Pressable>
         </View>
 
         {notifications.length === 0 ? (
@@ -102,12 +105,6 @@ export function NotificationsScreen() {
               >
                 <View style={styles.cardHeader}>
                   <View style={styles.cardTitleWrap}>
-                    <View
-                      style={[
-                        styles.dot,
-                        { backgroundColor: levelColor(notification.level, theme) },
-                      ]}
-                    />
                     <Text style={styles.cardTitle}>{notification.title}</Text>
                   </View>
                   {unread ? (
@@ -130,10 +127,12 @@ export function NotificationsScreen() {
                 <View style={styles.cardActions}>
                   {unread ? (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={i18n.t('markRead')}
                       onPress={() => void markNotificationRead(notification.id)}
-                      style={styles.secondaryButton}
+                      style={styles.inlineAction}
                     >
-                      <Text style={styles.secondaryButtonText}>
+                      <Text style={styles.actionText}>
                         {i18n.t('markRead')}
                       </Text>
                     </Pressable>
@@ -141,16 +140,18 @@ export function NotificationsScreen() {
 
                   {notification.action_url ? (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={notification.action_label ?? i18n.t('openAction')}
                       onPress={() =>
                         void handleOpenAction(
                           notification.id,
                           notification.action_url
                         )
                       }
-                      style={styles.primaryButton}
+                      style={styles.inlineAction}
                     >
-                      <Text style={styles.primaryButtonText}>
-                        {notification.action_label ?? i18n.t('openAction')}
+                      <Text style={styles.actionText}>
+                        {notification.action_label ?? i18n.t('openAction')} {'>'}
                       </Text>
                     </Pressable>
                   ) : null}
@@ -164,111 +165,76 @@ export function NotificationsScreen() {
   );
 }
 
-function levelColor(
-  level: 'info' | 'success' | 'warning' | 'error',
-  theme: AppTheme
-) {
-  switch (level) {
-    case 'success':
-      return theme.colors.success;
-    case 'warning':
-      return theme.colors.warning;
-    case 'error':
-      return theme.colors.danger;
-    default:
-      return theme.colors.accent;
-  }
-}
-
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
   content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    padding: 16,
+    paddingBottom: 32,
+    gap: 12,
   },
-  hero: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-  },
-  heroKicker: {
-    color: theme.colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heroTitle: {
-    color: theme.colors.text,
-    fontSize: 26,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  heroBody: {
-    color: theme.colors.textMuted,
-    lineHeight: 22,
-    marginTop: 10,
-  },
-  heroMeta: {
-    marginTop: theme.spacing.md,
+  summary: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
+    gap: 8,
   },
-  heroMetaText: {
+  summaryText: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    lineHeight: 22,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
     color: theme.colors.text,
-    fontWeight: '700',
-  },
-  markAllButton: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  markAllButtonText: {
-    color: theme.colors.primary,
-    fontWeight: '700',
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
+    flexGrow: 1,
+    flexShrink: 1,
   },
   emptyCard: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
+    padding: 14,
+    gap: 6,
   },
   emptyTitle: {
     color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
   },
   emptyBody: {
-    marginTop: 10,
     color: theme.colors.textMuted,
+    fontSize: 14,
     lineHeight: 22,
   },
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+    padding: 14,
+    gap: 6,
   },
   cardUnread: {
-    backgroundColor: theme.colors.infoSoft,
     borderColor: theme.colors.infoBorder,
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
@@ -276,18 +242,14 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   cardTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     flex: 1,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
+    minWidth: 0,
   },
   cardTitle: {
     color: theme.colors.text,
     fontSize: 16,
-    fontWeight: '700',
+    lineHeight: 24,
+    fontWeight: '600',
     flex: 1,
   },
   unreadBadge: {
@@ -296,42 +258,38 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     letterSpacing: 0.6,
     fontSize: 11,
     fontWeight: '700',
+    flexShrink: 1,
   },
   cardBody: {
     color: theme.colors.textMuted,
+    fontSize: 14,
     lineHeight: 22,
-    marginTop: 10,
   },
   cardMeta: {
     color: theme.colors.textMuted,
-    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 22,
   },
   cardActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
+    justifyContent: 'flex-end',
+    gap: 8,
   },
-  primaryButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: 14,
+  inlineAction: {
+    minHeight: 48,
+    minWidth: 48,
+    maxWidth: '100%',
+    paddingHorizontal: 4,
     paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  primaryButtonText: {
-    color: theme.colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    color: theme.colors.text,
-    fontWeight: '700',
+  actionText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: '600',
+    flexShrink: 1,
   },
 });
