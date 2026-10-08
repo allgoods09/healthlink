@@ -207,6 +207,18 @@ class MobileSyncProcessor
             return $this->failure('field_visits', $index, 'One or more retained photos are not attached to this visit.');
         }
 
+        $retainedPhotos = $currentPhotos
+            ->filter(fn (array $photo) => in_array($photo['path'] ?? null, $retainPaths, true))
+            ->values()
+            ->all();
+        $newPhotoCount = count($validated['photos'] ?? []);
+
+        // Historical attachments may be retained/reduced, but cannot justify new over-limit uploads.
+        if (count($retainedPhotos) + $newPhotoCount > 5
+            && ($creating || $currentPhotos->count() <= 5 || $newPhotoCount > 0)) {
+            return $this->failure('field_visits', $index, 'A visit supports up to 5 total photos. Remove excess photos before adding new ones.');
+        }
+
         $storedPhotos = [];
 
         try {
@@ -215,10 +227,6 @@ class MobileSyncProcessor
             return $this->failure('field_visits', $index, 'Visit photo upload failed. Please retry.');
         }
 
-        $retainedPhotos = $currentPhotos
-            ->filter(fn (array $photo) => in_array($photo['path'] ?? null, $retainPaths, true))
-            ->values()
-            ->all();
         $deletedPhotos = $currentPhotos
             ->reject(fn (array $photo) => in_array($photo['path'] ?? null, $retainPaths, true))
             ->values()
@@ -553,7 +561,7 @@ class MobileSyncProcessor
             'household_mobile_uuid' => ['nullable', 'uuid', 'required_without:household_id'],
             'visited_at' => ['sometimes', 'date'],
             'notes' => ['nullable', 'string'],
-            'existing_photos' => ['sometimes', 'array', 'max:5'],
+            'existing_photos' => ['sometimes', 'array'],
             'existing_photos.*' => ['string'],
             'photos' => ['nullable', 'array', 'max:5'],
             'photos.*.file_name' => ['nullable', 'string', 'max:255'],

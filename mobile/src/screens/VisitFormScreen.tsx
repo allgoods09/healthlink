@@ -42,6 +42,14 @@ import { HouseholdRecord, VisitPhoto } from '../types';
 
 import { useLocalEditor } from '../lib/useLocalEditor';
 
+const MAX_VISIT_PHOTOS = 5;
+
+function requiresPhotoReduction(photos: VisitPhoto[], serverId: number | null) {
+  // Existing server attachments can remain over-limit; pending upload bytes cannot.
+  return photos.length > MAX_VISIT_PHOTOS &&
+    !(serverId != null && photos.every(photo => photo.path && !photo.base64));
+}
+
 export function VisitFormScreen({ route, navigation }: any) {
   useLocalEditor();
   const theme = useAppTheme();
@@ -63,6 +71,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   const [visitedAt, setVisitedAt] = useState(() => new Date());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const photosRef = useRef<VisitPhoto[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
@@ -109,14 +118,23 @@ export function VisitFormScreen({ route, navigation }: any) {
         const nextNotes = existing?.notes ?? ''; const nextPhotos = existing?.photos ?? [];
         original.current = JSON.stringify([home?.local_id ?? null, date.toISOString(), nextNotes, nextPhotos]);
         loadedScope.current = scope; setSelectedHousehold(home); setLocalId(existing?.local_id ?? null); setServerId(existing?.server_id ?? null);
-        setMobileUuid(existing?.mobile_uuid ?? null); setVisitedAt(date); setNotes(nextNotes); setPhotos(nextPhotos); setReady(true);
+        setMobileUuid(existing?.mobile_uuid ?? null); setVisitedAt(date); setNotes(nextNotes); photosRef.current = nextPhotos; setPhotos(nextPhotos); setReady(true);
+        if (requiresPhotoReduction(nextPhotos, existing?.server_id ?? null)) setFormError(i18n.t('hhPhotoLimitResolve'));
       } catch { if (applicable) { setFormError(i18n.t('savedRecordsError')); setLoadError(true); } }
     }
     void loadExisting(); return () => { applicable = false; live.current = false; };
   }, [route.params?.householdLocalId, route.params?.localId, scope, dataVersion, retry]);
 
+  function canAddPhoto() {
+    if (photosRef.current.length < MAX_VISIT_PHOTOS) return true;
+    setFormError(i18n.t('hhPhotoLimit'));
+    return false;
+  }
+
   function appendPhoto(photo: VisitPhoto) {
-    setPhotos((current) => [...current, photo]);
+    if (!canAddPhoto()) return;
+    photosRef.current = [...photosRef.current, photo];
+    setPhotos(photosRef.current);
   }
 
   function openVisitDatePicker() {
@@ -167,7 +185,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   }
 
   async function handlePickFromGallery() {
-    if (!enabled || operationBusy.current || !photoGuard.current.acquire()) return;
+    if (!enabled || operationBusy.current || !canAddPhoto() || !photoGuard.current.acquire()) return;
     operationBusy.current = true; const token = generation.current; setPhotoBusy(true);
     try {
     if (!mediaPermission?.granted) {
@@ -208,7 +226,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   }
 
   async function handleTakePhoto() {
-    if (!enabled || operationBusy.current || !photoGuard.current.acquire()) return;
+    if (!enabled || operationBusy.current || !canAddPhoto() || !photoGuard.current.acquire()) return;
     operationBusy.current = true; const token = generation.current; setPhotoBusy(true);
     try {
     if (!permission?.granted) {
@@ -225,7 +243,7 @@ export function VisitFormScreen({ route, navigation }: any) {
   }
 
   async function capturePhoto() {
-    if (!enabled || operationBusy.current || !photoGuard.current.acquire()) return;
+    if (!enabled || operationBusy.current || !canAddPhoto() || !photoGuard.current.acquire()) return;
     operationBusy.current = true; const token = generation.current; const cameraToken = cameraEpoch.current; setPhotoBusy(true);
     try {
     const photo = await cameraRef.current?.takePictureAsync({
@@ -263,13 +281,19 @@ export function VisitFormScreen({ route, navigation }: any) {
       return;
     }
 
-    setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
+    photosRef.current = photosRef.current.filter((_, photoIndex) => photoIndex !== index);
+    setPhotos(photosRef.current);
+    setFormError(current => current === i18n.t('hhPhotoLimit') || current === i18n.t('hhPhotoLimitResolve')
+      ? (requiresPhotoReduction(photosRef.current, serverId) ? i18n.t('hhPhotoLimitResolve') : null)
+      : current);
     } catch { if (live.current && token === generation.current) setFormError(i18n.t('hhPhotoError')); }
     finally { photoGuard.current.release(); operationBusy.current = false; if (live.current && token === generation.current) setPhotoBusy(false); }
   }
 
   async function handleSave() {
-    if (!enabled || savedRef.current || operationBusy.current || !selectedHousehold || !guard.current.acquire()) return;
+    if (!enabled || savedRef.current || operationBusy.current || !selectedHousehold) return;
+    if (requiresPhotoReduction(photosRef.current, serverId)) { setFormError(i18n.t('hhPhotoLimitResolve')); return; }
+    if (!guard.current.acquire()) return;
     operationBusy.current = true; const token = generation.current; setSaving(true); setFormError(null);
     try {
     const confirmed = await requestConfirmation({
@@ -290,7 +314,7 @@ export function VisitFormScreen({ route, navigation }: any) {
       household_mobile_uuid: selectedHousehold.mobile_uuid ?? null,
       visited_at: visitedAt.toISOString(),
       notes,
-      photos,
+      photos: photosRef.current,
     }, user?.id);
     if (!live.current || token !== generation.current) return;
     savedRef.current = true; original.current = fingerprint; setSaved(true);

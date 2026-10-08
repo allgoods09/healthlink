@@ -49,7 +49,7 @@ export async function householdUiHarness(t, name, options = {}) {
     '../lib/storage': { ...h.storage, ...options.storage }, '../lib/useLocalEditor': { useLocalEditor() {} },
     '../components/KeyboardShiftView': { KeyboardShiftView: 'KeyboardShiftView' }, '../components/TopHeader': { TopHeader: 'TopHeader' },
     '../hooks/useKeyboardAwareScroll': { useKeyboardAwareScroll: () => ({ scrollRef: { current: null }, keyboardInset: 0 }) },
-    '../i18n': { i18n: { t: (key, args) => args ? `${key}:${JSON.stringify(args)}` : key } },
+    '../i18n': { i18n: options.i18n ?? { t: (key, args) => args ? `${key}:${JSON.stringify(args)}` : key } },
   };
   function load(path) {
     if (cache.has(path)) return cache.get(path);
