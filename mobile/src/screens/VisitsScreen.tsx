@@ -1,21 +1,23 @@
 import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardShiftView } from '../components/KeyboardShiftView';
-import { TopHeader } from '../components/TopHeader';
+import { RootHeader } from '../components/RootHeader';
 import { HouseholdAction, HouseholdState, householdUiStyles } from '../components/HouseholdUi';
 import { useAppContext, useAppTheme, useThemedStyles } from '../context/AppContext';
 import { i18n } from '../i18n';
 import { formatFriendlyDateTime } from '../lib/format';
+import { confirmLogout } from '../lib/confirmLogout';
 import { getVisits, getWaitingHouseholdVisits, hasHouseholdData } from '../lib/storage';
 import { normalizeHouseholdQuery } from '../lib/householdPresentation';
 import { FieldVisitRecord } from '../types';
+import { AppTheme } from '../theme';
 
 type WaitingVisit = Awaited<ReturnType<typeof getWaitingHouseholdVisits>>[number];
 
 export function VisitsScreen({ navigation }: any) {
-  const styles = useThemedStyles(householdUiStyles); const theme = useAppTheme(); const focused = useIsFocused();
-  const { user, assignment, dataVersion } = useAppContext();
+  const styles = useThemedStyles(visitStyles); const theme = useAppTheme(); const focused = useIsFocused();
+  const { user, assignment, dataVersion, unreadNotificationCount, pendingSyncCount, requestConfirmation, signOut } = useAppContext();
   const [search, setSearch] = useState(''); const [query, setQuery] = useState('');
   const [records, setRecords] = useState<FieldVisitRecord[]>([]); const [waiting, setWaiting] = useState<WaitingVisit[]>([]);
   const [state, setState] = useState('loading'); const [loadedKey, setLoadedKey] = useState(''); const [retry, setRetry] = useState(0);
@@ -38,15 +40,22 @@ export function VisitsScreen({ navigation }: any) {
   const matches = (row: FieldVisitRecord) => normalizeHouseholdQuery(`${row.household_no ?? ''} ${row.notes ?? ''}`).includes(normalizeHouseholdQuery(query));
   const history = visible ? records.filter(matches) : []; const retained = visible ? waiting.filter(matches) : [];
   return <KeyboardShiftView style={styles.screen}>
-    <TopHeader title={i18n.t('visits')} onActionPress={() => navigation.navigate('SyncTab')} />
+    <RootHeader title={i18n.t('visits')} unreadCount={unreadNotificationCount}
+      onNotificationPress={() => navigation.navigate('Notifications')}
+      onLogoutPress={() => void confirmLogout({ pendingSyncCount, requestConfirmation, signOut })} />
     <FlatList data={history.slice(0, limit)} keyExtractor={item => String(item.local_id)} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       ListHeaderComponent={<View style={{ gap: theme.spacing.md }}>
-        {visible ? <HouseholdAction primary label={i18n.t('startVisitNow')} onPress={() => navigation.navigate('VisitForm')} /> : null}
+        {visible ? <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('startVisitNow')}
+          style={styles.newVisit} onPress={() => navigation.navigate('VisitForm')}>
+          <Text style={styles.newVisitText}>{i18n.t('startVisitNow')}</Text>
+        </Pressable> : null}
         <TextInput accessibilityLabel={i18n.t('hhVisitSearch')} value={search} onChangeText={setSearch} placeholder={i18n.t('hhVisitSearch')}
           placeholderTextColor={theme.colors.placeholder} style={styles.input} />
-        {retained.length ? <View><Text accessibilityRole="header" style={styles.title}>{i18n.t('hhRetainedVisits')}</Text>
+        {retained.length ? <View style={styles.retained}><Text accessibilityRole="header" style={styles.title}>{i18n.t('hhRetainedVisits')}</Text>
           {retained.slice(0, waitingLimit).map(visit => <View key={visit.local_id} style={styles.card}>
-            <Text style={styles.text}>{visit.household_no}</Text><Text style={styles.helper}>{formatFriendlyDateTime(visit.visited_at) ?? visit.visited_at}</Text>
+            <Text style={styles.recordTitle}>{visit.household_no}</Text>
+            <Text style={styles.helper}>{i18n.t('hhVisitDateLabel')} {formatFriendlyDateTime(visit.visited_at) ?? visit.visited_at}</Text>
+            <Text style={styles.helper}>{i18n.t('hhVisitBhwLabel')} {visit.recorded_by_name || i18n.t('hhRecorderUnknown')}</Text>
             <Text style={styles.statusText}>{i18n.t(visit.waiting_status === 'rejected' ? 'hhVisitRejected' : visit.waiting_status === 'approved' ? 'hhVisitApproved' : visit.waiting_status === 'protected' ? 'hhVisitProtected' : 'hhVisitWaiting')}</Text>
             {visit.verification_notes ? <Text style={styles.helper}>{visit.verification_notes}</Text> : null}
             <Text style={styles.helper}>{visit.notes ? visit.notes.slice(0, 180) : i18n.t('noNotesSaved')}</Text>
@@ -54,19 +63,55 @@ export function VisitsScreen({ navigation }: any) {
           </View>)}
           {waitingLimit < retained.length ? <HouseholdAction label={i18n.t('hhShowMore')} onPress={() => setWaitingLimit(value => value + 5)} /> : null}
         </View> : null}
-        <Text accessibilityRole="header" style={styles.title}>{i18n.t('visitHistoryTitle')}</Text>
+        <View style={styles.sectionRow}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{i18n.t('visitHistoryTitle')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('sync')} style={styles.inlineAction}
+            onPress={() => navigation.navigate('SyncTab')}><Text style={styles.actionText}>{i18n.t('sync')}</Text></Pressable>
+        </View>
       </View>}
       ListEmptyComponent={<HouseholdState message={i18n.t(!focused || loadedKey !== key || state === 'loading' ? 'loading' : state === 'error' ? 'savedRecordsError' : state === 'refresh' ? 'hhRefresh' : query.trim() ? 'noMatchingRecords' : 'noRecentVisits')}
         error={state === 'error'} retry={state === 'error' ? () => setRetry(value => value + 1) : undefined} />}
       ListFooterComponent={limit < history.length ? <HouseholdAction label={i18n.t('hhShowMore')} onPress={() => setLimit(value => value + 30)} /> : null}
       renderItem={({ item }) => <View style={styles.card}>
-        <Text style={styles.title}>{item.household_no ?? i18n.t('noHouseholdNumber')}</Text>
-        <Text style={styles.statusText}>{i18n.t(item.sync_status === 'synced' ? 'hhVisitSynced' : 'hhVisitPending')}</Text>
-        <Text style={styles.text}>{formatFriendlyDateTime(item.visited_at) ?? item.visited_at}</Text>
-        <Text style={styles.helper}>{item.recorded_by_name ? i18n.t('hhRecorder', { name: item.recorded_by_name }) : i18n.t('hhRecorderUnknown')}</Text>
+        <View style={styles.recordHeading}>
+          <Text style={styles.recordTitle}>{item.household_no ?? i18n.t('noHouseholdNumber')}</Text>
+          <Text style={styles.recordStatus}>{i18n.t(item.sync_status === 'synced' ? 'hhVisitSynced' : 'hhVisitPending')}</Text>
+        </View>
+        <Text style={styles.helper}>{i18n.t('hhVisitDateLabel')} {formatFriendlyDateTime(item.visited_at) ?? item.visited_at}</Text>
+        <Text style={styles.helper}>{i18n.t('hhVisitBhwLabel')} {item.recorded_by_name || i18n.t('hhRecorderUnknown')}</Text>
         <Text style={styles.helper}>{item.notes ? item.notes.slice(0, 180) : i18n.t('noNotesSaved')}</Text>
-        <Text style={styles.helper}>{i18n.t('photoCountLabel', { count: item.photos.length })}</Text>
-        <HouseholdAction label={i18n.t('viewDetails')} onPress={() => navigation.navigate('VisitForm', { localId: item.local_id })} />
+        <View style={styles.recordFooter}>
+          <Text style={styles.photoCount}>{i18n.t('photoCountLabel', { count: item.photos.length })}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={i18n.t('viewDetails')} style={styles.inlineAction}
+            onPress={() => navigation.navigate('VisitForm', { localId: item.local_id })}>
+            <Text style={styles.actionText}>{i18n.t('viewDetails')} {'>'}</Text>
+          </Pressable>
+        </View>
       </View>} />
   </KeyboardShiftView>;
 }
+
+const visitStyles = (theme: AppTheme) => StyleSheet.create({
+  ...householdUiStyles(theme),
+  content: { padding: 16, paddingBottom: 32, gap: 12 },
+  newVisit: { minHeight: 50, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 6,
+    backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' },
+  newVisitText: { color: theme.colors.textOnPrimary, fontSize: 16, lineHeight: 24, fontWeight: '600', textAlign: 'center' },
+  input: { minHeight: 50, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 6, borderWidth: 1,
+    borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground, color: theme.colors.text, fontSize: 16 },
+  card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: 8, padding: 14, gap: 6 },
+  title: { color: theme.colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
+  retained: { gap: 12 },
+  sectionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  sectionTitle: { color: theme.colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600', flexGrow: 1, flexShrink: 1 },
+  recordHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
+  recordTitle: { color: theme.colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  recordStatus: { color: theme.colors.primary, fontSize: 13, lineHeight: 20, fontWeight: '600', flexShrink: 1, maxWidth: '100%' },
+  helper: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 22, flexShrink: 1 },
+  recordFooter: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  photoCount: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 22, flexGrow: 1, flexShrink: 1 },
+  inlineAction: { minHeight: 48, minWidth: 48, maxWidth: '100%', paddingHorizontal: 4,
+    paddingVertical: 12, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
+  actionText: { color: theme.colors.primary, fontSize: 14, lineHeight: 22, fontWeight: '600', flexShrink: 1 },
+});

@@ -52,7 +52,7 @@ for (const number of ['0002', '0002-A', 'B-02']) {
       const payload = download(number);
       const h = await householdUiHarness(t, 'Visits', { payload, setup: correction(status) });
       const before = await databaseRows(h);
-      assert.equal(h.cards()[0].props.children[0].props.children[0], number);
+      assert.equal(h.texts(h.cards()[0].props.children[0].props.children[0]), number);
       assert.doesNotMatch(h.texts(h.cards()), /PROPOSED-10|Unapproved address/);
       const visits = await h.storage.getVisits(number);
       assert.equal(visits.length, 1); assert.equal(visits[0].household_no, number);
@@ -98,7 +98,7 @@ test('V-04 submitted correction keeps the baseline; authoritative approval refre
   approved.households[0].household_address = 'Secretary approved address';
   approved.households[0].base_snapshot.household_address = 'Secretary approved address';
   await h.storage.replaceBootstrapData(approved); h.context.dataVersion++; await h.settle();
-  assert.equal(h.cards()[0].props.children[0].props.children[0], '0010-B');
+  assert.equal(h.texts(h.cards()[0].props.children[0].props.children[0]), '0010-B');
   assert.equal((await h.storage.getVisits('0010-B')).length, 1);
   assert.equal((await h.storage.getVisits('0002-A')).length, 0);
   assert.equal((await h.storage.getVisits(proposed)).length, 0);

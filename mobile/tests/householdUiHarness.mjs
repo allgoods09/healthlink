@@ -40,7 +40,7 @@ export async function householdUiHarness(t, name, options = {}) {
     StyleSheet: { create: value => value, absoluteFill: { position: 'absolute' }, hairlineWidth: 1 } });
   const libs = {
     react, 'react-native': rn, '@react-navigation/native': { useIsFocused: () => focused, usePreventRemove: (blocked, callback) => { removal = { blocked, callback }; } },
-    '@expo/vector-icons': { Ionicons: 'Ionicons' }, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 20 }) },
+    '@expo/vector-icons': { Ionicons: 'Ionicons' }, 'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 24, bottom: 20 }) },
     '@react-native-community/datetimepicker': { DateTimePickerAndroid: { open(value) { pickers.push(value); } } },
     'expo-camera': { CameraView: props => { props.ref.current = { takePictureAsync: options.capture ?? (async () => ({ uri: 'file:///camera.jpg', base64: 'photo' })) }; return { type: 'CameraView', props }; },
       useCameraPermissions: () => [{ granted: true }, async () => ({ granted: true })] },
